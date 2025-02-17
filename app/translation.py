@@ -1,45 +1,32 @@
-# app/translation.py
+# app/__init__.py
 import os
-import json
-from flask import session, request, redirect, url_for
+from flask import Flask, g, abort, request
+from app.extensions import db_session, DBModel
+from app.translation import get_pagetext
 
-LangSet = ['en', 'zh']
 
-def set_lang(lang):
-    # 将选择的语言存储到 session 中
-    if lang in LangSet:
-        session['language'] = lang
-        # 清除缓存的 translations
-    else:
-        print(f"Invalid language parameter: {lang}")  # 调试日志
-    return redirect(request.referrer or url_for('index'))  # 重定向回上一页
 
-def get_lang():
-    # 获取用户首选语言
-    lang = session.get('language')
-    if not lang:
-        # 使用浏览器的 Accept-Language 头
-        lang = request.accept_languages.best_match(LangSet)
-        print(f"Detected browser language: {lang}")  # 调试日志
-        # 默认使用英文
-        session['language'] = lang or 'en'
-    return session.get('language')
+def create_app():
+    app = Flask(__name__)
+    
+    from config import Config
+    app.config.from_object(Config)
 
-def get_pagetext(locales):
-    lang = get_lang()
-    if lang in LangSet:
-        BASE_DIR = os.path.join(os.getcwd(), 'app', 'base', 'static', 'pagetext')
-        pagetext = {}
-        if locales and len(locales) > 0:
-            try:
-                for locale in locales:
-                    filepath = os.path.join(BASE_DIR, f'{locale}_{lang}.json')
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        jsonData = json.load(f)
-                    pagetext.update(jsonData)
-                    print(f'locale: {locale}\n')
-                    print(pagetext)
-                return pagetext
-            except FileNotFoundError:
-                print(f"pagetext file {filepath} not found")  # 调试日志
-            return None
+    # 注册蓝图
+    from app.base import base_bp
+    app.register_blueprint(base_bp)
+
+    # 请求前确认翻译文件正确读取
+    @app.before_request
+    def before_request():
+        bp_name = request.blueprint.removeprefix('base.').lower()
+        locale_names = ['locale']
+        if set([bp_name]).issubset(set(map(str.lower, Config.LOCALES))):
+            locale_names = locale_names + [bp_name]
+        g.PageText = get_pagetext(locale_names)
+        if not g.PageText:
+            # 如果翻译文件读取失败，返回错误信息
+            print(f'Fail to load pagetext. {locale_names}')
+            abort(404)
+
+    return app
