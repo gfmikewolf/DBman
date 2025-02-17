@@ -23,7 +23,6 @@ def create_app():
         locale_names = ['locale']
         if set([bp_name]).issubset(set(map(str.lower, Config.LOCALES))):
             locale_names = locale_names + [bp_name]
-        print(f'bp_name: {bp_name}, locale_names: {locale_names}, Config.LOCALES: {Config.LOCALES}\n')
         g.PageText = get_pagetext(locale_names)
         if not g.PageText:
             # 如果翻译文件读取失败，返回错误信息
