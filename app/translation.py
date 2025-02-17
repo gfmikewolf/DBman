@@ -5,7 +5,7 @@ from flask import session, request, redirect, url_for
 
 LangSet = ['en', 'zh']
 
-def set_language(lang):
+def set_lang(lang):
     # 将选择的语言存储到 session 中
     if lang in LangSet:
         session['language'] = lang
@@ -14,7 +14,7 @@ def set_language(lang):
         print(f"Invalid language parameter: {lang}")  # 调试日志
     return redirect(request.referrer or url_for('index'))  # 重定向回上一页
 
-def get_locale():
+def get_lang():
     # 获取用户首选语言
     lang = session.get('language')
     if not lang:
@@ -25,15 +25,21 @@ def get_locale():
         session['language'] = lang or 'en'
     return session.get('language')
 
-def get_pagetext(BASE_DIR, page):
-    lang = get_locale()
+def get_pagetext(locales):
+    lang = get_lang()
     if lang in LangSet:
-        PageTextPath = os.path.join(BASE_DIR, 'static', 'pagetext', f'{page}_{lang}.json')
+        BASE_DIR = os.path.join(os.getcwd(), 'app', 'base', 'static', 'pagetext')
         pagetext = {}
-        try:
-            with open(PageTextPath, 'r', encoding='utf-8') as f:
-                pagetext = json.load(f)
+        if locales and len(locales) > 0:
+            try:
+                for locale in locales:
+                    filepath = os.path.join(BASE_DIR, f'{locale}_{lang}.json')
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        jsonData = json.load(f)
+                    pagetext.update(jsonData)
+                    print(f'locale: {locale}\n')
+                    print(pagetext)
                 return pagetext
-        except FileNotFoundError:
-            print(f"pagetext file {PageTextPath} not found")  # 调试日志
+            except FileNotFoundError:
+                print(f"pagetext file {filepath} not found")  # 调试日志
             return None
