@@ -16,17 +16,9 @@
 	"Search": "搜索",
 	"TableHeads": "表头",
 	"Admin": {
-		"PageTitle": "数据库增删改查",
-		"My Databases": "我的数据库",
-		"My Reports": "我的报表",
-		"ViewTable": {
-			"View Records of": "查看记录",
-			"Actions": "操作",
-			"WarningDelete": "确定要删除该条记录吗？"
-		},
-		"TableConfig": {
-			"RestoreDefault": "恢复默认设置",
-			"ConfigureTableColumns": "表格选项"
-		}
+		"PageTitle": "数据库增删改查"
+	},
+	"ContractMgmt": {
+		"PageTitle": "合同管理"
 	}
 }
