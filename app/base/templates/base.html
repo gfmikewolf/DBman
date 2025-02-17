@@ -1,0 +1,43 @@
+<!-- app/base/templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+	<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+	<link rel="stylesheet" href="{{ url_for('base.static', filename='css/styles.css') }}">
+    <title>{% block title %}{{ PageText['PageTitle'] }}{% endblock %}</title>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="button-container d-flex flex-wrap">
+            {% if prev_page != None %}
+			<a href="{{ prev_page }}" class="btn btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ PageText['Back'] }}"><i class="fa fa-arrow-left"></i></a>
+            <a href="/" class="btn btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ PageText['Redirect to Homepage'] }}"><i class="fa fa-house"></i></a>
+            {% endif %}
+            {% if session.get('language') == 'en' %}
+            <!-- 如果当前语言是英文，显示中文切换按钮 -->
+            <a href="/lang/zh" class="btn btn-sm">
+                简中
+            </a>
+            {% else %}
+            <!-- 如果当前语言是中文，显示英文切换按钮 -->
+            <a href="/lang/en" class="btn btn-sm">
+                En
+            </a>
+            {% endif %}
+        </div>        
+        <nav class="navbar navbar-expand-lg navbar-light bg-light" data-toggleable>
+            <div class="container">
+				<a class="navbar-brand" href="{{ APP_index }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ APP_title }}">{{ APP_title }}</a>
+            </div>
+        </nav>
+        {% block content %}{% endblock %}
+    </div>
+    <script src="{{ url_for('base.static', filename='js/scripts.js') }}"></script>
+	{% block scripts %}{% endblock %}
+</body>
+</html>

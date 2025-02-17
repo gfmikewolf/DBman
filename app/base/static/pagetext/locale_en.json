@@ -1,0 +1,32 @@
+{
+	"__filename__": "app/base/static/pagetext/locale_en.json",
+	"__description__": "This file contains the text for the pages of the application. ",
+	"PageTitle": "MJ DB Admin",
+	"Back": "Back",
+	"Redirect to Homepage": "Redirect to Homepage",
+	"APPs": "APPs",
+	"Download": "Download",
+	"File": "File",
+	"Add": "Add",
+	"Record": "Record",
+	"Modify": "Modify",
+	"Delete": "Delete",
+	"Cancel": "Cancel",
+	"Search": "Search",
+	"SaveChanges": "Save Changes",
+	"TableHeads": "Table Heads",
+	"Admin": {
+		"PageTitle": "Database CRUD",
+		"My Databases": "My Databases",
+		"My Reports": "My Reports",
+		"ViewTable": {
+			"View Records of": "View Records of",
+			"Actions": "Actions",
+			"WarningDelete": "Are you sure of deleting the record?"
+		},
+		"TableConfig": {
+			"RestoreDefault": "Restore Default Config",
+			"ConfigureTableColumns": "Configure Table Columns"
+		}
+	}
+}

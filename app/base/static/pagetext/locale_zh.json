@@ -1,0 +1,32 @@
+{
+	"__filename__": "app/base/static/pagetext/locale_en.json",
+	"__description__": "本文件包含应用程序页面的文本。",
+	"PageTitle": "龙瑾数据库管理",
+	"Back": "返回上一页",
+	"Redirect to Homepage": "返回首页",
+	"APPs": "所有应用",
+	"Download": "下载",
+	"File": "文件",
+	"Add": "添加",
+	"Record": "记录",
+	"Modify": "修改",
+	"Delete": "删除",
+	"Cancel": "取消",
+	"SaveChanges": "保留更改",
+	"Search": "搜索",
+	"TableHeads": "表头",
+	"Admin": {
+		"PageTitle": "数据库增删改查",
+		"My Databases": "我的数据库",
+		"My Reports": "我的报表",
+		"ViewTable": {
+			"View Records of": "查看记录",
+			"Actions": "操作",
+			"WarningDelete": "确定要删除该条记录吗？"
+		},
+		"TableConfig": {
+			"RestoreDefault": "恢复默认设置",
+			"ConfigureTableColumns": "表格选项"
+		}
+	}
+}

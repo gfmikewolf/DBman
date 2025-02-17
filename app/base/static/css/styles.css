@@ -1,0 +1,62 @@
+/* app/base/static/css/styles.css */
+
+/* 滚动容器样式 */
+.table-responsive {
+    max-height: 500px;
+    overflow-x: auto;
+}
+
+.table-responsive.maximized {
+    max-height: none;
+    height: 100vh;
+    overflow: auto;
+}
+
+/* 固定前两列 */
+#data_table th:nth-child(1),
+#data_table td:nth-child(1),
+#data_table th:nth-child(2),
+#data_table td:nth-child(2) {
+    position: sticky;
+    left: 0;
+    background-color: white; /* Ensure the background color matches the table */
+    z-index: 1; /* Ensure the columns are above other content */
+}
+#data_table th:nth-child(1),
+#data_table td:nth-child(1) {
+    left: 0px; /* Adjust this value based on the width of the first column */
+    min-width: 22px; /* Set the minimum width */
+    width: 22px; /* Set the fixed width */
+}
+#data_table th:nth-child(2),
+#data_table td:nth-child(2) {
+    left: 22px; /* Adjust this value based on the width of the first column */
+    min-width: 50px; /* Set the minimum width */
+    width: 50px; /* Set the fixed width */
+}
+
+/* 按钮大小适配 */
+@media (max-width: 768px) {
+    .table-responsive {
+        max-height: 1000px;
+            }
+
+    .table-responsive thead.sticky-top {
+        z-index: 2; /* Ensure the header is above other content */
+    }
+}
+
+/* Ensure dropdown menu has higher z-index */
+.dropdown-menu {
+    z-index: 1050; /* Higher than the sticky headers */
+}
+
+/* Style for active toggle button */
+#toggle_maximize.active {
+    background-color: black;
+    color: white;
+}
+
+#search_query {
+    max-width: 200px;
+}
