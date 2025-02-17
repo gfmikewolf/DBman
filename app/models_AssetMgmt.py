@@ -1,8 +1,9 @@
 # app/model_AssetMan.py
 from typing import List, Type, Set
-from sqlalchemy import ForeignKey, create_engine, select, inspect
+from sqlalchemy import ForeignKey, create_engine, select, inspect, Date
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, synonym
 from sqlalchemy.orm import Session
+from datetime import date
 
 class Base(DeclarativeBase):
     """ 返回实例的字典，data_type默认是'raw'。
@@ -136,7 +137,7 @@ class Currency(Base):
 class Expense(ForeignKeyMixin, Base):
     __tablename__ = 'expense'
     expense_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
-    expense_date: Mapped[str]
+    expense_date: Mapped[date] = mapped_column(Date)
     expense_amount: Mapped[float] = mapped_column(default=0.0)
     currency_id: Mapped[str] = mapped_column(ForeignKey('currency.currency_id'), default='AED')
     expense_remarks: Mapped[str | None] = mapped_column(nullable=True)
