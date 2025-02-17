@@ -19,9 +19,9 @@ def create_app():
     # 请求前确认翻译文件正确读取
     @app.before_request
     def before_request():
-        bp_name = request.blueprint.removeprefix('base.')
+        bp_name = request.blueprint.removeprefix('base.').lower()
         locale_names = ['locale']
-        if set([bp_name]).issubset(set(Config.LOCALES)):
+        if set([bp_name]).issubset(set(map(str.lower, Config.LOCALES))):
             locale_names = locale_names + [bp_name]
         print(f'bp_name: {bp_name}, locale_names: {locale_names}, Config.LOCALES: {Config.LOCALES}\n')
         g.PageText = get_pagetext(locale_names)
