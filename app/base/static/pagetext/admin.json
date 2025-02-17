@@ -1,0 +1,16 @@
+{	
+	"Admin": {
+		"PageTitle": "Database CRUD",
+		"My Databases": "My Databases",
+		"My Reports": "My Reports",
+		"ViewTable": {
+			"View Records of": "View Records of",
+			"Actions": "Actions",
+			"WarningDelete": "Are you sure of deleting the record?"
+		},
+		"TableConfig": {
+			"RestoreDefault": "Restore Default Config",
+			"ConfigureTableColumns": "Configure Table Columns"
+		}
+	}
+}
