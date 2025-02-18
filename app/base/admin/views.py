@@ -1,11 +1,9 @@
 # app/base/admin/views.py
 import io
-import os
 import csv
-from flask import g, render_template, session, url_for, redirect, request, jsonify, make_response
+from flask import g, render_template, session, request, make_response
 from sqlalchemy import select
-from app.extensions import db_session, DBModel
-from app.translation import get_pagetext
+from app.extensions import db_session, DBModel, ForeignKeyMixin
 
 def admin_index():
     table_names = DBModel.keys()
@@ -22,8 +20,18 @@ def view_table(table_name):
     return render_template('admin/view_table.html', table_names=DBModel.keys(), table_name=table_name, theads=theads, models=models, PageText=g.PageText)
 
 def modify_record(table_name, item_id):
-    table_names = DBModel.keys()
-    return render_template('admin/view_table.html', PageText=g.PageText, table_names=table_names)
+    if table_name not in DBModel:
+        return 'Table not found', 404
+    Model = DBModel[table_name]
+   
+    mod_props = Model.get_properties(exclude_info={'readonly'})
+    
+    with db_session() as sess:
+        options_fk = {}
+        if issubclass(Model, ForeignKeyMixin):
+            options_fk = Model.get_options_fk(sess)
+        model = session.scalar(select(Model))
+    return render_template('admin/modify_item.html', PageText=g.PageText, table_name=table_name, model=model, mod_props=mod_props)
 
 def delete_record(table_name, item_id):
     table_names = DBModel.keys()
