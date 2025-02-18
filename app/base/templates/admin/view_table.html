@@ -44,7 +44,7 @@
         <input id="search_query" class="form-control form-control-sm" type="search" placeholder="{{ PageText['Search'] }}" aria-label="{{ PageText['Search'] }}">
         <button id="search" class="btn btn-sm btn-outline-dark"><i class="fa fa-search"></i></button>
     </div>
-    <button class="btn btn-sm btn-outline-dark"><i class="fa fa-plus"></i></button>
+    <a href="{{ url_for('base.admin.modify_record', table_name=table_name, item_id=0)}}" class="btn btn-sm btn-outline-dark"><i class="fa fa-plus"></i></a>
 </div>
 <div class="table-responsive" data-table>
     <table class="table table-hover table-sm enable-check-all" id="data_table">
@@ -65,8 +65,8 @@
                 </td>
                 <td>
                     <div class="btn-group" role="group">
-                        <button class="btn btn-sm btn-outline-dark"><i class="fa fa-edit"></i></button>&nbsp;
-                        <button class="btn btn-sm btn-outline-dark"><i class="fa fa-trash"></i></button>
+                        <a href="{{ url_for('base.admin.modify_record', table_name=table_name, item_id=model.id)}}" class="btn btn-sm btn-outline-dark"><i class="fa fa-edit"></i></a>&nbsp;
+                        <a href="{{ url_for('base.admin.delete_record', table_name=table_name, item_id=model.id)}}" class="btn btn-sm btn-outline-dark"><i class="fa fa-trash"></i></a>
                     </div>
                 </td>
                 {% set data_dict = model.data_dict(data_style='rel_name') %}
