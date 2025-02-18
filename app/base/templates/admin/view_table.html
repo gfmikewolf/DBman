@@ -97,11 +97,14 @@
                     <div class="card-body" id="tableConfigTHeadsBody">
                         <div class="list-group" id="tableConfigTHeadsList">
                             {% for thead in theads %}
-                            <li class="list-group-item list-group-item-action draggable " draggable="true">
-                                <input class="form-check-input" type="checkbox" value="{{ thead }}" id="column_{{ loop.index }}" checked>
-                                <label class="form-check-label stretched-link" for="column_{{ loop.index }}">
-                                    {{ thead }}
-                                </label>
+                            <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center draggableList">
+                                <div>
+                                    <input class="form-check-input" type="checkbox" value="{{ thead }}" id="column_{{ loop.index }}" checked>
+                                    <label class="form-check-label" for="column_{{ loop.index }}">
+                                        {{ thead }}
+                                    </label>
+                                </div>
+                                <span class="handle draggable" id="handle_{{ loop.index }}"><i class="fa fa-bars"></i></span> <!-- 添加拖拽手柄 -->
                             </li>
                             {% endfor %}
                         </div>

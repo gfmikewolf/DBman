@@ -2,13 +2,15 @@
 
 // 添加事件监听器，当 DOM 加载完成时执行以下代码
 document.addEventListener('DOMContentLoaded', function () {
-    
-    if (document.querySelector('[data-enable-check-all], .enable-check-all')) {
-        initializeCheckAll();
+    const containers = document.querySelectorAll('[data-enable-check-all], .enable-check-all');
+    if (containers) {
+        initializeCheckAll(containers);
     }
     
-    if (document.getElementById('data_table')) {
-        initializeRowClick();
+    const data_table = document.getElementById('data_table');
+    const data_tbody = data_table.querySelector('tbody');
+    if (data_table, data_tbody) {
+        initializeRowClick(data_table, data_tbody);
     }
     
     // 初始化表格头、表格设置功能
@@ -69,9 +71,8 @@ function initializeSearch(search_query, search_btn) {
 }
 
 // initializeCheckAll() 函数用于初始化全选复选框功能
-function initializeCheckAll() {
+function initializeCheckAll(containers) {
     // 获取所有包含 enable-check-all 的容器
-    const containers = document.querySelectorAll('[data-enable-check-all], .enable-check-all');
     containers.forEach(container => {
         // 找到容器内的总开关（check-all）
         const checkAll = container.querySelector('[data-check-all], .check-all');
@@ -101,9 +102,7 @@ function initializeCheckAll() {
 }
 
 // initializeRowClick() 函数用于初始化表格行点击事件
-function initializeRowClick() {
-    const table = document.getElementById('data_table');
-    const tbody = table.querySelector('tbody');
+function initializeRowClick(table, tbody) {
     // 为表格的每一行添加点击事件监听器
     tbody.addEventListener('click', function (e) {
         const target = e.target.closest('tr'); // 找到最近的 <tr> 元素
@@ -239,65 +238,103 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
     });
 
     // Drag and drop functionality for reordering columns
-    const draggables = document.querySelectorAll('#tableConfigTHeadsList .draggable');
-    const container = document.querySelector('#tableConfigTHeadsList');
+    var draggables = document.querySelectorAll('#tableConfigTHeadsList .draggable');
+    var container = document.querySelector('#tableConfigTHeadsList');
 
     draggables.forEach(draggable => {
-        draggable.addEventListener('dragstart', () => {
-            draggable.classList.add('dragging');
+        draggable.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const parentLi = draggable.parentElement; // 获取手柄的父元素 <li>
+            parentLi.classList.add('dragging');
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
         });
 
-        draggable.addEventListener('dragend', () => {
-            draggable.classList.remove('dragging');
-        });
-
-        // Add touch event listeners for mobile support
         draggable.addEventListener('touchstart', (e) => {
-            draggable.classList.add('dragging'); // 添加拖拽中的样式
-            const touch = e.touches[0]; // 获取第一个触摸点
-            const rect = draggable.getBoundingClientRect(); // 获取拖拽元素的边界矩形
-            draggable.style.position = 'absolute'; // 设置拖拽元素的定位方式为绝对定位
-            draggable.style.zIndex = '1000'; // 确保拖拽元素在最上层
-            draggable.style.left = `${touch.clientX - rect.width / 2}px`; // 设置拖拽元素的水平位置，使其中心在触摸点
-            draggable.style.top = `${touch.clientY - rect.height / 2}px`; // 设置拖拽元素的垂直位置，使其中心在触摸点
-            document.body.appendChild(draggable); // 将拖拽元素附加到 body 以避免裁剪
+            e.preventDefault();
+            const parentLi = draggable.parentElement; // 获取手柄的父元素 <li>
+            parentLi.classList.add('dragging');
+            const touch = e.touches[0];
+            const rect = parentLi.getBoundingClientRect();
+            const offsetX = touch.clientX - rect.left;
+            const offsetY = touch.clientY - rect.top;
+            parentLi.style.position = 'absolute';
+            parentLi.style.zIndex = '1000';
+            parentLi.dataset.offsetX = offsetX;
+            parentLi.dataset.offsetY = offsetY;
+            document.addEventListener('touchmove', onTouchMove);
+            document.addEventListener('touchend', onTouchEnd);
         });
 
-        draggable.addEventListener('touchmove', (e) => {
-            const touch = e.touches[0]; // 获取第一个触摸点
-            draggable.style.left = `${touch.clientX - draggable.offsetWidth / 2}px`; // 更新拖拽元素的水平位置，使其中心在触摸点
-            draggable.style.top = `${touch.clientY - draggable.offsetHeight / 2}px`; // 更新拖拽元素的垂直位置，使其中心在触摸点
-            const afterElement = getDragAfterElement(container, touch.clientY); // 获取拖拽元素应该插入的位置
+        function onMouseMove(e) {
+            const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
+            const rect = parentLi.getBoundingClientRect();
+            parentLi.style.left = `${e.clientX - rect.width / 2}px`;
+            parentLi.style.top = `${e.clientY - rect.height / 2}px`;
+            const afterElement = getDragAfterElement(container, e.clientY);
+            console.log(container);
+            console.log(parentLi);
             if (afterElement == null) {
-                container.appendChild(draggable); // 如果没有找到插入位置，则将拖拽元素附加到容器末尾
+                container.appendChild(parentLi);
             } else {
-                container.insertBefore(draggable, afterElement); // 否则，将拖拽元素插入到正确的位置
+                container.insertBefore(parentLi, afterElement);
             }
-        });
+        }
 
-        draggable.addEventListener('touchend', () => {
-            draggable.classList.remove('dragging'); // 移除拖拽中的样式
-            draggable.style.position = ''; // 重置拖拽元素的定位方式
-            draggable.style.zIndex = ''; // 重置 z-index
-            draggable.style.left = ''; // 重置水平位置
-            draggable.style.top = ''; // 重置垂直位置
-            container.appendChild(draggable); // 将拖拽元素重新附加到容器中以保持顺序
-        });
+        function onMouseUp() {
+            const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
+            parentLi.classList.remove('dragging');
+            parentLi.style.position = '';
+            parentLi.style.zIndex = '';
+            parentLi.style.left = '';
+            parentLi.style.top = '';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        }
+
+        function onTouchMove(e) {
+            const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
+            const touch = e.touches[0];
+            const offsetX = parseFloat(parentLi.dataset.offsetX);
+            const offsetY = parseFloat(parentLi.dataset.offsetY);
+            parentLi.style.left = `${touch.clientX - offsetX}px`;
+            parentLi.style.top = `${touch.clientY - offsetY}px`;
+            const afterElement = getDragAfterElement(container, touch.clientY);
+
+            if (afterElement == null) {
+                container.appendChild(parentLi);
+            } else {
+                container.insertBefore(parentLi, afterElement);
+            }
+        }
+
+        function onTouchEnd() {
+            const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
+            parentLi.classList.remove('dragging');
+            parentLi.style.position = '';
+            parentLi.style.zIndex = '';
+            parentLi.style.left = '';
+            parentLi.style.top = '';
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+        }
     });
 
+    /*
     container.addEventListener('dragover', e => {
         e.preventDefault();
         const afterElement = getDragAfterElement(container, e.clientY);
         const draggable = document.querySelector('.dragging');
-        if (afterElement == null) {
-            container.appendChild(draggable);
-        } else {
-            container.insertBefore(draggable, afterElement);
+        console.log(draggable);
+        console.log(afterElement);
+        console.log(draggable.parentNode);
+        if (draggable !== null) {
+            afterElement === null ? container.appendChild(draggable.parentNode) : container.insertBefore(draggable.parentNode, afterElement);
         }
     });
-
+*/
     function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
+        const draggableElements = [...container.querySelectorAll('.draggableList:not(.dragging)')];
 
         return draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();

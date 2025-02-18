@@ -19,7 +19,8 @@ def create_app():
     # 请求前确认翻译文件正确读取
     @app.before_request
     def before_request():
-        bp_name = request.blueprint.removeprefix('base.').lower()
+        current_bp = request.blueprint
+        bp_name = request.blueprint.removeprefix('base.').lower() if current_bp else 'admin'
         locale_names = ['locale']
         if set([bp_name]).issubset(set(map(str.lower, Config.LOCALES))):
             locale_names = locale_names + [bp_name]
