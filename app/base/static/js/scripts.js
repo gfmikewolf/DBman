@@ -132,7 +132,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
 
     // 保存原始复选框状态和顺序
     document.querySelectorAll('#tableConfigTHeadsList .form-check-input').forEach(function(checkbox) {
-        originalOrder.push(checkbox.parentNode);
+        originalOrder.push(checkbox.parentElement);
         originalCheckboxState.push({ id: checkbox.id, checked: checkbox.checked });
     });
 
@@ -152,7 +152,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
         initialOrder = [];
         document.querySelectorAll('#tableConfigTHeadsBody .form-check-input').forEach(function(checkbox) {
             initialCheckboxState.push({ id: checkbox.id, checked: checkbox.checked });
-            initialOrder.push(checkbox.parentNode);
+            initialOrder.push(checkbox.parentElement);
         });
         myModal.show();
     });
@@ -209,7 +209,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
         var tableConfigTHeadsList = document.getElementById('tableConfigTHeadsList');
         tableConfigTHeadsList.innerHTML = '';
         originalOrder.forEach(function(element) {
-            tableConfigTHeadsList.appendChild(element);
+            tableConfigTHeadsList.appendChild(element.parentElement);
         });
     });
 
@@ -226,7 +226,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
             var tableConfigTHeadsList = document.getElementById('tableConfigTHeadsList');
             tableConfigTHeadsList.innerHTML = '';
             initialOrder.forEach(function(element) {
-                tableConfigTHeadsList.appendChild(element);
+                tableConfigTHeadsList.appendChild(element.parentElement);
             });
 
             // Blur the currently focused element before hiding the modal
@@ -246,6 +246,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
             e.preventDefault();
             const parentLi = draggable.parentElement; // 获取手柄的父元素 <li>
             parentLi.classList.add('dragging');
+            parentLi.classList.add('active');
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
         });
@@ -254,26 +255,15 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
             e.preventDefault();
             const parentLi = draggable.parentElement; // 获取手柄的父元素 <li>
             parentLi.classList.add('dragging');
-            const touch = e.touches[0];
-            const rect = parentLi.getBoundingClientRect();
-            const offsetX = touch.clientX - rect.left;
-            const offsetY = touch.clientY - rect.top;
-            parentLi.style.position = 'absolute';
-            parentLi.style.zIndex = '1000';
-            parentLi.dataset.offsetX = offsetX;
-            parentLi.dataset.offsetY = offsetY;
+            parentLi.classList.add('active');
             document.addEventListener('touchmove', onTouchMove);
             document.addEventListener('touchend', onTouchEnd);
         });
 
         function onMouseMove(e) {
             const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
-            const rect = parentLi.getBoundingClientRect();
-            parentLi.style.left = `${e.clientX - rect.width / 2}px`;
-            parentLi.style.top = `${e.clientY - rect.height / 2}px`;
-            const afterElement = getDragAfterElement(container, e.clientY);
-            console.log(container);
-            console.log(parentLi);
+            // 记录鼠标按下时的相对位置
+            afterElement = getDragAfterElement(container, e.clientY)
             if (afterElement == null) {
                 container.appendChild(parentLi);
             } else {
@@ -284,10 +274,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
         function onMouseUp() {
             const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
             parentLi.classList.remove('dragging');
-            parentLi.style.position = '';
-            parentLi.style.zIndex = '';
-            parentLi.style.left = '';
-            parentLi.style.top = '';
+            parentLi.classList.remove('active');
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
         }
@@ -295,10 +282,6 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
         function onTouchMove(e) {
             const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
             const touch = e.touches[0];
-            const offsetX = parseFloat(parentLi.dataset.offsetX);
-            const offsetY = parseFloat(parentLi.dataset.offsetY);
-            parentLi.style.left = `${touch.clientX - offsetX}px`;
-            parentLi.style.top = `${touch.clientY - offsetY}px`;
             const afterElement = getDragAfterElement(container, touch.clientY);
 
             if (afterElement == null) {
@@ -311,28 +294,12 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
         function onTouchEnd() {
             const parentLi = document.querySelector('.dragging'); // 获取正在拖拽的 <li> 元素
             parentLi.classList.remove('dragging');
-            parentLi.style.position = '';
-            parentLi.style.zIndex = '';
-            parentLi.style.left = '';
-            parentLi.style.top = '';
+            parentLi.classList.remove('active');
             document.removeEventListener('touchmove', onTouchMove);
             document.removeEventListener('touchend', onTouchEnd);
         }
     });
 
-    /*
-    container.addEventListener('dragover', e => {
-        e.preventDefault();
-        const afterElement = getDragAfterElement(container, e.clientY);
-        const draggable = document.querySelector('.dragging');
-        console.log(draggable);
-        console.log(afterElement);
-        console.log(draggable.parentNode);
-        if (draggable !== null) {
-            afterElement === null ? container.appendChild(draggable.parentNode) : container.insertBefore(draggable.parentNode, afterElement);
-        }
-    });
-*/
     function getDragAfterElement(container, y) {
         const draggableElements = [...container.querySelectorAll('.draggableList:not(.dragging)')];
 
