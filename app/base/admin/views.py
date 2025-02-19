@@ -16,22 +16,28 @@ def view_table(table_name):
     Model = DBModel[table_name]
     with db_session() as session:
         models = session.scalars(select(Model)).all()
-    theads = Model.get_properties(data_style='rel_name', exclude_info={'hidden'})
+    theads = [pi['key'] for pi in Model.get_prop_info(data_style='rel_name', exclude_info={'hidden'})]
     return render_template('admin/view_table.html', table_names=DBModel.keys(), table_name=table_name, theads=theads, models=models, PageText=g.PageText)
 
 def modify_record(table_name, item_id):
     if table_name not in DBModel:
         return 'Table not found', 404
     Model = DBModel[table_name]
-   
-    mod_props = Model.get_properties(exclude_info={'readonly'})
+    prop_info = Model.get_prop_info(exclude_info={'readonly'})
     
     with db_session() as sess:
         options_fk = {}
         if issubclass(Model, ForeignKeyMixin):
             options_fk = Model.get_options_fk(sess)
-        model = session.scalar(select(Model))
-    return render_template('admin/modify_item.html', PageText=g.PageText, table_name=table_name, model=model, mod_props=mod_props)
+        model = sess.scalar(select(Model))
+    return render_template(
+        'admin/modify_item.html', 
+        PageText=g.PageText, 
+        table_name=table_name, 
+        model=model,
+        options_fk=options_fk, 
+        prop_info=prop_info
+    )
 
 def delete_record(table_name, item_id):
     table_names = DBModel.keys()

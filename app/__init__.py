@@ -1,10 +1,6 @@
 # app/__init__.py
-import os
 from flask import Flask, g, abort, request
-from app.extensions import db_session, DBModel
 from app.translation import get_pagetext
-
-
 
 def create_app():
     app = Flask(__name__)

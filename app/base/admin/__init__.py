@@ -1,6 +1,5 @@
 # app/base/admin/__init__.py
 from flask import Blueprint
-from app.extensions import db_session, DBModel
 from .views import admin_index, view_table, modify_record, delete_record, download_csv
 
 admin_bp = Blueprint('admin', __name__, template_folder='templates', url_prefix='/admin')

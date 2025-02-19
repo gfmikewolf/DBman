@@ -45,7 +45,7 @@ class Base(DeclarativeBase):
 
     # 获取类的属性名列表, data_style='rel_name'时返回的值替换外键为关系名(通常为引用类的表名)
     @classmethod
-    def get_properties(cls, data_style='raw', include_info: Set[str] = set(), exclude_info: Set[str] = set()) -> Type[str] | None:
+    def get_prop_info(cls, data_style='raw', nullable=True, include_info: Set[str] = set(), exclude_info: Set[str] = set()) -> List[dict] | None:
         # Validate include_info and exclude_info are sets
         if not isinstance(include_info, set) or not isinstance(exclude_info, set):
             raise ValueError("include_info and exclude_info must be sets")
@@ -56,21 +56,32 @@ class Base(DeclarativeBase):
             raise ValueError(f"include_info and exclude_info must contain only valid options: {valid_options}")
 
         mapper = cls.__mapper__
-        props = []
+        prop_info = []
         for col in mapper.columns:
+            pi = {}
+            if not nullable and col.nullable:
+                continue
             if include_info:
                 if not any([col.info.get(info_key) for info_key in include_info]):
                     continue
             if exclude_info:
                 if any([col.info.get(info_key) for info_key in exclude_info]):
                     continue
-            prop = mapper.get_property_by_column(col).key
+            rel_name = ''
+            pi_key = mapper.get_property_by_column(col).key
             if col.foreign_keys and data_style == 'rel_name':
                 rel_name = col.info.get('rel_name')
                 if rel_name:
-                    prop = rel_name
-            props.append(prop)
-        return props
+                    pi_key = rel_name
+            pi['key'] = pi_key
+            pi['default'] = str(col.default.arg) if col.default else ''
+            pi['is_foreignkey'] = True if col.foreign_keys else False
+            pi['is_required'] = not col.nullable
+            pi['rel_name'] = rel_name
+            pi['is_date'] = col.key.endswith('date')
+            pi['is_json'] = col.key.endswith('json')
+            prop_info.append(pi)
+        return prop_info
 
 class ForeignKeyMixin:
     # 获取外键属性的选项字典，用于前端显示外键的意义
@@ -107,11 +118,15 @@ class ForeignKeyMixin:
 
 class ExpenseType(Base):
     __tablename__ = 'expense_type'
-    expense_type_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
-    expense_type_name: Mapped[str]
+    expense_type_id: Mapped[int] = mapped_column(
+        primary_key=True, 
+        nullable=False,
+        info={'readonly': True, 'hidden': True}
+    )
+    expense_type_name: Mapped[str] = mapped_column(nullable=False)
 
     # 数据库触发器自动计算在消费表中某消费类型出现的频率，用于排序消费类型，将最常用的放在最前面
-    expense_type_frequency: Mapped[int] = mapped_column(info={'readonly': True})
+    expense_type_frequency: Mapped[int] = mapped_column(nullable=False, info={'readonly': True})
 
     #用于ForeignKeyMixin中调用此类基础类的id和有意义的名称
     id = synonym('expense_type_id')
@@ -122,10 +137,10 @@ class ExpenseType(Base):
 
 class Currency(Base):
     __tablename__ = 'currency'
-    currency_id: Mapped[int] = mapped_column(primary_key=True)
+    currency_id: Mapped[int] = mapped_column(primary_key=True, nullable=False)
 
     # 数据库触发器自动计算在消费表中币种出现的频率，用于排序币种，将最常用的放在最前面
-    currency_expense_frequency: Mapped[int] = mapped_column(info={'readonly': True})
+    currency_expense_frequency: Mapped[int] = mapped_column(nullable=False, info={'readonly': True})
 
     #用于ForeignKeyMixin中调用此类基础类的id和有意义的名称
     id = synonym('currency_id')
@@ -136,18 +151,22 @@ class Currency(Base):
 
 class Expense(ForeignKeyMixin, Base):
     __tablename__ = 'expense'
-    expense_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
-    expense_date: Mapped[date] = mapped_column(Date)
-    expense_amount: Mapped[float] = mapped_column(default=0.0)
-    currency_id: Mapped[str] = mapped_column(ForeignKey('currency.currency_id'), default='AED')
+    expense_id: Mapped[int] = mapped_column(primary_key=True, nullable=False, info={'readonly': True, 'hidden': True})
+    expense_date: Mapped[date] = mapped_column(Date, nullable=False)
+    expense_amount: Mapped[float] = mapped_column(default=0.0, nullable=False)
+    currency_id: Mapped[str] = mapped_column(ForeignKey('currency.currency_id'), default='AED', nullable=False)
     expense_remarks: Mapped[str | None] = mapped_column(nullable=True)
     expense_attachment: Mapped[str | None] = mapped_column(nullable=True, info={'attachment': True})
     expense_type_id: Mapped[int] = mapped_column(
         ForeignKey('expense_type.expense_type_id'),
         default=0,
-        # 额外信息，rel_name是外键对应的关系名，fk_attr_name是引用类的属性名，指定用于显示外键的意义的属性
-        info={'rel_name': 'expense_type'})
+        nullable=False,
+        # 额外信息，rel_name是外键对应的关系名，fk_attr_name是引用类的属性名，指定用于显示外键的意义的属性, 默认为'name'
+        info={'rel_name': 'expense_type'}
+    )
 
+    id = synonym('expense_id')
+    name = synonym('expense_amount')
     # 由于expense_type_id是数字型外键，为在flask应用中显示有意义的外键信息，expense_type载入模式为selectin
     expense_type: Mapped['ExpenseType'] = relationship(back_populates='expenses', lazy='selectin')
 
