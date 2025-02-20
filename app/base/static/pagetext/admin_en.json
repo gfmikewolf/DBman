@@ -3,6 +3,9 @@
 		"PageTitle": "Database CRUD",
 		"My Databases": "My Databases",
 		"My Reports": "My Reports",
+		"ModifyRecord": "Modify Record",
+		"AddRecord": "Add Record",
+		"EnterChanges": "Enter values (* means required).",
 		"ViewTable": {
 			"View Records of": "View Records of",
 			"Actions": "Actions",
