@@ -15,6 +15,9 @@
 	"SaveChanges": "保留更改",
 	"Search": "搜索",
 	"TableHeads": "表头",
+	"Successfully": "成功",
+	"FailedTo": "未成功",
+	"ErrorIn": "出错：",
 	"Admin": {
 		"PageTitle": "数据库增删改查"
 	},
