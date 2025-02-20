@@ -45,7 +45,7 @@ class Base(DeclarativeBase):
 
     # 获取类的属性名列表, data_style='rel_name'时返回的值替换外键为关系名(通常为引用类的表名)
     @classmethod
-    def get_properties(cls, data_style='raw', include_info: Set[str] = set(), exclude_info: Set[str] = set()) -> Type[str] | None:
+    def get_prop_info(cls, data_style='raw', nullable=True, include_info: Set[str] = set(), exclude_info: Set[str] = set()) -> List[dict] | None:
         # Validate include_info and exclude_info are sets
         if not isinstance(include_info, set) or not isinstance(exclude_info, set):
             raise ValueError("include_info and exclude_info must be sets")
@@ -56,21 +56,32 @@ class Base(DeclarativeBase):
             raise ValueError(f"include_info and exclude_info must contain only valid options: {valid_options}")
 
         mapper = cls.__mapper__
-        props = []
+        prop_info = []
         for col in mapper.columns:
+            pi = {}
+            if not nullable and col.nullable:
+                continue
             if include_info:
                 if not any([col.info.get(info_key) for info_key in include_info]):
                     continue
             if exclude_info:
                 if any([col.info.get(info_key) for info_key in exclude_info]):
                     continue
-            prop = mapper.get_property_by_column(col).key
-            if col.foreign_keys and data_style == 'rel_name':
+            rel_name = ''
+            pi_key = mapper.get_property_by_column(col).key
+            if col.foreign_keys:
                 rel_name = col.info.get('rel_name')
-                if rel_name:
-                    prop = rel_name
-            props.append(prop)
-        return props
+                if rel_name and data_style == 'rel_name':
+                    pi_key = rel_name
+            pi['key'] = pi_key
+            pi['default'] = str(col.default.arg) if col.default else ''
+            pi['is_foreignkey'] = True if col.foreign_keys else False
+            pi['is_required'] = not col.nullable
+            pi['rel_name'] = rel_name
+            pi['is_date'] = col.key.endswith('date')
+            pi['is_json'] = col.key.endswith('json')
+            prop_info.append(pi)
+        return prop_info
 
 class ForeignKeyMixin:
     # 获取外键属性的选项字典，用于前端显示外键的意义
@@ -78,9 +89,13 @@ class ForeignKeyMixin:
     def get_options_fk(cls, session: Session, order_by_attr=None, order_by_desc=False) -> dict:
         options = {}
         mapper = cls.__mapper__
-        for relationship in mapper.relationships:
-            rel_cls = relationship.mapper.class_
-
+        for col in mapper.columns:
+            if not col.foreign_keys: continue
+            rel_name = col.info.get('rel_name')
+            if not rel_name: continue
+            rel = getattr(cls, rel_name)
+            rel_cls = rel.mapper.class_
+            if not rel_cls: continue
             # Check if the related class has 'id' and 'name' attributes
             if hasattr(rel_cls, 'id') and hasattr(rel_cls, 'name'):
                 stmt = (
@@ -88,13 +103,13 @@ class ForeignKeyMixin:
                     # Add order_by if needed
                 )
                 if order_by_attr:
-                    rel_order_by_attr = getattr(rel_cls, order_by_attr[relationship.key])
+                    rel_order_by_attr = getattr(rel_cls, order_by_attr[rel_name])
                     if order_by_desc:
                         stmt = stmt.order_by(rel_order_by_attr.desc())
                     else:
                         stmt = stmt.order_by(rel_order_by_attr)
                 results = session.execute(stmt).all()
-                options[relationship.key] = {row.id: row.name for row in results}
+                options[rel_name] = {row.id: row.name for row in results}
             else:
                 print(f'no id or name attribute in {rel_cls}')
         return options
@@ -113,13 +128,26 @@ class Amendment(ForeignKeyMixin, Base):
     amendment_signdate: Mapped[date] = mapped_column(Date)
     amendment_effectivedate: Mapped[date] = mapped_column(Date)
     amendment_entities: Mapped[str | None] = mapped_column(info={'readonly': True})
-    amendment_remarks: Mapped[str]
-    contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'), info={'rel_name': 'contract', 'fk_attr_name':'contract_name'})
+    amendment_remarks: Mapped[str | None]
+    contract_id: Mapped[int] = mapped_column(
+        ForeignKey('contract.contract_id'), 
+        info={
+            'rel_name': 'contract', 
+            'fk_attr_name':'contract_name'
+        }
+    )
     
     id = synonym('amendment_id')
     name = synonym('amendment_name')
     
-    contract: Mapped['Contract'] = relationship(back_populates='amendments', lazy='selectin')
+    contract: Mapped['Contract'] = relationship(
+        back_populates='amendments', 
+        lazy='selectin'
+    )
+    clauses: Mapped['Clause'] = relationship(
+        back_populates='amendment',
+        lazy = 'select'
+    )
 
     @classmethod
     def get_options_fk(cls, session: Session):
@@ -145,7 +173,159 @@ class Contract(Base):
     
     amendments: Mapped[List['Amendment']] = relationship(back_populates='contract', lazy='select')
 
+    def refresh_effective_date(self):
+        related_amendments = self.amendments
+        if related_amendments:
+            effective_dates = [amendment.amendment_effectivedate for amendment in related_amendments]
+            min_effective_date = min(effective_dates)
+            self.contract_effectivedate = min_effective_date
+    
+    # unfinished
+    def refresh_expiry_date(self, session):
+        related_amendments = self.amendments
+        if related_amendments:
+            pass
+
+class UserRole(Base):
+    __tablename__ = 'user_role'
+    user_role_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
+    user_role_name: Mapped[str]
+    
+    users: Mapped[List['User']] = relationship(
+        back_populates='user_roles', 
+        lazy='select',
+        secondary='map_user__user_role')
+
+class MAPUserANDUserRole(ForeignKeyMixin, Base):
+    __tablename__ = 'map_user__user_role'
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey('user.user_id'),
+        primary_key=True,
+        info={
+            'rel_name': 'user', 
+            'fk_attr_name':'user_name'
+        }
+    )
+    user_role_id: Mapped[int] = mapped_column(
+        ForeignKey('user_role.user_role_id'),
+        primary_key=True,
+        info={
+            'rel_name': 'user_role', 
+            'fk_attr_name':'user_role_name'
+        }
+    )
+
+class User(ForeignKeyMixin,Base):
+    __tablename__ = 'user'
+    user_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
+    user_name: Mapped[str]
+    user_password_hash: Mapped[str] = mapped_column(info={'readonly': True})
+    user_role_id: Mapped[int] = mapped_column(
+        ForeignKey('user_role.user_role_id'),
+        info={
+            'rel_name': 'user_role', 
+            'fk_attr_name':'user_role_name'
+        }
+    )
+    id = synonym('user_id')
+    name = synonym('user_name')
+
+    user_roles: Mapped[List['UserRole']] = relationship(
+        back_populates='users', 
+        lazy='select',
+        secondary='map_user__user_role')
+    
+    @classmethod
+    def get_options_fk(cls, session: Session):
+        order_by_attr = {
+            "user_role": "user_role_name",
+        }
+        return super().get_options_fk(session, order_by_attr=order_by_attr)
+    
+class ClauseType(Base):
+    __tablename__ = 'clause_type'
+    clause_type_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
+    clause_type_name: Mapped[str]
+    clauses: Mapped['Clause'] = relationship(
+        back_populates='clause_type',
+        lazy = 'select'
+    )
+    id = synonym('clause_type_id')
+    name = synonym('clause_type_name')
+
+class ClausePos(Base):
+    __tablename__ = 'clause_pos'
+    clause_pos_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
+    clause_pos_name: Mapped[str] = mapped_column(default='', nullable=False)
+    clauses: Mapped['Clause'] = relationship(
+        back_populates='clause_pos',
+        lazy = 'select'
+    )
+    id = synonym('clause_pos_id')
+    name = synonym('clause_pos_name')
+
+class Clause(ForeignKeyMixin, Base):
+    __tablename__ = 'clause'
+    clause_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
+    clause_type_id: Mapped[int] = mapped_column(
+        ForeignKey('clause_type.clause_type_id'),
+        info={
+            'rel_name': 'clause_type', 
+            'fk_attr_name':'clause_type_name'
+        }
+    )
+    clause_text: Mapped[str | None]
+    amendment_id: Mapped[int] = mapped_column(
+        ForeignKey('amendment.amendment_id'),
+        info={
+            'rel_name': 'amendment', 
+            'fk_attr_name':'amendment_name'
+        }
+    )
+    clause_pos_id: Mapped[int] = mapped_column(
+        ForeignKey('clause_pos.clause_pos_id'),
+        info={
+            'rel_name': 'clause_pos', 
+            'fk_attr_name':'clause_pos_name'
+        }
+    )
+    clause_reviewcomments: Mapped[str | None]
+    clause_remarks: Mapped[str | None]
+
+    amendment: Mapped['Amendment'] = relationship(
+        back_populates='clauses',
+        lazy='selectin'
+    )
+
+    clause_type: Mapped['ClauseType'] = relationship(
+        back_populates='clauses',
+        lazy='selectin'
+    )
+
+    clause_pos: Mapped['ClausePos'] = relationship(
+        back_populates='clauses',
+        lazy='selectin'
+    )
+
+    id = synonym('clause_id')
+    name = synonym('clause_text')
+    
+    @classmethod
+    def get_options_fk(cls, session: Session):
+        order_by_attr = {
+            "amendment": "amendment_name",
+            "clause_type": "clause_type_name",
+            "clause_pos": "clause_pos_name"
+        }
+        return super().get_options_fk(session, order_by_attr=order_by_attr)
+
 DBModel = {
     'contract': Contract,
-    'amendment': Amendment
+    'amendment': Amendment,
+    'clause': Clause,
+    'clause_type': ClauseType,
+    'clause_pos': ClausePos,
+    'user': User,
+    'user_role': UserRole,
+
 }
