@@ -1,24 +1,27 @@
 {
 	"__filename__": "app/base/static/pagetext/locale_en.json",
-	"__description__": "This file contains the text for the pages of the application. ",
-	"PageTitle": "MJ DB Admin",
-	"Back": "Back",
-	"Redirect to Homepage": "Redirect to Homepage",
-	"APPs": "APPs",
-	"Download": "Download",
-	"File": "File",
-	"Add": "Add",
-	"Record": "Record",
-	"Modify": "Modify",
-	"Delete": "Delete",
-	"Cancel": "Cancel",
-	"Search": "Search",
-	"SaveChanges": "Save Changes",
-	"TableHeads": "Table Heads",
+	"__description__": "本文件包含应用程序页面的文本。",
+	"PageTitle": "龙瑾数据库管理",
+	"Back": "返回上一页",
+	"Redirect to Homepage": "返回首页",
+	"APPs": "所有应用",
+	"Download": "下载",
+	"File": "文件",
+	"Add": "添加",
+	"Record": "记录",
+	"Modify": "修改",
+	"Delete": "删除",
+	"Cancel": "取消",
+	"SaveChanges": "保留更改",
+	"Search": "搜索",
+	"TableHeads": "表头",
+	"Successfully": "成功",
+	"FailedTo": "未成功",
+	"ErrorIn": "出错：",
 	"Admin": {
-		"PageTitle": "Database CRUD"
+		"PageTitle": "数据库增删改查"
 	},
 	"ContractMgmt": {
-		"PageTitle": "Contract Management"
+		"PageTitle": "合同管理"
 	}
 }
