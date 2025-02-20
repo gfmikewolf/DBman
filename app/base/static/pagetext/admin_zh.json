@@ -3,6 +3,9 @@
 		"PageTitle": "数据库增删改查",
 		"My Databases": "我的数据库",
 		"My Reports": "我的报表",
+		"ModifyRecord": "修改记录",
+		"AddRecord": "添加记录",
+		"EnterChanges": "输入记录数据 (*为必选项).",
 		"ViewTable": {
 			"View Records of": "查看记录",
 			"Actions": "操作",
