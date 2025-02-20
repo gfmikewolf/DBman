@@ -1,7 +1,8 @@
+
 # app/base/admin/views.py
 import io
 import csv
-from flask import g, render_template, session, request, make_response
+from flask import g, render_template, session, request, flash, url_for, redirect, make_response
 from sqlalchemy import select
 from app.extensions import db_session, DBModel, ForeignKeyMixin
 
@@ -14,33 +15,68 @@ def view_table(table_name):
     if table_name not in DBModel:
         return 'Table not found', 404
     Model = DBModel[table_name]
-    with db_session() as session:
-        models = session.scalars(select(Model)).all()
+    with db_session() as sess:
+        models = sess.scalars(select(Model)).all()
     theads = [pi['key'] for pi in Model.get_prop_info(data_style='rel_name', exclude_info={'hidden'})]
     return render_template('admin/view_table.html', table_names=DBModel.keys(), table_name=table_name, theads=theads, models=models, PageText=g.PageText)
 
-def modify_record(table_name, item_id):
+def modify_record(table_name, record_id):
     if table_name not in DBModel:
         return 'Table not found', 404
     Model = DBModel[table_name]
+
+    if request.method == 'POST':
+        form_data = request.form.to_dict()
+        record_id = request.form.get('record_id')
+        print(f'id={record_id}\n')
+        with db_session() as sess:
+            if record_id:
+                model = sess.get(Model, record_id)
+            else:
+                model = Model()
+            for key, value in form_data.items():
+                setattr(model, key, value)
+            try:
+                sess.commit()
+                flash(g.PageText['Sucessfully'] + g.PageText['SaveChanges'])
+            except Exception as e:
+                sess.rollback()
+                msg = g.PageText['FailedTo'] + g.PageText['SaveChanges']
+                err = g.PageText['ErrorIn']
+                flash(f"{msg}: {err}{str(e)}")
+            return redirect(
+                url_for(
+                    'base.admin.view_table', 
+                    table_name=table_name
+                )
+            )
+
     prop_info = Model.get_prop_info(exclude_info={'readonly'})
     
     with db_session() as sess:
         options_fk = {}
         if issubclass(Model, ForeignKeyMixin):
             options_fk = Model.get_options_fk(sess)
-        model = sess.scalar(select(Model))
+        model = sess.get(Model, record_id)
+    
     return render_template(
-        'admin/modify_item.html', 
+        'admin/modify_record.html', 
         PageText=g.PageText, 
         table_name=table_name, 
         model=model,
+        record_id=record_id,
         options_fk=options_fk, 
         prop_info=prop_info
     )
 
-def delete_record(table_name, item_id):
+def delete_record(table_name, record_id):
     table_names = DBModel.keys()
+    if table_name not in DBModel:
+        return 'Table not found', 404
+    Model = DBModel[table_name]
+    with db_session() as sess:
+        models = session.scalars(select(Model)).all()
+
     return render_template('admin/view_table.html', PageText=g.PageText, table_names=table_names)
 
 def download_csv():
