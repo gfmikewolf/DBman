@@ -1,6 +1,9 @@
 # app/__init__.py
+import os
 from flask import Flask, g, abort, request
 from app.translation import get_pagetext
+
+
 
 def create_app():
     app = Flask(__name__)
@@ -16,7 +19,9 @@ def create_app():
     @app.before_request
     def before_request():
         current_bp = request.blueprint
-        bp_name = request.blueprint.removeprefix('base.').lower() if current_bp else 'admin'
+        if current_bp:
+            bp_name = request.blueprint.removeprefix('base.').lower()
+        else: bp_name = ''
         locale_names = ['locale']
         if set([bp_name]).issubset(set(map(str.lower, Config.LOCALES))):
             locale_names = locale_names + [bp_name]
