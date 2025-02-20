@@ -8,11 +8,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     
     const data_table = document.getElementById('data_table');
-    const data_tbody = data_table.querySelector('tbody');
-    if (data_table, data_tbody) {
-        initializeRowClick(data_table, data_tbody);
+    if (data_table) {
+        const data_tbody = data_table.querySelector('tbody');
+        if (data_tbody) {
+            initializeRowClick(data_table, data_tbody);
+        }
     }
-    
     // 初始化表格头、表格设置功能
     const tableConfigModal = document.getElementById('tableConfigModal');
     const tableConfigButton = document.getElementById('table_config');
