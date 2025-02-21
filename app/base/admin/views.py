@@ -1,8 +1,7 @@
-
 # app/base/admin/views.py
 import io
 import csv
-from flask import g, render_template, session, request, flash, url_for, redirect, make_response
+from flask import g, render_template, request, make_response, jsonify
 from sqlalchemy import select
 from app.extensions import db_session, DBModel, ForeignKeyMixin
 
@@ -13,43 +12,41 @@ def admin_index():
 def view_table(table_name):
     """查看表数据"""
     if table_name not in DBModel:
-        return 'Table not found', 404
+        return g.PageText['TableNotFound'], 404
     Model = DBModel[table_name]
     with db_session() as sess:
         models = sess.scalars(select(Model)).all()
-    theads = [pi['key'] for pi in Model.get_prop_info(data_style='rel_name', exclude_info={'hidden'})]
-    return render_template('admin/view_table.html', table_names=DBModel.keys(), table_name=table_name, theads=theads, models=models, PageText=g.PageText)
+    prop_info = Model.get_prop_info(data_style='rel_name', exclude_info={'hidden'})
+    theads = [pi['key'] for pi in prop_info]
+    return render_template('admin/view_table.html', table_names=DBModel.keys(), table_name=table_name, theads=theads, models=models, prop_info=prop_info, PageText=g.PageText)
 
 def modify_record(table_name, record_id):
     if table_name not in DBModel:
-        return 'Table not found', 404
+        return jsonify({'status': 'error', 'message': 'Table not found'})
     Model = DBModel[table_name]
 
     if request.method == 'POST':
         form_data = request.form.to_dict()
-        record_id = request.form.get('record_id')
-        print(f'id={record_id}\n')
+        record_id = request.form.get('id')
+        form_data.pop('id', None)
+        form_data_original = form_data.copy();
+        for key in form_data_original:
+            if form_data_original[key] == '':
+                form_data.pop(key, None)
         with db_session() as sess:
-            if record_id:
+            if record_id != '__new__':
                 model = sess.get(Model, record_id)
             else:
-                model = Model()
-            for key, value in form_data.items():
-                setattr(model, key, value)
+                model = Model(**form_data)
+                sess.add(model)
             try:
                 sess.commit()
-                flash(g.PageText['Sucessfully'] + g.PageText['SaveChanges'])
+                return jsonify({'status': 'success', 'message': g.PageText['SuccessSavedChanges']})
             except Exception as e:
                 sess.rollback()
-                msg = g.PageText['FailedTo'] + g.PageText['SaveChanges']
+                msg = g.PageText['FailedTo'] + ' ' + g.PageText['SaveChanges'].lower()
                 err = g.PageText['ErrorIn']
-                flash(f"{msg}: {err}{str(e)}")
-            return redirect(
-                url_for(
-                    'base.admin.view_table', 
-                    table_name=table_name
-                )
-            )
+                return jsonify({'status': 'error', 'message': f"{msg}: {err} {str(e)}"})
 
     prop_info = Model.get_prop_info(exclude_info={'readonly'})
     
@@ -57,8 +54,11 @@ def modify_record(table_name, record_id):
         options_fk = {}
         if issubclass(Model, ForeignKeyMixin):
             options_fk = Model.get_options_fk(sess)
-        model = sess.get(Model, record_id)
-    
+        if record_id != '__new__':
+            model = sess.get(Model, record_id)
+        else:
+            model = None
+
     return render_template(
         'admin/modify_record.html', 
         PageText=g.PageText, 
@@ -70,14 +70,27 @@ def modify_record(table_name, record_id):
     )
 
 def delete_record(table_name, record_id):
-    table_names = DBModel.keys()
     if table_name not in DBModel:
-        return 'Table not found', 404
+        return jsonify({'status': 'error', 'message': g.PageText['TableNotFound']})
+ 
     Model = DBModel[table_name]
-    with db_session() as sess:
-        models = session.scalars(select(Model)).all()
 
-    return render_template('admin/view_table.html', PageText=g.PageText, table_names=table_names)
+    with db_session() as sess:
+        model = sess.get(Model, record_id)
+        if model:
+            sess.delete(model)
+        try:
+            sess.commit()
+            return jsonify({
+                'status': 'success', 
+                'message': f'Successfully deleted record: \n {model.data_dict(data_style="rel_name").items()}'
+            })
+        except Exception as e:  
+            sess.rollback()
+            return jsonify({
+                'status': "error",
+                "message": f'Error when deleting record: {model.data_dict(data_style="rel_name").items()}'
+            })
 
 def download_csv():
     data = request.get_json()
