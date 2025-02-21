@@ -3,7 +3,7 @@
 {% set prev_page = url_for('base.admin.view_table', table_name=table_name) %}
 {% set APP_title = PageText['Admin']['PageTitle'] %}
 {% set APP_index = url_for('base.admin.admin_index') %}
-{% set title = PageText['Admin']['ModifyRecord'] if record_id else PageText['Admin']['AddRecord'] %}
+{% set title = PageText['Admin']['ModifyRecord'] if record_id !='__new__' else PageText['Admin']['AddRecord'] %}
 {% block title %} {{ title }} {% endblock %}
 {% block content %}
 
@@ -11,14 +11,15 @@
     <div class="row">
         <h5 class="mt-3">{{  title }}  [{{ table_name }}] id={{ record_id }}</h5>
         <div class="col col-sm-12 col-md-8 col-lg-6 mt-3">
-            <form method="post">
+            <form method="post" id="ModifyForm">
                 <div class="card">
                     <div class="card-header">{{ PageText['Admin']['EnterChanges'] }}</div>
                     <div class="card-body">
-                        <input type="text" class="d-none" name="record_id" value=""></input>
+                        <input type="text" class="d-none" name="id" value="{{ record_id }}"></input>
                     {% for pi in prop_info %}
                         {% set key = pi['key'] %}
-                        {% set value = (model|attr(key))|string %}
+                        {% set attr_value = model|attr(key) %}
+                        {% set value = attr_value|string if attr_value else '' %}
                         <div class="input-group mb-3">
                             <label class="input-group-text">
                                 {{ key }}
@@ -27,7 +28,7 @@
                                 {% endif %}
                             </label>
                             {% if pi['is_date'] %}
-                                <input type="date" class="form-control" name="{{ key }}" value="{{ model|attr(key) if record_id else pi['default'] }}" {{ 'required' if pi['is_required'] }}>
+                                <input type="date" class="form-control" name="{{ key }}" value="{{ value if record_id !='__new__' else pi['default'] }}" {{ 'required' if pi['is_required'] }}>
                             {% elif pi['is_foreignkey'] and pi['rel_name'] in options_fk.keys() %}
                                 <select class="form-select" name="{{ key }}" {{ 'required' if pi['is_required'] }}>
                                 {% set options = options_fk[pi['rel_name']] %}
@@ -38,9 +39,9 @@
                             {% elif pi['is_json'] %}
                                 <div>json place holder</div>
                             {% elif pi['is_longtext'] %}
-                                <textarea name="{{ key }}" class="form-control" rows="{{ ((value|length)/40)|round|int + 1 }}">{{ value if value else pi['default']}}</textarea>
+                                <textarea name="{{ key }}" class="form-control" rows="{{ ((value|length)/40)|round|int + 1 }}">{{ value if record_id != '__new__' else pi['default']}}</textarea>
                             {% else %}
-                                <input type="text" class="form-control" name="{{ key }}" value="{{ model | attr(key) if record_id else pi['default'] }}" {{ 'required' if pi['is_required'] }}>
+                                <input type="text" class="form-control" name="{{ key }}" value="{{ value if record_id != '__new__' else pi['default'] }}" {{ 'required' if pi['is_required'] }}>
                             {% endif %}
                         </div>                    
                     {% endfor %}
@@ -54,4 +55,23 @@
         </div>
     </div>
 </div>
+<!-- Modal Alert -->
+<div class="modal fade" id="alertModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="alertModalTitle">{{ PageText['Alert'] }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="alertModalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" id="alertCancel">{{ PageText['ReturnToModify'] if record_id != '__new__' else PageText['ReturnToAdd'] }}</button>
+                <a type="button" class="btn btn-outline-dark" href="{{ prev_page }}">{{ PageText['BackToViewTable'] }}</a>
+            </div>
+      </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
 {% endblock %}
