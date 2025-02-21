@@ -37,7 +37,7 @@
         </nav>
         {% block content %}{% endblock %}
     </div>
+    {% block scripts %}{% endblock %}
     <script src="{{ url_for('base.static', filename='js/scripts.js') }}"></script>
-	{% block scripts %}{% endblock %}
 </body>
 </html>
