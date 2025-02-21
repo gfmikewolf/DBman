@@ -1,20 +1,22 @@
-<!-- base/templates/admin/index.html -->
-{% extends "base.html" %}
-{% set prev_page = url_for('base.index') %}
-{% set APP_title = PageText['Admin']['PageTitle'] %}
-{% set APP_index = url_for('base.admin.admin_index') %}
+<!-- app/base/templates/index.html -->
+{% extends 'base.html' %}
+{% set prev_page = None %}
+{% set APP_title = PageText['PageTitle'] %}
+{% set APP_index = '/' %}
 {% block content %}
 <div class="container mt-4">
     <div class="row">
         <div class="col-md-6 col-sm-12">
-            <div class="card d-flex">
-            <div class="card-header">{{ PageText['Admin']['My Databases'] }}</div>
+            <div class="card">
+                <div class="card-header">{{ PageText['APPs'] }}</div>
                 <div class="card-body">
                     <div class="list-group">
-                        {% for table_name in table_names %}
-                        <a href="{{ url_for('base.admin.view_table', table_name=table_name) }}" class="list-group-item list-group-item-action">{{ table_name }}</a>
-                        {% endfor %}
+                        <a href="{{ url_for('base.admin.admin_index')}}" class="list-group-item list-group-item-action">{{ PageText['Admin']['PageTitle'] }}</a>
+                        <a href="{{ url_for('base.contractmgmt.contractmgmt_index')}}" class="list-group-item list-group-item-action">{{ PageText['ContractMgmt']['PageTitle'] }}</a>
                     </div>
+                </div>
             </div>
         </div>
+    </div>
+</div>
 {% endblock %}
