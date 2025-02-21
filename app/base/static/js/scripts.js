@@ -1,63 +1,128 @@
 // app/base/static/js/scripts.js
 
+/*** utils block ***/
+function showModal(modal) {
+    objModal = new bootstrap.Modal(modal)
+    if (objModal) {
+        objModal.show();
+    }
+}
+
+function hideModal(modal) {
+    objModal = new bootstrap.Modal(modal)
+    if (objModal) {
+        objModal.hide();
+    }
+}
+
+function modalClose(event, modal, modalId) {
+    event.preventDefault();
+    if (document.activeElement && document.activeElement.closest('#'+ modalId)) {
+        document.activeElement.blur();
+    }
+    hideModal(modal);
+}
+/*** utils block ends ***/
+
 // 添加事件监听器，当 DOM 加载完成时执行以下代码
 document.addEventListener('DOMContentLoaded', function () {
-    const containers = document.querySelectorAll('[data-enable-check-all], .enable-check-all');
-    if (containers) {
-        initializeCheckAll(containers);
-    }
+    // 全选
     
-    const data_table = document.getElementById('data_table');
-    if (data_table) {
-        const data_tbody = data_table.querySelector('tbody');
-        if (data_tbody) {
-            initializeRowClick(data_table, data_tbody);
-        }
-    }
-    // 初始化表格头、表格设置功能
-    const tableConfigModal = document.getElementById('tableConfigModal');
-    const tableConfigButton = document.getElementById('table_config');
+    
     const saveTableConfigButton = document.getElementById('saveTableConfig');
     const restoreDefaultButton = document.getElementById('restoreDefault');
-    if (tableConfigModal && tableConfigButton && saveTableConfigButton && restoreDefaultButton) {
-        initializeTableConfig(tableConfigButton, tableConfigModal, saveTableConfigButton, restoreDefaultButton);
+    const downloadButton = document.getElementById('download_csv');
+    const tooltipList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    const search_query = document.getElementById('search_query');
+    const search_btn = document.getElementById('search');
+    const elementsToToggle = document.querySelectorAll('[data-toggleable]');
+    
+    const modifyForm = document.getElementById('ModifyForm');
+    const deleteButtons = document.querySelectorAll('[data-delete-record-url]');
+    const alertModal = document.getElementById('alertModal');
+    const alertBody = document.getElementById('alertModalBody');
+    const alertConfirm = document.getElementById('alertConfirm');
+    const alertCancel = document.getElementById('alertCancel');
+    const jsonviewButtons = document.querySelectorAll('[data-json-view]');
+    const jsonModal = document.getElementById('jsonModal');
+    const jsonModalBody = document.getElementById('jsonModalBody');
+    const jsonModalCloseButtons = document.querySelectorAll('[data-json-modal-dismiss]');
+    
+    //初始化唯一数据表格的选行功能
+    const dataTable = document.getElementById('dataTable');
+    if (dataTable) {
+        // 找全选框    
+        const checkAll = dataTable.querySelector('[data-check-all]');
+        // 找到容器内所有子复选框（check-item）
+        const checkItems = dataTable.querySelectorAll('[data-check-item]');
+        // 初始化全选按钮
+        if (checkAll && checkItems.length > 0) {
+            initializeCheckAll(checkAll, checkItems);
+            // 初始化点击表格行可选中表行选项卡的功能
+            const dataTbody = dataTable.querySelector('tbody');
+            if (dataTbody) {
+                initializeRowClick(dataTbody, checkItems);
+            }
+        }
+    }
+
+    // 初始化表格头、表格设置功能
+    // dataTable在上面已经被定义
+    const tableConfigModal = document.getElementById('tableConfigModal');
+    const tableConfigButton = document.getElementById('tableConfigButton');
+    if (tableConfigButton, tableConfigModal) {
+        initializeTableConfig(tableConfigButton, tableConfigModal);
     }
     
     // 初始化下载 CSV 文件功能
-    const downloadButton = document.getElementById('download_csv');
     if (downloadButton) {
         initializeDownloadCSV(downloadButton);
     }
     
     // 初始化所有的工具提示
-    const tooltipList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     if (tooltipList.length > 0) {
         initializeTooltips(tooltipList);
     }
     
     // 初始化搜索框功能
-    const search_query = document.getElementById('search_query');
-    const search_btn = document.getElementById('search');
     if ( search_query && search_btn) {
         initializeSearch(search_query, search_btn);
     }
     
-    // 初始化数据表格面板最大化或最小化功能
-    const elementsToToggle = document.querySelectorAll('[data-toggleable]');
-    const toggleMaximizeButton = document.getElementById('toggle_maximize');
+    // 初始化数据表格面板最大化功能
+    const toggleMaximizeButton = document.getElementById('toggleMaximize');
+    
     if (toggleMaximizeButton && elementsToToggle.length > 0) {
         initializeToggleMaximize(toggleMaximizeButton, elementsToToggle);
     }
+
+    // 初始化修改和添加页面的提示框
+    if (modifyForm) {
+        initializeModifyForm(modifyForm);
+    }
+
+    // 初始化查看表格数据页面的删除记录提示框
+    
+    if(deleteButtons.length > 0 && alertModal && alertBody && alertConfirm && alertCancel) {
+        if(deleteButtons.length > 0){
+            initializeDeleteButtons(deleteButtons, alertModal, alertBody, alertConfirm, alertCancel);
+        }
+    }
+
+    //初始化JSON显示的提示框
+    if(jsonviewButtons.length > 0 && jsonModal && jsonModalBody && jsonModalCloseButtons.length > 0) {
+        initializeJSONview(jsonviewButtons, jsonModal, jsonModalBody, jsonModalCloseButtons);
+    }    
 });
 
+/*** 初始化组件 ***/
 // initializeToggleMaximize() 初始化函数用于最大化或最小化数据表格面板
 function initializeToggleMaximize(toggleMaximizeButton, elementsToToggle) {
     toggleMaximizeButton.addEventListener('click', function() {
         elementsToToggle.forEach(function(element) {
             element.classList.toggle('d-none');
         });
-        document.querySelector('#data-table-panel').classList.toggle('maximized');
-        document.getElementById('toggle_maximize').classList.toggle('active');
+        toggleMaximizeButton.classList.toggle('active');
     });   
 }
 
@@ -67,48 +132,38 @@ function initializeSearch(search_query, search_btn) {
         if (event.key === 'Enter') {
             event.preventDefault();
             search_btn.click();
-        }
+        };
+    });
+    search_btn.addEventListener('click', function() {
+        //待完善全文搜索功能
     });
 }
 
 // initializeCheckAll() 函数用于初始化全选复选框功能
-function initializeCheckAll(containers) {
-    // 获取所有包含 enable-check-all 的容器
-    containers.forEach(container => {
-        // 找到容器内的总开关（check-all）
-        const checkAll = container.querySelector('[data-check-all], .check-all');
+function initializeCheckAll(checkAll, checkItems) {
+    // 当总开关的状态改变时，更新所有子复选框的状态
+    checkAll.addEventListener('change', function () {
+        checkItems.forEach(item => {
+            item.checked = checkAll.checked;
+        });
+    });
 
-        // 找到容器内所有子复选框（check-item）
-        const checkItems = container.querySelectorAll('[data-check-item], .check-item');
-
-        // 如果找到总开关和子复选框，则绑定事件
-        if (checkAll && checkItems.length > 0) {
-            // 当总开关的状态改变时，更新所有子复选框的状态
-            checkAll.addEventListener('change', function () {
-                checkItems.forEach(item => {
-                    item.checked = checkAll.checked;
-                });
-            });
-
-            // 当子复选框的状态改变时，更新总开关的状态
-            checkItems.forEach(item => {
-                item.addEventListener('change', function (e) {
-                    const allChecked = Array.from(checkItems).every(item => item.checked);
-                    checkAll.checked = allChecked;
-                    e.stopPropagation(); // 阻止事件冒泡
-                });
-            });
-        }
+    // 当子复选框的状态改变时，更新总开关的状态
+    checkItems.forEach(item => {
+        item.addEventListener('change', function (e) {
+            const allChecked = Array.from(checkItems).every(item => item.checked);
+            checkAll.checked = allChecked;
+        });
     });
 }
 
 // initializeRowClick() 函数用于初始化表格行点击事件
-function initializeRowClick(table, tbody) {
+function initializeRowClick(tbody, checkItems) {
     // 为表格的每一行添加点击事件监听器
     tbody.addEventListener('click', function (e) {
         const target = e.target.closest('tr'); // 找到最近的 <tr> 元素
         if (target) {
-            const checkbox = target.querySelector('input[type="checkbox"]'); // 找到该行的复选框
+            const checkbox = target.querySelector('[data-check-item]'); // 找到该行的复选框
             if (checkbox) {
                 checkbox.checked = !checkbox.checked; // 切换复选框的选中状态
                 const event = new Event('change', { bubbles: true });
@@ -116,9 +171,8 @@ function initializeRowClick(table, tbody) {
             }
         }
     });
-
     // 为复选框添加点击事件监听器，阻止事件冒泡
-    tbody.querySelectorAll('input[type="checkbox"], button, a').forEach(element => {
+    checkItems.forEach(element => {
         element.addEventListener('click', function (e) {
             e.stopPropagation(); // 阻止事件冒泡
         });
@@ -159,7 +213,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
     });
 
     // Event listener for saving the table configuration
-    saveTableConfigButton.addEventListener('click', function() {
+    saveTableConfigButton.addEventListener('click', function(event) {
         var checkboxes = document.querySelectorAll('#tableConfigTHeadsBody .form-check-input');
         var newOrder = [];
         checkboxes.forEach(function(checkbox) {
@@ -181,8 +235,8 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
         });
 
         // Reorder columns based on newOrder
-        var theadRow = document.querySelector('#data_table thead tr');
-        var tbodyRows = document.querySelectorAll('#data_table tbody tr');
+        var theadRow = document.querySelector('#dataTable thead tr');
+        var tbodyRows = document.querySelectorAll('#dataTable tbody tr');
         newOrder.forEach(function(columnId) {
             var column = document.querySelector('th[data-column-id="' + columnId + '"]');
             theadRow.appendChild(column);
@@ -231,6 +285,7 @@ function initializeTableConfig(tableConfigButton, tableConfigModal, saveTableCon
             });
 
             // Blur the currently focused element before hiding the modal
+        
             if (document.activeElement && document.activeElement.closest('#tableConfigModal')) {
                 document.activeElement.blur();
             }
@@ -351,4 +406,86 @@ function initializeTooltips(tooltipList) {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+}
+
+function initializeModifyForm(modifyForm) {
+    var form = $(modifyForm);
+    const cancelButton = document.getElementById('alertCancel');
+    cancelButton.addEventListener('click', e => modalClose(e, cancelButton));
+    form.on('submit', function(event) { // 直接绑定事件到 jQuery 对象
+        event.preventDefault(); // 阻止默认提交行为
+        $.ajax({
+            type: form.attr('method'),
+            url: form.attr('action'),
+            data: form.serialize(),
+            success: function(response) {
+                $('#alertModalBody').text(response.message);
+                $('#alertModal').modal('show');
+            },
+            error: function(xhr, status, error) {
+                $('#alertModalBody').text(error);
+                $('#alertModal').modal('show');
+            }
+        });
+    });
+}
+
+function initializeDeleteButtons(deleteButtons, alertModal, alertBody, alertConfirm, alertCancel) {
+    deleteButtons.forEach(function(deleteButton) {
+        deleteButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            alertBody.textContent = alertBody.dataset.msgWarning;
+            alertCancel.addEventListener('click', (event) => modalClose(event, alertModal));
+            alertConfirm.addEventListener('click', function() {
+                alertConfirm.style.visibility = 'hidden';
+                alertCancel.textContent = alertConfirm.textContent;
+                $.ajax({
+                    type: 'post',
+                    url: deleteButton.dataset.deleteRecordUrl,
+                    success: function(response) {
+                        alertBody.textContent = response.message;
+                        alertCancel.addEventListener('click', function(event) {
+                            modalClose(event, alertModal);
+                            location.reload(true);
+                        });
+                        showModal(alertModal);
+                    },
+                    error: function(xhr, status, error) {
+                        alertBody.textContent = error;
+                        alertCancel.addEventListener('click', function(event) {
+                            modalClose(event, alertModal);
+                        });
+                        showModal(alertModal);
+                    }
+                });    
+            });
+            showModal(alertModal);
+        });
+    });
+}
+
+function initializeJSONview(jsonviewButtons, alertModal, alertBody, alertConfirm, alertCancel) {
+    jsonviewButtons.forEach(function(jsonviewButton){
+        jsonviewButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('#alertModal [data-bs-dismiss="modal"]').forEach(function(button) {
+                const cbtn = button.cloneNode(true);
+                cbtn.addEventListener('click', (e) => modalClose(e, alertModal));
+                button.parentNode.replaceChild(cbtn, button);
+            });
+            const jsonData = jsonviewButton.dataset.jsonView;
+            alertBody.textContent = jsonData;
+            alertCancel.style.visibility = 'hidden';
+            const cbtn = alertConfirm.cloneNode(true);
+            cbtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                alertBody.textContent = '';
+                alertCancel.style.visibility = '';
+                modalClose(e, alertModal);
+            });
+            alertConfirm.parentNode.replaceChild(cbtn, alertConfirm);
+            showModal(alertModal);
+        });
+    });
+
 }
