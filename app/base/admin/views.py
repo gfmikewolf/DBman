@@ -42,12 +42,18 @@ def modify_record(table_name, record_id):
                 sess.add(model)
             try:
                 sess.commit()
-                return jsonify({'status': 'success', 'message': g.PageText['SuccessSavedChanges']})
+                return jsonify({
+                    'status': 'success', 
+                    'message': g.PageText['SuccessSavedChanges']
+                })
             except Exception as e:
                 sess.rollback()
                 msg = g.PageText['FailedTo'] + ' ' + g.PageText['SaveChanges'].lower()
                 err = g.PageText['ErrorIn']
-                return jsonify({'status': 'error', 'message': f"{msg}: {err} {str(e)}"})
+                return jsonify({
+                    'status': 'error', 
+                    'message': f'{msg}: {err} {str(e)}'
+                }), 500
 
     prop_info = Model.get_prop_info(exclude_info={'readonly'})
     
@@ -81,7 +87,6 @@ def delete_record(table_name, record_id):
         if model:
             sess.delete(model)
             msg = json.dumps(model.data_dict(data_style='rel_name'))
-            print(f'\n\nmsg:{msg}')
         try:
             sess.commit()
             return jsonify({
@@ -93,7 +98,7 @@ def delete_record(table_name, record_id):
             return jsonify({
                 'status': "error",
                 "message": msg
-            })
+            }), 500
 
 def download_csv():
     data = request.get_json()
