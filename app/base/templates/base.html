@@ -19,7 +19,7 @@
             <div class="d-flex align-items-center">
                 <div class="button-container d-flex align-items-center">
                     {% if prev_page != None %}
-                        <a href="{{ prev_page }}" class="btn"><i class="fa fa-arrow-left"></i></a>
+                        <a href="{{ prev_page }}" class="btn" id="prevPage"><i class="fa fa-arrow-left"></i></a>
                         <a href="/" class="btn"><i class="fa fa-house"></i></a>
                     {% endif %}
                     {% if session.get('language') == 'en' %}
@@ -81,7 +81,8 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" data-am-close>Close</button>
-                    <button type="button" class="btn btn-outline-dark" data-am-confirm>Confirm</button>
+                    <button type="button" class="btn btn-outline-dark d-none" data-am-confirm>Confirm</button>
+                    <button type="button" class="btn btn-outline-dark d-none" data-am-back>{{ PageText['BackToViewTable'] }}</button>
                 </div>
             </div>
         </div>
