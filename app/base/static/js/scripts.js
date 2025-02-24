@@ -1,20 +1,21 @@
 // app/base/static/js/scripts.js
 
 /*** utils block begins: 工具函数集 ***/
+// 显示模态框
 function showModal(modal) {
     objModal = new bootstrap.Modal(modal)
     if (objModal) {
         objModal.show();
     }
 }
-
+// 隐藏模态框
 function hideModal(modal) {
     objModal = bootstrap.Modal.getInstance(modal);
     if (objModal) {
         objModal.hide();
     }
 }
-
+// 关闭模态框
 function modalClose(event, modal, modalId) {
     event.preventDefault();
     if (document.activeElement && document.activeElement.closest('#'+ modalId)) {
@@ -22,7 +23,7 @@ function modalClose(event, modal, modalId) {
     }
     hideModal(modal);
 }
-
+// 将json字符串转换为html表格
 function tabulate(jsonData) {
     const jsonTable = document.createElement('table');
     jsonTable.className = 'table';
@@ -38,6 +39,26 @@ function tabulate(jsonData) {
     }
     return jsonTable.outerHTML;
 }
+// 刷新当前页面
+function reloadWindow() { location.reload(true); }
+// 提示模态框的文字类型
+const msgTypes = ['success', 'error', 'warning-delete'];
+// 显示提示模态框的文字（隐藏未选中的文字）
+function setAlertMsg(alertModal, msgType, msg) {
+    var typeText, msgDiv;
+    if(msgTypes.includes(msgType)) {
+        msgTypes.forEach(function(mt) {
+            typeText = alertModal.querySelector('[data-' + mt + ']');
+            if (mt == msgType) {
+                typeText.classList.remove('d-none'); 
+                msgDiv = alertModal.querySelector('[data-msg]');
+                msgDiv.innerHTML = msg;
+            } else {
+                typeText.classList.add('d-none');
+            }
+        });
+    }
+}
 /*** utils block ends ***/
 
 /*** 页面事件监听器 block begins: 当 DOM 加载完成时执行以下代码 ***/
@@ -48,7 +69,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (tooltipList.length > 0) {
         initializeTooltips(tooltipList);
     }
-
     //初始化唯一数据表格的选行功能
     const dataTable = document.getElementById('dataTable');
     if (dataTable) {
@@ -91,29 +111,34 @@ document.addEventListener('DOMContentLoaded', function () {
             initializeDeleteButtons(deleteButtons, alertModal);   
         }
     }
-   
-     // 初始化修改和添加页面的提示框
-    const modifyForm = document.getElementById('modifyForm');
+    // 初始化修改和添加页面的提示框
+    const modifyForm = document.getElementById('ModifyForm');
     if (modifyForm) {
         initializeModifyForm(modifyForm);
     }
-
-    
-
     //初始化JSON显示的提示框
     if(jsonviewButtons.length > 0 && jsonModal && jsonModalBody && jsonModalCloseButtons.length > 0) {
         initializeJSONview(jsonviewButtons, jsonModal, jsonModalBody, jsonModalCloseButtons);
     }    
 });
 
-// initializeTooltips() 函数用于初始化所有的工具提示
+// 初始化所有的工具提示
 function initializeTooltips(tooltipList) {
     var tooltipTriggerList = [].slice.call(tooltipList);
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
 }
-
+// 初始化提示模态框的关闭按钮，点击时隐藏现有提示信息并关闭模态框
+function initializeAlertModal(alertModal) {
+    const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss="modal"]');
+    dismissButtons.forEach(function(dismissButton) {
+        dismissButton.addEventListener('click', function(event) {
+            modalClose(event, alertModal, 'alertModal');
+            msgTypes.forEach((msgType) => alertModal.querySelector('[data-' + msgType + ']').classList.add('d-none'));
+        });
+    });
+}
 /*** #dataTable block begins：数据表关联函数集 ***/ 
 // initializeCheckAll() 函数用于初始化全选复选框功能
 function initializeCheckAll(checkAll, checkItems) {
@@ -132,8 +157,7 @@ function initializeCheckAll(checkAll, checkItems) {
         });
     });
 }
-
-// initializeRowClick() 函数用于初始化表格行点击事件
+// 初始化表格行点击事件
 function initializeRowClick(dataCells) {
     // 为表格的每个数据单元添加点击事件监听器
     dataCells.forEach(dataCell => dataCell.addEventListener('click', function (e) {
@@ -148,7 +172,7 @@ function initializeRowClick(dataCells) {
         }
     }));
 }
-// initializeSearch() 函数用于对搜索框添加事件监听器，监听回车键，按回车键等同于点击搜索按钮
+// 初始化搜索框，添加事件监听器，监听回车键，按回车键等同于点击搜索按钮
 function initializeSearch(search_query, search_btn) {
     search_query.addEventListener('keypress', function(event) {
         if (event.key === 'Enter') {
@@ -160,7 +184,7 @@ function initializeSearch(search_query, search_btn) {
         //待完善全文搜索功能
     });
 }
-// initializeTableConfig() 函数用于初始化表格头、表格设置功能
+// 初始化表格头、表格设置功能
 function initializeTableConfig(dataTable, tableConfigButton, tableConfigModal) {
     // 保存原始复选框状态和顺序
     const tableConfigTHeadsList = document.getElementById('tableConfigTHeadsList');
@@ -335,59 +359,37 @@ function initializeTableConfig(dataTable, tableConfigButton, tableConfigModal) {
         }
     }
 }
-// initializeDeleteButtons 初始化删除提示框
+// 初始化删除提示框
 function initializeDeleteButtons(deleteButtons, alertModal) {
-    const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss="modal"]');
-    const msgTypes = ['success', 'error', 'warning-delete'];
-    dismissButtons.forEach(function(dismissButton) {
-        const newCancel = dismissButton.cloneNode(true);
-        dismissButton.parentNode.replaceChild(newCancel, dismissButton);
-        newCancel.addEventListener('click', (event) => modalClose(event, alertModal, 'alertModal'));
-        msgTypes.forEach((msgType) => alertModal.querySelector('[data-' + msgType + ']').classList.add('d-none'));
-    });
-    function reloadWindow() { location.reload(true); }
-    function showMsg(msgType, msg) {  
-        if(msgTypes.includes(msgType)) {
-            const warningText = alertModal.querySelector('[data-warning-delete]');
-            warningText.classList.add('d-none');
-            showText = alertModal.querySelector('[data-' + msgType + ']');
-            showText.classList.remove('d-none');
-            const msgDiv = alertModal.querySelector('[data-msg]');
-            msgDiv.innerHTML = '';
-            msgDiv.innerHTML = msg;
-        }
-    }
+    initializeAlertModal(alertModal);
     const alertConfirmButton = alertModal.querySelector('[data-am-confirm]');
+    alertConfirmButton.classList.remove('d-none');
     alertConfirmButton.addEventListener('click', function() {
         this.classList.add('d-none');        
         $.ajax({
             type: 'post',
             url: this.dataset.deleteRecordUrl,
             success: function(response) {
-                showMsg('success', tabulate(response.message));
+                setAlertMsg(alertModal, 'success', tabulate(response.message));
                 const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss]');
                 dismissButtons.forEach(function(dismissButton) {
                     dismissButton.addEventListener('click', reloadWindow); 
                 });
             },
             error: function(xhr, status, error) {
-                showMsg('error', tabulate(response.message));
+                setAlertMsg(alertModal, 'error', tabulate(response.message));
                 this.classList.remove('d-none');
             }
         });
     });
     deleteButtons.forEach(function(deleteButton) {
         deleteButton.addEventListener('click', function() {
-            showMsg('warning-delete', '');
+            setAlertMsg(alertModal, 'warning-delete', '');
             alertConfirmButton.dataset.deleteRecordUrl = deleteButton.dataset.deleteRecordUrl;
             showModal(alertModal);
         });
     });
 }
-/*** #dataTable block ends */
-
-
-
 function initializeDownloadCSV(downloadButton) {
     downloadButton.addEventListener('click', function() {
         var checkboxes = document.querySelectorAll('#tableConfigForm .form-check-input');
@@ -415,13 +417,21 @@ function initializeDownloadCSV(downloadButton) {
         xhr.send(JSON.stringify({ columns: selectedColumns }));
     });
 }
+/*** #dataTable block ends */
 
-
-
+// 初始化修改、添加记录模态框
 function initializeModifyForm(modifyForm) {
     var form = $(modifyForm);
-    const cancelButton = document.getElementById('alertCancel');
-    cancelButton.addEventListener('click', e => modalClose(e, cancelButton));
+    const alertModal = document.getElementById('alertModal');
+    initializeAlertModal(alertModal);
+    const backButton = alertModal.querySelector('[data-am-back]');
+    backButton.classList.remove('d-none');
+    if(backButton) {
+        backButton.addEventListener('click', function() {
+           const prevPageButton = document.getElementById('prevPage');
+           location.href = prevPageButton.href; 
+        });
+    }
     form.on('submit', function(event) { // 直接绑定事件到 jQuery 对象
         event.preventDefault(); // 阻止默认提交行为
         $.ajax({
@@ -429,14 +439,13 @@ function initializeModifyForm(modifyForm) {
             url: form.attr('action'),
             data: form.serialize(),
             success: function(response) {
-                $('#alertModalBody').text(response.message);
-                $('#alertModal').modal('show');
+                setAlertMsg(alertModal, 'success', response.message);
             },
             error: function(xhr, status, error) {
-                $('#alertModalBody').text(error);
-                $('#alertModal').modal('show');
+                setAlertMsg(alertModal, 'error', error);
             }
         });
+        showModal(alertModal);    
     });
 }
 
