@@ -10,28 +10,81 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('base.static', filename='css/styles.css') }}">
     <title>{% block title %}{{ PageText['PageTitle'] }}{% endblock %}</title>
+    {% set navigation = {'Home':'/','Admin':url_for('base.admin.admin_index')} %}
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="button-container d-flex flex-wrap">
-            {% if prev_page != None %}
-                <a href="{{ prev_page }}" class="btn btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ PageText['Back'] }}"><i class="fa fa-arrow-left"></i></a>
-                <a href="/" class="btn btn-sm" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ PageText['Redirect to Homepage'] }}"><i class="fa fa-house"></i></a>
-            {% endif %}
-            {% if session.get('language') == 'en' %}
-                <!-- 如果当前语言是英文，显示中文切换按钮 -->
-                <a href="/lang/zh" class="btn btn-sm">简中</a>
-            {% else %}
-                <!-- 如果当前语言是中文，显示英文切换按钮 -->
-                <a href="/lang/en" class="btn btn-sm">En</a>
-            {% endif %}
-        </div>
-        <nav class="navbar navbar-expand-lg navbar-light bg-light" data-toggleable>
-            <div class="container">
-                <a class="navbar-brand" href="{{ APP_index }}" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ APP_title }}">{{ APP_title }}</a>
+    <!-- 主内容容器 -->
+    <div class="container-fluid px-4">
+        <div class="row row-cols-auto align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <div class="button-container d-flex align-items-center">
+                    {% if prev_page != None %}
+                        <a href="{{ prev_page }}" class="btn"><i class="fa fa-arrow-left"></i></a>
+                        <a href="/" class="btn"><i class="fa fa-house"></i></a>
+                    {% endif %}
+                    {% if session.get('language') == 'en' %}
+                        <!-- 如果当前语言是英文，显示中文切换按钮 -->
+                        <a href="/lang/zh" class="btn">简中</a>
+                    {% else %}
+                        <!-- 如果当前语言是中文，显示英文切换按钮 -->
+                        <a href="/lang/en" class="btn">En</a>
+                    {% endif %}
+                </div>
+                <nav class="d-none d-lg-block">
+                    <ol class="breadcrumb mb-0 justify-content-start align-items-center">
+                        {% for nav_level in navigation %}
+                            {% if nav_level == active_level %}
+                                <li class="breadcrumb-item active">{{ nav_level }}</li>
+                            {% else %}
+                                <li class="breadcrumb-item"><a href="{{ navigation[nav_level] }}">{{ nav_level }}</a></li>
+                            {% endif %}
+                        {% endfor %}
+                    </ol>
+                </nav>
             </div>
-        </nav>
-        {% block content %}{% endblock %}
+            <button class="btn d-lg-none ms-auto" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNavigation" aria-controls="offcanvasNavigation">
+                <i class="fa fa-bars"></i>
+            </button>
+        </div>
+        <div class="offcanvas offcanvas-end" style="width: 250px;" tabindex="-1" id="offcanvasNavigation" aria-labelledby="offcanvasNavigationLabel">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="offcanvasNavigationLabel">Navigation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <nav class="nav flex-column">
+                    {% for nav_level in navigation %}
+                        <a class="nav-link{{ ' disabled' if nav_level==active_level else ''}}" href="{{ navigation[nav_level] }}">{{ nav_level }}</a>
+                    {% endfor %}
+                </nav>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div> 
+    <!-- 警告提示框 #alertModal -->
+    <div class="modal fade" id="alertModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Alert</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p6 class="d-none" data-success>Success</p6>
+                    <p6 class="d-none" data-error>Error</p6>
+                    <p6 class="d-none" data-warning-delete>Are you sure of deleting the record?</p6>
+                    <div data-msg></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" data-am-close>Close</button>
+                    <button type="button" class="btn btn-outline-dark" data-am-confirm>Confirm</button>
+                </div>
+            </div>
+        </div>
     </div>
     {% block scripts %}{% endblock %}
     <script src="{{ url_for('base.static', filename='js/scripts.js') }}"></script>

@@ -1,6 +1,7 @@
 # app/base/admin/views.py
 import io
 import csv
+import json
 from flask import g, render_template, request, make_response, jsonify
 from sqlalchemy import select
 from app.extensions import db_session, DBModel, ForeignKeyMixin
@@ -79,17 +80,19 @@ def delete_record(table_name, record_id):
         model = sess.get(Model, record_id)
         if model:
             sess.delete(model)
+            msg = json.dumps(model.data_dict(data_style='rel_name'))
+            print(f'\n\nmsg:{msg}')
         try:
             sess.commit()
             return jsonify({
                 'status': 'success', 
-                'message': f'Successfully deleted record: \n {model.data_dict(data_style="rel_name").items()}'
+                'message': msg
             })
         except Exception as e:  
             sess.rollback()
             return jsonify({
                 'status': "error",
-                "message": f'Error when deleting record: {model.data_dict(data_style="rel_name").items()}'
+                "message": msg
             })
 
 def download_csv():

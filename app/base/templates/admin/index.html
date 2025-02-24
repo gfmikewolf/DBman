@@ -1,8 +1,7 @@
 <!-- base/templates/admin/index.html -->
 {% extends "base.html" %}
-{% set prev_page = url_for('base.index') %}
-{% set APP_title = PageText['Admin']['PageTitle'] %}
-{% set APP_index = url_for('base.admin.admin_index') %}
+{% set prev_page = '/' %}
+{% set active_level = 'Admin' %}
 {% block content %}
 <div class="container mt-4">
     <div class="row">
