@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const deleteButtons = document.querySelectorAll('[data-delete-record-url]');
         const alertModal = document.getElementById('alertModal');
         if(deleteButtons.length > 0 && alertModal) {
-            initializeDeleteButtons(deleteButtons, alertModal);   
+            initializeDeleteButtons(dataTable, deleteButtons, alertModal);   
         }
     }
     // 初始化修改和添加页面的提示框
@@ -379,34 +379,87 @@ function initializeTableConfig(dataTable, tableConfigButton, tableConfigModal) {
     }
 }
 // 初始化删除提示框
-function initializeDeleteButtons(deleteButtons, alertModal) {
+function initializeDeleteButtons(dataTable, deleteButtons, alertModal) {
     initializeAlertModal(alertModal);
-    const alertConfirmButton = alertModal.querySelector('[data-am-confirm]');
-    alertConfirmButton.classList.remove('d-none');
-    alertConfirmButton.addEventListener('click', function() {
-        this.classList.add('d-none');        
-        $.ajax({
-            type: 'post',
-            url: this.dataset.deleteRecordUrl,
-            success: function(response) {
-                setAlertMsg(alertModal, 'success', tabulate(response.message));
-                const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss]');
-                dismissButtons.forEach(function(dismissButton) {
-                    dismissButton.addEventListener('click', reloadWindow); 
-                });
-            },
-            error: function(xhr, status, error) {
-                setAlertMsg(alertModal, 'error', tabulate(response.message));
-                this.classList.remove('d-none');
-            }
-        });
-    });
+    function initializeConfirmBtn() {
+        const activeConfirmBtn = alertModal.querySelector('#AlertModalActiveConfirm');
+        if(activeConfirmBtn) { activeConfirmBtn.remove();}
+        const alertConfirmButton = alertModal.querySelector('[data-am-confirm]').cloneNode(true);
+        alertConfirmButton.classList.remove('d-none');
+        const alertFooter = alertModal.querySelector('.modal-footer');
+        alertFooter.appendChild(alertConfirmButton);
+        return alertConfirmButton;
+    }
     deleteButtons.forEach(function(deleteButton) {
         deleteButton.addEventListener('click', function() {
+            const alertConfirmButton = initializeConfirmBtn();
             setAlertMsg(alertModal, 'warning-delete', '');
             alertConfirmButton.dataset.deleteRecordUrl = deleteButton.dataset.deleteRecordUrl;
+            alertConfirmButton.id = 'AlertModalActiveConfirm';
+            alertConfirmButton.addEventListener('click', function() {
+                this.classList.add('d-none');        
+                $.ajax({
+                    type: 'post',
+                    url: this.dataset.deleteRecordUrl,
+                    success: function(response) {
+                        setAlertMsg(alertModal, 'success', tabulate(response.message));
+                        const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss]');
+                        dismissButtons.forEach(function(dismissButton) {
+                            dismissButton.addEventListener('click', reloadWindow); 
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        setAlertMsg(alertModal, 'error', tabulate(response.message));
+                        this.classList.remove('d-none');
+                    }
+                });
+            });
             showModal(alertModal);
         });
+    });
+    const deleteAllButton = document.getElementById('deleteAllButton');
+    deleteAllButton.addEventListener('click', () => {
+        const alertConfirmButton = initializeConfirmBtn();
+        setAlertMsg(alertModal, 'warning-delete', '');
+        alertConfirmButton.addEventListener('click', () => {
+            const checkboxes = dataTable.querySelectorAll('[data-check-item]:checked');
+            const promises = [];
+            checkboxes.forEach((checkbox) => {
+                const row = checkbox.parentElement.parentElement;
+                const delBtn = row.querySelector('[data-delete-record-url]');
+                const msg = {};
+        
+                const promise = new Promise((resolve, reject) => {
+                    $.ajax({
+                        type: 'post',
+                        url: delBtn.dataset.deleteRecordUrl,
+                        success: function(response) {
+                            msg[checkbox.dataset.checkItem] = "successful";
+                            resolve(msg);
+                        },
+                        error: function(xhr, status, error) {
+                            msg[checkbox.dataset.checkItem] = "failed";
+                            resolve(msg);
+                        }
+                    });
+                });
+                promises.push(promise);
+            });
+            Promise.all(promises).then((results) => {
+                var finalMsg = '{';
+                var flagError = false;
+                results.forEach(result => {
+                    for (const key in result) {
+                        finalMsg += `"${key}": "${result[key]}",`;
+                        flagError = flagError || key=='failed';                    }
+                });
+                finalMsg += '"id":"status"}';
+                const msgType = 'success';
+                if(flagError) { msgType = 'error'};
+                setAlertMsg(alertModal, msgType, tabulate(finalMsg));
+            });
+        });
+        showModal(alertModal);     
     });
 }
 // 下载当前带筛选视图的CSV文件
