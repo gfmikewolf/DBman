@@ -2,6 +2,10 @@
 /*** 全局变量 block ***/
 const msgTypes = ['success', 'error', 'warning-delete']; // 提示模态框的文字类型
 var curSearchQuery = ''; // 存放当前搜索栏的内容
+var originalTheadsOrder = []; // 原始表头顺序
+var originalTheadsChecked = []; // 原始表头显隐状态
+var initialTHeadsOrder = []; // 点击表头自定义按钮前前表头顺序
+var initialTHeadsChecked = []; // 点击表头自定义按钮前表头显隐状态
 /*** 全局变量 block ends */
 
 /*** utils block begins: 工具函数集 ***/
@@ -12,20 +16,17 @@ function showModal(modal) {
         objModal.show();
     }
 }
-// 隐藏模态框
-function hideModal(modal) {
-    objModal = bootstrap.Modal.getInstance(modal);
-    if (objModal) {
-        objModal.hide();
-    }
-}
-// 关闭模态框
-function modalClose(event, modal, modalId) {
-    event.preventDefault();
-    if (document.activeElement && document.activeElement.closest('#'+ modalId)) {
+// 让模态框内部失去聚焦
+function blurModalFocus(modal) {
+    if (document.activeElement && document.activeElement.closest('#'+ modal.id)) {
         document.activeElement.blur();
     }
-    hideModal(modal);
+}
+// 隐藏模态框
+function hideModal(modal) {
+    blurModalFocus(modal);
+    const objModal = bootstrap.Modal.getInstance(modal);
+    objModal.hide();
 }
 // 将json字符串转换为html表格
 function tabulate(jsonData) {
@@ -44,17 +45,17 @@ function tabulate(jsonData) {
     return jsonTable.outerHTML;
 }
 // 刷新当前页面
-function reloadWindow() { location.reload(true); }
-
+function reloadWindow() { 
+    location.reload(true); 
+}
 // 显示提示模态框的文字（隐藏未选中的文字）
 function setAlertMsg(alertModal, msgType, msg) {
-    var typeText, msgDiv;
     if(msgTypes.includes(msgType)) {
         msgTypes.forEach(function(mt) {
-            typeText = alertModal.querySelector('[data-' + mt + ']');
+            const typeText = alertModal.querySelector('[data-' + mt + ']');
             if (mt == msgType) {
                 typeText.classList.remove('d-none'); 
-                msgDiv = alertModal.querySelector('[data-msg]');
+                const msgDiv = alertModal.querySelector('[data-msg]');
                 msgDiv.innerHTML = msg;
             } else {
                 typeText.classList.add('d-none');
@@ -132,12 +133,9 @@ function initializeTooltips(tooltipList) {
 }
 // 初始化提示模态框的关闭按钮，点击时隐藏现有提示信息并关闭模态框
 function initializeAlertModal(alertModal) {
-    const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss="modal"]');
-    dismissButtons.forEach(function(dismissButton) {
-        dismissButton.addEventListener('click', function(event) {
-            modalClose(event, alertModal, 'alertModal');
-            msgTypes.forEach((msgType) => alertModal.querySelector('[data-' + msgType + ']').classList.add('d-none'));
-        });
+    alertModal.addEventListener('hide.bs.modal', () => {
+        blurModalFocus(alertModal);
+        msgTypes.forEach((msgType) => alertModal.querySelector('[data-' + msgType + ']').classList.add('d-none'));
     });
 }
 /*** #dataTable block begins：数据表关联函数集 ***/ 
@@ -149,10 +147,9 @@ function initializeCheckAll(checkAll, checkItems) {
             item.checked = checkAll.checked;
         });
     });
-
     // 当子复选框的状态改变时，更新总开关的状态
     checkItems.forEach(item => {
-        item.addEventListener('change', function (e) {
+        item.addEventListener('change', function () {
             const allChecked = Array.from(checkItems).every(item => item.checked);
             checkAll.checked = allChecked;
         });
@@ -222,32 +219,36 @@ function initializeTableConfig(dataTable, tableConfigButton, tableConfigModal) {
     // 保存原始复选框状态和顺序
     const tableConfigTHeadsList = document.getElementById('tableConfigTHeadsList');
     if(tableConfigTHeadsList) {
-        // 保存表头列表的原始节点，恢复默认时使用
-        const tableConfigTHeadsListOriginal = tableConfigTHeadsList.cloneNode(true);
-        tableConfigTHeadsListOriginal.classList.add('d-none');
-        tableConfigTHeadsListOriginal.id = 'tableConfigTHeadsListOriginal';
-        tableConfigTHeadsList.parentNode.appendChild(tableConfigTHeadsListOriginal);
-    
+        function saveTHeadsState(orders, checkeds) {
+            tableConfigTHeadsList.querySelectorAll('[data-tcm-cb]').forEach((cb) => {
+                orders.push(cb.dataset.tcmCb);
+                checkeds.push(cb.checked);
+            });
+        }
+        function restoreTHeadsState(orders, checkeds) {
+            orders.forEach((order, index) => {
+                const li = tableConfigTHeadsList.querySelector('li[data-tcm-li="'+ order +'"]');
+                const cb = li.querySelector('[data-tcm-cb]');
+                cb.checked = checkeds[index];
+                tableConfigTHeadsList.appendChild(li);
+            });
+        }
         const checkboxes = tableConfigTHeadsList.querySelectorAll('[data-tcm-cb]');
-        if(checkboxes.length > 0) { 
+        if(checkboxes.length > 0) {
+            const saveTableConfigButton = tableConfigModal.querySelector('#saveTableConfigButton'); 
+            // 保存表头列表的原始节点，恢复默认时使用
+            saveTHeadsState(originalTheadsOrder, originalTheadsChecked);
             // 表格设置按钮点击事件监听器
             tableConfigButton.addEventListener('click', function() {
-                // 如果点击表头自定义按钮时已经存在初始状态列表，删除初始状态列表
-                const initialState = tableConfigModal.querySelector('#tableConfigTHeadsListInitial');
-                if(initialState) {
-                    initialState.remove();
-                }
-                // 存储点击前的复选框状态和顺序
-                const tableConfigTHeadsListInitial = tableConfigTHeadsList.cloneNode(true);
-                tableConfigTHeadsListInitial.classList.add('d-none');
-                tableConfigTHeadsListInitial.id = 'tableConfigTHeadsListInitial';
-                tableConfigTHeadsList.parentNode.appendChild(tableConfigTHeadsListInitial);
+                // 存储点击前的复选框状态和顺序  
+                saveTHeadsState(initialTHeadsOrder, initialTHeadsChecked);
+                saveTableConfigButton.classList.remove('data-tcm-saved');
                 showModal(tableConfigModal);
             });
             // 定义保存当前状态按钮的事件
-            const saveTableConfigButton = tableConfigModal.querySelector('#saveTableConfigButton');
+            
             if(saveTableConfigButton) {
-                saveTableConfigButton.addEventListener('click', function(e) {
+                saveTableConfigButton.addEventListener('click', function(event) {
                     var newOrder = [];
                     // 这里必须重新选取所有复选框以实现正确的表头自定义顺序
                     tableConfigTHeadsList.querySelectorAll('[data-tcm-cb]').forEach(function(checkbox) {
@@ -282,40 +283,25 @@ function initializeTableConfig(dataTable, tableConfigButton, tableConfigModal) {
                             row.appendChild(cell);
                         });
                     });
-                    modalClose(e, tableConfigModal, 'tableConfigModal');
-                });
-            }
-            // 从backup中恢复当前TheadList的状态
-            function restoreOrder(container, backupContainer) {
-                const lis = backupContainer.querySelectorAll('li');
-                lis.forEach(function(li) {
-                    loopId = li.dataset.tcmLi;
-                    var selectedLi = container.querySelector('[data-tcm-li="'+ loopId + '"]');
-                    selectedLi.querySelector('[data-tcm-cb]').checked = li.querySelector('[data-tcm-cb]').checked;
-                    container.appendChild(selectedLi);
+                    saveTableConfigButton.classList.add('data-tcm-saved');
+                    hideModal(tableConfigModal);
                 });
             }
             // 定义恢复默认按钮的事件
             const restoreTableConfigDefaultButton = tableConfigModal.querySelector('#restoreTableConfigDefaultButton');
             if(restoreTableConfigDefaultButton) {
                 restoreTableConfigDefaultButton.addEventListener('click', function() {
-                    const tableConfigTHeadsListOriginal = tableConfigModal.querySelector('#tableConfigTHeadsListOriginal');
-                    if(tableConfigTHeadsListOriginal) {
-                        restoreOrder(tableConfigTHeadsList, tableConfigTHeadsListOriginal);
-                    }
+                    restoreTHeadsState(originalTheadsOrder, originalTheadsChecked);
                 });
             }
             // 定义取消和关闭按钮的事件
-            const tableConfigDismissButtons = tableConfigModal.querySelectorAll('[data-bs-dismiss="modal"]');
-            tableConfigDismissButtons.forEach(function(button) {
-                button.addEventListener('click', function(e) {
-                    const tableConfigTHeadsListInitial = tableConfigModal.querySelector('#tableConfigTHeadsListInitial');
-                    if(tableConfigTHeadsListInitial) {
-                        restoreOrder(tableConfigTHeadsList, tableConfigTHeadsListInitial);
-                    }
-                    hideModal(e, tableConfigModal, 'tableConfigModal');
-                });
-            });        
+            tableConfigModal.addEventListener('hide.bs.modal', () => {
+                // 如果是保存配置触发的隐藏行为，不执行恢复点击前状态的动作
+                if(!saveTableConfigButton.classList.contains('data-tcm-saved')) {
+                    restoreTHeadsState(initialTHeadsOrder, initialTHeadsChecked);
+                }
+                blurModalFocus(tableConfigModal);
+            });       
             // Drag and drop functionality for reordering columns
             // 找到拖动的标签下面的标签
             function getDragAfterElement(container, y) {
@@ -506,7 +492,7 @@ function initializeJSONview(jsonviewButtons, alertModal, alertBody, alertConfirm
             e.preventDefault();
             document.querySelectorAll('#alertModal [data-bs-dismiss="modal"]').forEach(function(button) {
                 const cbtn = button.cloneNode(true);
-                cbtn.addEventListener('click', (e) => modalClose(e, alertModal));
+                cbtn.addEventListener('click', (e) => blurModalFocus(alertModal));
                 button.parentNode.replaceChild(cbtn, button);
             });
             const jsonData = jsonviewButton.dataset.jsonView;
@@ -517,7 +503,7 @@ function initializeJSONview(jsonviewButtons, alertModal, alertBody, alertConfirm
                 e.preventDefault();
                 alertBody.textContent = '';
                 alertCancel.style.visibility = '';
-                modalClose(e, alertModal);
+                hideModal(alertModal);
             });
             alertConfirm.parentNode.replaceChild(cbtn, alertConfirm);
             showModal(alertModal);
