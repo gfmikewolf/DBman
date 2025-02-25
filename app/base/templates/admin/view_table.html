@@ -45,6 +45,7 @@
         </div>
         <div class="input-group input-group-sm justify-content-start" role="group">
             <input id="tableSearchQuery" class="form-control form-control-sm" type="search" placeholder="{{ PageText['Search'] }}">
+            <button id="tableSearchNoFilterButton" class="btn btn-sm btn-outline-dark d-none"><i class="fa-solid fa-filter-circle-xmark"></i></button>
             <button id="tableSearchButton" class="btn btn-sm btn-outline-dark"><i class="fa fa-search"></i></button>
         </div>
         <a href="{{ url_for('base.admin.modify_record', table_name=table_name, record_id='__new__')}}" class="btn btn-sm btn-outline-dark"><i class="fa fa-plus"></i></a>

@@ -1,4 +1,8 @@
 // app/base/static/js/scripts.js
+/*** 全局变量 block ***/
+const msgTypes = ['success', 'error', 'warning-delete']; // 提示模态框的文字类型
+var curSearchQuery = ''; // 存放当前搜索栏的内容
+/*** 全局变量 block ends */
 
 /*** utils block begins: 工具函数集 ***/
 // 显示模态框
@@ -41,8 +45,7 @@ function tabulate(jsonData) {
 }
 // 刷新当前页面
 function reloadWindow() { location.reload(true); }
-// 提示模态框的文字类型
-const msgTypes = ['success', 'error', 'warning-delete'];
+
 // 显示提示模态框的文字（隐藏未选中的文字）
 function setAlertMsg(alertModal, msgType, msg) {
     var typeText, msgDiv;
@@ -63,7 +66,6 @@ function setAlertMsg(alertModal, msgType, msg) {
 
 /*** 页面事件监听器 block begins: 当 DOM 加载完成时执行以下代码 ***/
 document.addEventListener('DOMContentLoaded', function () {
-
     // 初始化所有的工具提示
     const tooltipList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     if (tooltipList.length > 0) {
@@ -93,14 +95,14 @@ document.addEventListener('DOMContentLoaded', function () {
             initializeTableConfig(dataTable, tableConfigButton, tableConfigModal);
         }
         // 初始化表格下载功能
-        const downloadButton = document.getElementById('downloadCSVButton')
+        const downloadButton = document.getElementById('downloadCSVButton');
         if (downloadButton) {
-            initializeDownloadCSV(downloadButton);
+            initializeDownloadCSV(dataTable, downloadButton);
         }
         // 初始化全文搜索功能
         const tableSearchButton = document.getElementById('tableSearchButton');
-        const tableSearchQuery = document.getElementById('tableSearchQuery')
-        if ( tableSearchQuery && tableSearchButton) {
+        const tableSearchQuery = document.getElementById('tableSearchQuery');
+        if (tableSearchQuery && tableSearchButton) {
             initializeSearch(dataTable, tableSearchQuery, tableSearchButton);
         }
         // 初始化查看表格数据页面的删除记录提示框
@@ -139,7 +141,7 @@ function initializeAlertModal(alertModal) {
     });
 }
 /*** #dataTable block begins：数据表关联函数集 ***/ 
-// initializeCheckAll() 函数用于初始化全选复选框功能
+// 初始化全选复选框功能
 function initializeCheckAll(checkAll, checkItems) {
     // 当总开关的状态改变时，更新所有子复选框的状态
     checkAll.addEventListener('change', function () {
@@ -171,20 +173,48 @@ function initializeRowClick(dataCells) {
         }
     }));
 }
+
 // 初始化搜索框，添加事件监听器，监听回车键，按回车键等同于点击搜索按钮
 function initializeSearch(dataTable, searchQuery, searchBtn) {
+    const noFilterBtn = document.getElementById('tableSearchNoFilterButton');
     searchQuery.addEventListener('keypress', function(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
             searchBtn.click();
         };
     });
+    noFilterBtn.addEventListener('click', function(){
+        searchQuery.value = '';
+        searchBtn.click();
+    });
     searchBtn.addEventListener('click', function() {
-        const dataCells = dataTable.querySelectorAll('td[data-column-id]');
-        const searchText = searchQuery.textContent;
-        dataCells.forEach(function(dataCell) {
-            
-        });
+        const searchText = searchQuery.value;
+        const dataRows = dataTable.querySelectorAll('tbody tr');
+        if(searchText != curSearchQuery) {
+            dataRows.forEach(function(dataRow) {
+                var match = false || (searchText == '');
+                if(match == false) {
+                    const dataCells = dataRow.querySelectorAll('td[data-column-id]');
+                    for(const dataCell of dataCells) {
+                        if(dataCell.textContent.toLowerCase().includes(searchText.toLowerCase())) {
+                            match = true;
+                            break;
+                        }
+                    }; 
+                }
+                if(match == true) {
+                    dataRow.classList.remove('d-none');
+                } else {
+                    dataRow.classList.add('d-none');
+                }
+            });  
+            curSearchQuery = searchText;
+        }
+        if(curSearchQuery == '') {
+            noFilterBtn.classList.add('d-none');
+        } else {
+            noFilterBtn.classList.remove('d-none');
+        }
     });
 }
 // 初始化表格头、表格设置功能
@@ -394,31 +424,48 @@ function initializeDeleteButtons(deleteButtons, alertModal) {
     });
 }
 // 下载当前带筛选视图的CSV文件
-function initializeDownloadCSV(downloadButton) {
+function initializeDownloadCSV(dataTable, downloadButton) {
     downloadButton.addEventListener('click', function() {
-        var checkboxes = document.querySelectorAll('#tableConfigForm .form-check-input');
-        var selectedColumns = [];
-        checkboxes.forEach(function(checkbox) {
-            if (checkbox.checked) {
-                var columnId = checkbox.id.replace('column_', '');
-                selectedColumns.push(columnId);
-            }
+        const headRow = dataTable.querySelector('thead tr');
+        const dataRows = dataTable.querySelectorAll('tbody tr:not(.d-none)');
+    
+        // Extract header data
+        const headers = [];
+        headRow.querySelectorAll('th[data-column-id]').forEach(th => {
+            headers.push(th.textContent.trim());
         });
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/download_csv', true);
-        xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
-        xhr.responseType = 'blob';
-        xhr.onload = function() {
-            if (xhr.status === 200) {
-                var blob = new Blob([xhr.response], { type: 'text/csv' });
-                var link = document.createElement('a');
-                link.href = window.URL.createObjectURL(blob);
-                link.download = 'data.csv';
-                link.click();
-            }
-        };
-        xhr.send(JSON.stringify({ columns: selectedColumns }));
+    
+        // Extract data row content
+        const rows = [];
+        dataRows.forEach(row => {
+            const rowData = [];
+            row.querySelectorAll('td[data-column-id]').forEach(td => {
+                rowData.push(td.textContent.trim());
+            });
+            rows.push(rowData);
+        });
+    
+        // Create CSV string
+        let csvContent = headers.join(',') + '\n';
+        rows.forEach(row => {
+            csvContent += row.join(',') + '\n';
+        });
+    
+        // Create a Blob object with the CSV data
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+        // Create a link element to trigger the download
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'data.csv';
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+    
+        // Trigger the download
+        link.click();
+    
+        // Clean up
+        document.body.removeChild(link);
     });
 }
 /*** #dataTable block ends */
