@@ -89,20 +89,19 @@ document.addEventListener('DOMContentLoaded', function () {
         // dataTable在上面已经被定义
         const tableConfigButton = document.getElementById('tableConfigButton');
         const tableConfigModal = document.getElementById('tableConfigModal');
-        
         if (tableConfigButton && tableConfigModal) {
             initializeTableConfig(dataTable, tableConfigButton, tableConfigModal);
         }
-
         // 初始化表格下载功能
         const downloadButton = document.getElementById('downloadCSVButton')
         if (downloadButton) {
             initializeDownloadCSV(downloadButton);
         }
+        // 初始化全文搜索功能
         const tableSearchButton = document.getElementById('tableSearchButton');
         const tableSearchQuery = document.getElementById('tableSearchQuery')
         if ( tableSearchQuery && tableSearchButton) {
-            initializeSearch(tableSearchQuery, tableSearchButton);
+            initializeSearch(dataTable, tableSearchQuery, tableSearchButton);
         }
         // 初始化查看表格数据页面的删除记录提示框
         const deleteButtons = document.querySelectorAll('[data-delete-record-url]');
@@ -173,15 +172,19 @@ function initializeRowClick(dataCells) {
     }));
 }
 // 初始化搜索框，添加事件监听器，监听回车键，按回车键等同于点击搜索按钮
-function initializeSearch(search_query, search_btn) {
-    search_query.addEventListener('keypress', function(event) {
+function initializeSearch(dataTable, searchQuery, searchBtn) {
+    searchQuery.addEventListener('keypress', function(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
-            search_btn.click();
+            searchBtn.click();
         };
     });
-    search_btn.addEventListener('click', function() {
-        //待完善全文搜索功能
+    searchBtn.addEventListener('click', function() {
+        const dataCells = dataTable.querySelectorAll('td[data-column-id]');
+        const searchText = searchQuery.textContent;
+        dataCells.forEach(function(dataCell) {
+            
+        });
     });
 }
 // 初始化表格头、表格设置功能
@@ -390,6 +393,7 @@ function initializeDeleteButtons(deleteButtons, alertModal) {
         });
     });
 }
+// 下载当前带筛选视图的CSV文件
 function initializeDownloadCSV(downloadButton) {
     downloadButton.addEventListener('click', function() {
         var checkboxes = document.querySelectorAll('#tableConfigForm .form-check-input');
@@ -448,8 +452,6 @@ function initializeModifyForm(modifyForm) {
         showModal(alertModal);    
     });
 }
-
-
 
 function initializeJSONview(jsonviewButtons, alertModal, alertBody, alertConfirm, alertCancel) {
     jsonviewButtons.forEach(function(jsonviewButton){
