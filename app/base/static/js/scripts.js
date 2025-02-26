@@ -400,7 +400,7 @@ function initializeDeleteButtons(dataTable, deleteButtons, alertModal) {
                 this.classList.add('d-none');        
                 $.ajax({
                     type: 'post',
-                    url: this.dataset.deleteRecordUrl,
+                    url: alertConfirmButton.dataset.deleteRecordUrl,
                     success: function(response) {
                         setAlertMsg(alertModal, 'success', tabulate(response.message));
                         const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss]');
@@ -410,7 +410,6 @@ function initializeDeleteButtons(dataTable, deleteButtons, alertModal) {
                     },
                     error: function(xhr, status, error) {
                         setAlertMsg(alertModal, 'error', error);
-                        this.classList.remove('d-none');
                     }
                 });
             });
@@ -421,8 +420,7 @@ function initializeDeleteButtons(dataTable, deleteButtons, alertModal) {
     deleteAllButton.addEventListener('click', () => {
         const alertConfirmButton = initializeConfirmBtn();
         setAlertMsg(alertModal, 'warning-delete', '');
-        alertConfirmButton.addEventListener('click', function() {
-            this.classList.add('d-none');
+        alertConfirmButton.addEventListener('click', () => {
             const checkboxes = dataTable.querySelectorAll('[data-check-item]:checked');
             const promises = [];
             checkboxes.forEach((checkbox) => {
@@ -456,14 +454,7 @@ function initializeDeleteButtons(dataTable, deleteButtons, alertModal) {
                 });
                 finalMsg += '"id":"status"}';
                 const msgType = 'success';
-                if(flagError) { 
-                    msgType = 'error'
-                } else {
-                    const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss]');
-                    dismissButtons.forEach(function(dismissButton) {
-                        dismissButton.addEventListener('click', reloadWindow); 
-                    });
-                };
+                if(flagError) { msgType = 'error'};
                 setAlertMsg(alertModal, msgType, tabulate(finalMsg));
             });
         });
@@ -493,8 +484,7 @@ function initializeDownloadCSV(dataTable, downloadButton) {
         });
     
         // Create CSV string
-        let csvContent = '\uFEFF';
-        csvContent += headers.join(',') + '\n';
+        let csvContent = headers.join(',') + '\n';
         rows.forEach(row => {
             csvContent += row.join(',') + '\n';
         });
