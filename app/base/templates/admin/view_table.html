@@ -56,7 +56,7 @@
         <thead class="sticky-top">
             <tr>
                 <th><input class="form-check-input" id="dataTableCheckAll" data-check-all type="checkbox" value=""></th>
-                <th>{{ _('Actions') }}</th>
+                <th>{{ _('_table_action') }}</th>
                 {% for thead in theads %}
                 <th data-column-id="{{ loop.index }}">{{ thead }}</th>
                 {% endfor %}
@@ -93,16 +93,16 @@
     </table>
 </div>
 <!-- #tableConfigModal -->
-<div class="modal fade" id="tableConfigModal" tabindex="-1" data-title="{{ _('TableConfig') }}" data-close="{{ _('Cancel') }}" data-save="{{ _('Save Changes') }}" data-table>
+<div class="modal fade" id="tableConfigModal" tabindex="-1" data-title="{{ _('_table_config') }}" data-close="{{ _('Cancel') }}" data-save="{{ _('Save Changes') }}" data-table>
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">{{ _('TableConfig') }}</h5>
+                <h5 class="modal-title">{{ _('_table_config') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="card" id="tableConfigTHeads">
-                    <div class="card-header" id="tableTHeadsHeader">{{ _('TableHeads') }}</div>
+                    <div class="card-header" id="tableTHeadsHeader">{{ _('_table_header') }}</div>
                     <div class="card-body" id="tableConfigTHeadsBody">
                         <div class="list-group" id="tableConfigTHeadsList">
                             {% for thead in theads %}
@@ -121,9 +121,9 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-sm btn-outline-dark" id="restoreTableConfigDefaultButton">{{ _('RestoreDefault') }}</button>
+                <button type="button" class="btn btn-sm btn-outline-dark" id="restoreTableConfigDefaultButton">{{ _('Restore Default') }}</button>
                 <button type="button" class="btn btn-sm btn-outline-dark" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
-                <button type="button" class="btn btn-sm btn-outline-dark" id="saveTableConfigButton">{{ _('SaveChanges') }}</button>
+                <button type="button" class="btn btn-sm btn-outline-dark" id="saveTableConfigButton">{{ _('Save Changes') }}</button>
             </div>
         </div>
     </div>
