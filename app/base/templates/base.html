@@ -33,7 +33,7 @@
                     <ol class="breadcrumb mb-0 justify-content-start align-items-center">
                         {% for nav_level in navigation %}
                             {% if loop.last %}
-                                <li class="breadcrumb-item active">{{ nav_level }}</li>
+                                <li class="breadcrumb-item active">{{ _(nav_level) }}</li>
                             {% else %}
                                 <li class="breadcrumb-item">
                                     <a href="{{ navigation[nav_level] }}">
