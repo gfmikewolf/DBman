@@ -79,6 +79,7 @@ class Base(DeclarativeBase):
             pi['rel_name'] = rel_name
             pi['is_date'] = col.key.endswith('date')
             pi['is_json'] = col.key.endswith('json')
+            pi['is_extension'] = col.info.get('extension', False)
             prop_info.append(pi)
         return prop_info
 
