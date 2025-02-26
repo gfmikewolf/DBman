@@ -58,7 +58,7 @@ class Contract(Base):
     name = synonym('contract_name')
     
     amendments: Mapped[List['Amendment']] = relationship(back_populates='contract', lazy='select')
-    clause_expiry: Mapped[List['ClauseExpiry']] = relationship(
+    clauses_expiry: Mapped[List['ClauseExpiry']] = relationship(
         back_populates='contract',
         lazy='select'
     )
@@ -76,14 +76,15 @@ class Contract(Base):
         if related_amendments:
             pass
     
-class ClauseType(JSONMixin, Base):
+class ClauseType(Base):
     __tablename__ = 'clause_type'
     clause_type_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
     clause_type_name: Mapped[str]
-    clause_type_json: Mapped[dict | None] = mapped_column(JSON)
+
     id = synonym('clause_type_id')
     name = synonym('clause_type_name')
-    clauses: Mapped['Clause'] = relationship(
+
+    clauses: Mapped[List['Clause']] = relationship(
         back_populates='clause_type',
         lazy = 'select'
     )
@@ -92,21 +93,24 @@ class ClausePos(Base):
     __tablename__ = 'clause_pos'
     clause_pos_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
     clause_pos_name: Mapped[str] = mapped_column(default='', nullable=False)
-    clauses: Mapped['Clause'] = relationship(
-        back_populates='clause_pos',
-        lazy = 'select'
-    )
+
     id = synonym('clause_pos_id')
     name = synonym('clause_pos_name')
 
-class Clause(ForeignKeyMixin, JSONMixin, Base):
+    clauses: Mapped[List['Clause']] = relationship(
+        back_populates='clause_pos',
+        lazy = 'select'
+    )
+
+class Clause(ForeignKeyMixin, Base):
     __tablename__ = 'clause'
     clause_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
     clause_type_id: Mapped[int] = mapped_column(
         ForeignKey('clause_type.clause_type_id'),
         info={
             'rel_name': 'clause_type', 
-            'fk_attr_name':'clause_type_name'
+            'fk_attr_name':'clause_type_name',
+            'extension': True
         }
     )
     clause_ref: Mapped[str | None]
@@ -129,7 +133,6 @@ class Clause(ForeignKeyMixin, JSONMixin, Base):
     clause_remarks: Mapped[str | None]
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
-    clause_data_json: Mapped[dict | None] = mapped_column(JSON)
 
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
@@ -146,8 +149,6 @@ class Clause(ForeignKeyMixin, JSONMixin, Base):
         lazy='selectin'
     )
 
-    clause_data_json: Mapped[dict | None] = mapped_column(JSON)
-
     id = synonym('clause_id')
     name = synonym('clause_text')
     
@@ -162,7 +163,15 @@ class Clause(ForeignKeyMixin, JSONMixin, Base):
 
 class ClauseExpiry(ForeignKeyMixin, Base):
     __tablename__ = 'clause_expiry'
-    clause_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
+    clause_id: Mapped[int] = mapped_column(
+        ForeignKey('clause.clause_id'),
+        primary_key=True, 
+        info={
+            'rel_name': 'clause',
+            'readonly': True, 
+            'hidden': True
+        }
+    )
     expiry_type_id: Mapped[int] = mapped_column(
         ForeignKey('expiry_type.expiry_type_id'),
         info={
@@ -176,7 +185,9 @@ class ClauseExpiry(ForeignKeyMixin, Base):
             'rel_name': 'contract'
         }
     )
+
     id = synonym('clause_id')
+    name = synonym('expiry_type_id')
 
     expiry_type: Mapped['ExpiryType'] = relationship(
         back_populates='clauses',
@@ -184,8 +195,12 @@ class ClauseExpiry(ForeignKeyMixin, Base):
     )
 
     contract: Mapped['Contract'] = relationship(
-        back_populates='clause_expiry',
+        back_populates='clauses_expiry',
         lazy='selectin'
+    )
+
+    clause: Mapped['Clause'] = relationship(
+        lazy='select'
     )
     
 class ExpiryType(Base):
@@ -200,3 +215,7 @@ class ExpiryType(Base):
         back_populates='expiry_type',
         lazy = 'select'
     )
+    
+EXTModel = {
+    'expiry': ClauseExpiry
+}
