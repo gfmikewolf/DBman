@@ -79,15 +79,15 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p6 class="d-none" data-success>{{ _('Success') }}</p6>
-                    <p6 class="d-none" data-error>{{ _('Error') }}</p6>
-                    <p6 class="d-none" data-warning-delete>{{ _('_warning_delete') }}</p6>
-                    <div data-msg></div>
+                    <span class="d-none" data-success>{{ _('Operation Success') }}: </span>
+                    <span class="d-none" data-error>{{ _('Operation Error') }}</span>
+                    <span class="d-none" data-warning-delete>{{ _('_warning_delete') }}</span>
+                    <span data-msg></span>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" data-am-close>{{ _('Close') }}</button>
                     <button type="button" class="btn btn-outline-dark d-none" data-am-confirm>{{ _('Confirm') }}</button>
-                    <button type="button" class="btn btn-outline-dark d-none" data-am-back>{{ _('BackToViewTable') }}</button>
+                    <button type="button" class="btn btn-outline-dark d-none" data-am-back>{{ _('_return_to_viewtable') }}</button>
                 </div>
             </div>
         </div>
