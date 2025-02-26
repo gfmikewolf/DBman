@@ -1,9 +1,7 @@
 <!--app/base/templates/admin/modify_record.html-->
 {% extends "base.html" %}
 {% set prev_page = url_for('base.admin.view_table', table_name=table_name) %}
-{% set APP_title = PageText['Admin']['PageTitle'] %}
-{% set APP_index = url_for('base.admin.admin_index') %}
-{% set title = PageText['Admin']['ModifyRecord'] if record_id !='__new__' else PageText['Admin']['AddRecord'] %}
+{% set title = _('Modify Record') if record_id !='__new__' else _('Add Record') %}
 {% block title %} {{ title }} {% endblock %}
 {% block content %}
 
@@ -13,7 +11,7 @@
         <div class="col col-sm-12 col-md-8 col-lg-6 mt-3">
             <form method="post" id="ModifyForm">
                 <div class="card">
-                    <div class="card-header">{{ PageText['Admin']['EnterChanges'] }}</div>
+                    <div class="card-header">{{ _('_enter_form_data') }}</div>
                     <div class="card-body">
                         <input type="text" class="d-none" name="id" value="{{ record_id }}"></input>
                     {% for pi in prop_info %}
@@ -48,8 +46,8 @@
                     </div>
                 </div>
                 <div class="d-flex justify-content-end w-100 mt-2">
-                    <a href="{{ url_for('base.admin.view_table', table_name=table_name) }}" class="btn btn-outline-dark mx-2">{{ PageText['Cancel'] }}</a>
-                    <button type="submit" class="btn btn-outline-dark mx-2">{{ PageText['SaveChanges'] }}</button>
+                    <a href="{{ url_for('base.admin.view_table', table_name=table_name) }}" class="btn btn-outline-dark mx-2">{{ _('Cancel') }}</a>
+                    <button type="submit" class="btn btn-outline-dark mx-2">{{ _('Save Changes') }}</button>
                 </div>
             </form>
         </div>
