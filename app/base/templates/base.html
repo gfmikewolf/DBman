@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('base.static', filename='css/styles.css') }}">
-    <title>{% block title %}{{ PageText['PageTitle'] }}{% endblock %}</title>
+    <title>{% block title %}{{ _('_app_name') }}{% endblock %}</title>
 </head>
 <body>
     <!-- 主内容容器 -->
@@ -35,7 +35,11 @@
                             {% if loop.last %}
                                 <li class="breadcrumb-item active">{{ nav_level }}</li>
                             {% else %}
-                                <li class="breadcrumb-item"><a href="{{ navigation[nav_level] }}">{{ nav_level }}</a></li>
+                                <li class="breadcrumb-item">
+                                    <a href="{{ navigation[nav_level] }}">
+                                        {{ nav_level }}
+                                    </a>
+                                </li>
                             {% endif %}
                         {% endfor %}
                     </ol>
@@ -45,15 +49,17 @@
                 <i class="fa fa-bars"></i>
             </button>
         </div>
-        <div class="offcanvas offcanvas-end" style="width: 250px;" tabindex="-1" id="offcanvasNavigation" aria-labelledby="offcanvasNavigationLabel">
+        <div class="offcanvas offcanvas-end" style="width: 250px;" tabindex="-1" id="offcanvasNavigation">
             <div class="offcanvas-header">
-                <h5 class="offcanvas-title" id="offcanvasNavigationLabel">Navigation</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                <h5 class="offcanvas-title" id="offcanvasNavigationLabel">{{ _('Navigation') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
             </div>
             <div class="offcanvas-body">
                 <nav class="nav flex-column">
                     {% for nav_level in navigation %}
-                        <a class="nav-link{{ ' disabled' if loop.last else ''}}" href="{{ navigation[nav_level] }}">{{ nav_level }}</a>
+                        <a class="nav-link{{ ' disabled' if loop.last else ''}}" href="{{ _(navigation[nav_level]) }}">
+                            {{ nav_level }}
+                        </a>
                     {% endfor %}
                 </nav>
             </div>
@@ -73,15 +79,15 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p6 class="d-none" data-success>Success</p6>
-                    <p6 class="d-none" data-error>Error</p6>
-                    <p6 class="d-none" data-warning-delete>Are you sure of deleting the record?</p6>
+                    <p6 class="d-none" data-success>{{ _('Success') }}</p6>
+                    <p6 class="d-none" data-error>{{ _('Error') }}</p6>
+                    <p6 class="d-none" data-warning-delete>{{ _('Are you sure of deleting the record?') }}</p6>
                     <div data-msg></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" data-am-close>Close</button>
-                    <button type="button" class="btn btn-outline-dark d-none" data-am-confirm>Confirm</button>
-                    <button type="button" class="btn btn-outline-dark d-none" data-am-back>{{ PageText['BackToViewTable'] }}</button>
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" data-am-close>{{ _('Close') }}</button>
+                    <button type="button" class="btn btn-outline-dark d-none" data-am-confirm>{{ _('Confirm') }}</button>
+                    <button type="button" class="btn btn-outline-dark d-none" data-am-back>{{ _('BackToViewTable') }}</button>
                 </div>
             </div>
         </div>
