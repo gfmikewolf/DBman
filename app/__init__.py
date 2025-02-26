@@ -4,8 +4,9 @@ from app.translation import get_pagetext, translate_text
 
 def _(input_text):
     PageText = session['PageText']
+    Lang = session['language']
     if PageText:
-        return translate_text(input_text, PageText)
+        return translate_text(input_text, PageText, Lang)
     else:
         return input_text
 
