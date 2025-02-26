@@ -37,7 +37,7 @@
                             {% else %}
                                 <li class="breadcrumb-item">
                                     <a href="{{ navigation[nav_level] }}">
-                                        {{ nav_level }}
+                                        {{ _(nav_level) }}
                                     </a>
                                 </li>
                             {% endif %}
@@ -57,8 +57,8 @@
             <div class="offcanvas-body">
                 <nav class="nav flex-column">
                     {% for nav_level in navigation %}
-                        <a class="nav-link{{ ' disabled' if loop.last else ''}}" href="{{ _(navigation[nav_level]) }}">
-                            {{ nav_level }}
+                        <a class="nav-link{{ ' disabled' if loop.last else ''}}" href="{{ navigation[nav_level] }}">
+                            {{ _(nav_level) }}
                         </a>
                     {% endfor %}
                 </nav>
