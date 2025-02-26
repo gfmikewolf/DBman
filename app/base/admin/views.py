@@ -1,7 +1,8 @@
 # app/base/admin/views.py
 from datetime import datetime
 import json
-from flask import g, render_template, request, jsonify
+from app import _
+from flask import render_template, request, jsonify
 from sqlalchemy import select
 from app.extensions import db_session, DBModel, ForeignKeyMixin
 
@@ -10,15 +11,14 @@ navigation = {'Home':'/', 'Admin': '/admin'}
 def admin_index():
     table_names = DBModel.keys()
     return render_template(
-        'admin/index.html', 
-        PageText=g.PageText, 
+        'admin/index.html',  
         table_names=table_names, 
         navigation=navigation)
 
 def view_table(table_name):
     """查看表数据"""
     if table_name not in DBModel:
-        return g.PageText['TableNotFound'], 404
+        return _('_table_not_found'), 404
     Model = DBModel[table_name]
     with db_session() as sess:
         models = sess.scalars(select(Model)).all()
@@ -33,8 +33,8 @@ def view_table(table_name):
         table_name=table_name, 
         theads=theads, 
         models=models, 
-        prop_info=prop_info, 
-        PageText=g.PageText)
+        prop_info=prop_info
+    )
 
 def modify_record(table_name, record_id):
     if table_name not in DBModel:
@@ -61,12 +61,12 @@ def modify_record(table_name, record_id):
                 sess.commit()
                 return jsonify({
                     'status': 'success', 
-                    'message': g.PageText['SuccessSavedChanges']
+                    'message': _('Successfully saved changes')
                 })
             except Exception as e:
                 sess.rollback()
-                msg = g.PageText['FailedTo'] + ' ' + g.PageText['SaveChanges'].lower()
-                err = g.PageText['ErrorIn']
+                msg = _('_failedto save changes')
+                err = _('Error')
                 return jsonify({
                     'status': 'error', 
                     'message': f'{msg}: {err} {str(e)}'
@@ -85,7 +85,6 @@ def modify_record(table_name, record_id):
 
     return render_template(
         'admin/modify_record.html', 
-        PageText=g.PageText, 
         table_name=table_name, 
         model=model,
         record_id=record_id,
@@ -95,7 +94,7 @@ def modify_record(table_name, record_id):
 
 def delete_record(table_name, record_id):
     if table_name not in DBModel:
-        return jsonify({'status': 'error', 'message': g.PageText['TableNotFound']})
+        return jsonify({'status': 'error', 'message': _('_table_not_found')})
  
     Model = DBModel[table_name]
 
