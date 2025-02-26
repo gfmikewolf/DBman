@@ -4,7 +4,7 @@ import json
 from app import _
 from flask import render_template, request, jsonify
 from sqlalchemy import select
-from app.extensions import db_session, DBModel, ForeignKeyMixin
+from app.extensions import db_session, DBModel, ForeignKeyMixin, EXTModel
 
 navigation = {'_homepage':'/', '_admin': '/admin'}
 
