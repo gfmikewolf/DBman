@@ -7,7 +7,8 @@ from app.contract import (
     ClauseType,
     ClausePos,
     ClauseExpiry,
-    ExpiryType
+    ExpiryType,
+    EXTModel
 )
 
 DBModel = {
