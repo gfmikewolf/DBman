@@ -104,8 +104,9 @@ def delete_record(table_name, record_id):
             sess.delete(model)
             dd = model.data_dict(data_style='rel_name')
             for key in dd:
+                value = dd[key]
                 if key.endswith('date'):
-                    dd[key] = dd[key].strftime('%Y-%m-%d')
+                    dd[key] = value.strftime('%Y-%m-%d') if value else ''
             msg = json.dumps(dd)
         try:
             sess.commit()
