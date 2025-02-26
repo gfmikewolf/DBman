@@ -42,7 +42,7 @@ def get_pagetext(locales):
                 print(f"pagetext file {filepath} not found")  # 调试日志
             return None
 
-def translate_text(input_text, pagetext):
+def translate_text(input_text, pagetext, lang):
     # 分割输入文本为单词列表
     words = input_text.split()
     
@@ -50,4 +50,9 @@ def translate_text(input_text, pagetext):
     translated_words = [pagetext.get(word.lower(), word) for word in words]
     
     # 将翻译后的单词重新组合成字符串
-    return ' '.join(translated_words)
+    if lang == 'en': 
+        char_split = ' '
+    elif lang == 'zh':
+        char_split = ''
+    
+    return char_split.join(translated_words)
