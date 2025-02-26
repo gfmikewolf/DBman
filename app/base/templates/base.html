@@ -10,7 +10,6 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('base.static', filename='css/styles.css') }}">
     <title>{% block title %}{{ PageText['PageTitle'] }}{% endblock %}</title>
-    {% set navigation = {'Home':'/','Admin':url_for('base.admin.admin_index')} %}
 </head>
 <body>
     <!-- 主内容容器 -->
@@ -33,7 +32,7 @@
                 <nav class="d-none d-lg-block">
                     <ol class="breadcrumb mb-0 justify-content-start align-items-center">
                         {% for nav_level in navigation %}
-                            {% if nav_level == active_level %}
+                            {% if loop.last %}
                                 <li class="breadcrumb-item active">{{ nav_level }}</li>
                             {% else %}
                                 <li class="breadcrumb-item"><a href="{{ navigation[nav_level] }}">{{ nav_level }}</a></li>
@@ -54,7 +53,7 @@
             <div class="offcanvas-body">
                 <nav class="nav flex-column">
                     {% for nav_level in navigation %}
-                        <a class="nav-link{{ ' disabled' if nav_level==active_level else ''}}" href="{{ navigation[nav_level] }}">{{ nav_level }}</a>
+                        <a class="nav-link{{ ' disabled' if loop.last else ''}}" href="{{ navigation[nav_level] }}">{{ nav_level }}</a>
                     {% endfor %}
                 </nav>
             </div>

@@ -179,7 +179,7 @@ class ClauseExpiry(ForeignKeyMixin, Base):
     id = synonym('clause_id')
 
     expiry_type: Mapped['ExpiryType'] = relationship(
-        back_populates='clause_expiry',
+        back_populates='clauses',
         lazy='selectin'
     )
 
@@ -192,14 +192,11 @@ class ExpiryType(Base):
     __tablename__ = 'expiry_type'
     expiry_type_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
     expiry_type_name: Mapped[str]
-    clauses: Mapped['ClauseExpiry'] = relationship(
-        back_populates='expiry_type',
-        lazy = 'select'
-    )
+    
     id = synonym('expiry_type_id')
     name = synonym('expiry_type_name')
 
-    clause_expiry: Mapped[List['ClauseExpiry']] = relationship(
+    clauses: Mapped[List['ClauseExpiry']] = relationship(
         back_populates='expiry_type',
-        lazy='select'
+        lazy = 'select'
     )

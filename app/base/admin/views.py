@@ -1,14 +1,19 @@
 # app/base/admin/views.py
-import io
-import csv
+from datetime import datetime
 import json
-from flask import g, render_template, request, make_response, jsonify
+from flask import g, render_template, request, jsonify
 from sqlalchemy import select
 from app.extensions import db_session, DBModel, ForeignKeyMixin
 
+navigation = {'Home':'/', 'Admin': '/admin'}
+
 def admin_index():
     table_names = DBModel.keys()
-    return render_template('admin/index.html', PageText=g.PageText, table_names=table_names)
+    return render_template(
+        'admin/index.html', 
+        PageText=g.PageText, 
+        table_names=table_names, 
+        navigation=navigation)
 
 def view_table(table_name):
     """查看表数据"""
@@ -19,7 +24,17 @@ def view_table(table_name):
         models = sess.scalars(select(Model)).all()
     prop_info = Model.get_prop_info(data_style='rel_name', exclude_info={'hidden'})
     theads = [pi['key'] for pi in prop_info]
-    return render_template('admin/view_table.html', table_names=DBModel.keys(), table_name=table_name, theads=theads, models=models, prop_info=prop_info, PageText=g.PageText)
+    nav = navigation
+    nav['View Table'] = '#'
+    return render_template(
+        'admin/view_table.html',
+        navigation = nav, 
+        table_names=DBModel.keys(), 
+        table_name=table_name, 
+        theads=theads, 
+        models=models, 
+        prop_info=prop_info, 
+        PageText=g.PageText)
 
 def modify_record(table_name, record_id):
     if table_name not in DBModel:
@@ -30,10 +45,12 @@ def modify_record(table_name, record_id):
         form_data = request.form.to_dict()
         record_id = request.form.get('id')
         form_data.pop('id', None)
-        form_data_original = form_data.copy();
+        form_data_original = form_data.copy()
         for key in form_data_original:
             if form_data_original[key] == '':
                 form_data.pop(key, None)
+            elif key.endswith('date'):
+                form_data[key] = datetime.strptime(form_data[key], '%Y-%m-%d').date()
         with db_session() as sess:
             if record_id != '__new__':
                 model = sess.get(Model, record_id)
@@ -86,7 +103,11 @@ def delete_record(table_name, record_id):
         model = sess.get(Model, record_id)
         if model:
             sess.delete(model)
-            msg = json.dumps(model.data_dict(data_style='rel_name'))
+            dd = model.data_dict(data_style='rel_name')
+            for key in dd:
+                if key.endswith('date'):
+                    dd[key] = dd[key].strftime('%Y-%m-%d')
+            msg = json.dumps(dd)
         try:
             sess.commit()
             return jsonify({
@@ -99,30 +120,3 @@ def delete_record(table_name, record_id):
                 'status': "error",
                 "message": msg
             }), 500
-
-def download_csv():
-    data = request.get_json()
-    columns = data.get('columns', [])
-    table_name = request.args.get('table_name')
-    if table_name not in DBModel:
-        return 'Table not found', 404
-    Model = DBModel[table_name]
-    with db_session() as session:
-        models = session.scalars(select(Model)).all()
-    
-    # Create CSV
-    csv_data = []
-    header = [Model.get_properties(data_style='rel_name')[int(col)] for col in columns]
-    csv_data.append(header)
-    for model in models:
-        row = [getattr(model, Model.get_properties(data_style='rel_name')[int(col)]) for col in columns]
-        csv_data.append(row)
-    
-    # Create response
-    si = io.StringIO()
-    cw = csv.writer(si)
-    cw.writerows(csv_data)
-    output = make_response(si.getvalue())
-    output.headers["Content-Disposition"] = "attachment; filename=data.csv"
-    output.headers["Content-type"] = "text/csv"
-    return output

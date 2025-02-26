@@ -41,3 +41,24 @@ def get_pagetext(locales):
             except FileNotFoundError:
                 print(f"pagetext file {filepath} not found")  # 调试日志
             return None
+
+def translate_text(input_text, pagetext):
+    # 将输入的字符串转换为小写
+    input_text = input_text.lower()
+    
+    # 分割输入文本为单词列表
+    words = input_text.split()
+    
+    # 替换单词为翻译，如果找不到翻译则保留原单词
+    translated_words = []
+    for word in words:
+        if word in pagetext:
+            translated_word = pagetext.get(word)
+        else:
+            translated_word = word
+        translated_words.append(translated_word)
+    
+    # 将翻译后的单词重新组合成字符串
+    translated_text = ' '.join(translated_words)
+    
+    return translated_text
