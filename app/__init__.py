@@ -1,6 +1,13 @@
 # app/__init__.py
 from flask import Flask, abort, session
-from app.translation import get_pagetext
+from app.translation import get_pagetext, translate_text
+
+def _(input_text):
+    PageText = session['PageText']
+    if PageText:
+        return translate_text(input_text, PageText)
+    else:
+        return input_text
 
 def create_app():
     app = Flask(__name__)
@@ -11,6 +18,8 @@ def create_app():
     # 注册蓝图
     from app.base import base_bp
     app.register_blueprint(base_bp)
+
+    app.jinja_env.globals["_"] = _
 
     # 请求前确认翻译文件正确读取
     @app.before_request
