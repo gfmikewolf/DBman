@@ -6,7 +6,7 @@ from flask import render_template, request, jsonify
 from sqlalchemy import select
 from app.extensions import db_session, DBModel, ForeignKeyMixin
 
-navigation = {'Home':'/', 'Admin': '/admin'}
+navigation = {'_homepage':'/', '_admin': '/admin'}
 
 def admin_index():
     table_names = DBModel.keys()
@@ -24,7 +24,7 @@ def view_table(table_name):
         models = sess.scalars(select(Model)).all()
     prop_info = Model.get_prop_info(data_style='rel_name', exclude_info={'hidden'})
     theads = [pi['key'] for pi in prop_info]
-    nav = navigation
+    nav = navigation.copy()
     nav['View Table'] = '#'
     return render_template(
         'admin/view_table.html',
