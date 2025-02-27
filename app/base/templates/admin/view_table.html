@@ -23,7 +23,7 @@
                         {% set dd_active = '' %}
                         {% set dd_url = url_for('base.admin.view_table', table_name=tn) %}
                     {% endif %}
-                    <a class="dropdown-item {{ dd_active }}" href="{{ dd_url }}">
+                    <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
                         {{ tn }}
                     </a>
                 </li>
@@ -39,7 +39,7 @@
             <button class="btn btn-sm btn-outline-dark" id="tableConfigButton"\
                  data-bs-target="#tableConfigModal" \
                  data-bs-toggle="tooltip" data-bs-title="{{ _('_table_config') }}">
-                 <i class="fa fa-table"></i>
+                 <i class="fa fa-gear"></i>
             </button>
         </div>
         <div class="btn-group me-1" role="group">
@@ -74,50 +74,19 @@
 <div class="table-responsive" data-table>
     <table id="dataTable" class="table table-hover table-sm">
         <thead class="sticky-top">
-            <tr>
+            <tr class="align-items-center">
                 <th><input class="form-check-input" id="dataTableCheckAll" data-check-all type="checkbox" value=""></th>
                 <th>{{ _('_table_action') }}</th>
                 {% for thead in theads %}
-                <th data-column-id="{{ loop.index }}" data-column-data="{{ thead }}">
-                    <div class="btn-group">
-                    <div class="dropdown d-inline">
-                        <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            {{ thead }}
-                        </button>
-                        {# 为不是当前查询表格的表格增加访问下拉菜单 #}
-                        <ul class="dropdown-menu">
-                            <li>
-                                <button class="dropdown-item">{{ _('ASC') }} </button>
-                            </li>
-                            <li>
-                                <button class="dropdown-item">{{ _('DESC') }} </button>
-                            </li>
-                            <li>
-                                <div class="input-group input-group-sm justify-content-start" role="group">
-                                    <input id="columnSearchQuery" class="form-control form-control-sm" type="search" placeholder="{{ _('Search') }}">
-                                    
-                                    <button id="columnSearchButton" class="btn btn-sm btn-outline-dark"\
-                                        data-bs-toggle="tooltip" data-bs-title="{{ _('Search')}}">
-                                        <i class="fa fa-search"></i>
-                                    </button>
-                                </div>
-                            </li>
-                        </ul>
-                    </div>
-                    <div class="col">
-                        <button id="columnSearchNoFilterButton" class="btn btn-sm"\
-                            data-bs-toggle="tooltip" data-bs-title="{{ _('Remove Filter')}}">
-                            <i class="fa fa-filter-circle-xmark"></i>
-                        </button>
-                    </div>
-                    </div>
+                <th data-column-id="{{ loop.index }}" data-column-data="{{ thead }}">                  
+                    {{ thead }}
                 </th>
                 {% endfor %}
             </tr>
         </thead>
         <tbody>
             {% for model in models %}
-            <tr>
+            <tr class="align-items-top">
                 <td>
                     <input class="form-check-imput" data-check-item="{{ model.id }}" type="checkbox" value="" id="recordCBX{{ model.id }}">
                 </td>
@@ -139,14 +108,19 @@
                 {% for pi in prop_info %}
                     {% set key = pi['key'] %}
                     {% set value = data_dict[key] %}
-                    {% if pi['is_json'] and value != ('' or None) %}
-                        <td data-column-id="{{ theads.index(key) + 1 }}">
-                            <button class="btn btn-sm btn-outline-dark" data-json-view="{{ data_dict[key] }}">{{ _('ToggleJSON') }}</button>
+                    {% if pi['is_extension'] and value %}
+                        <td data-column-id="{{ theads.index(key) + 1 }}" data-column-data="{{ value }}">
+                            <div class="btn-group align-items-top">
+                                <button class="btn btn-sm align-items-top" data-bs-toggle="tooltip" data-bs-title="{{ _('_extend_data')}}"
+                                    data-dbman-toggle="extension" data-column-key="{{ key }}" data-column-reltable="{{ EXTModel[value].__table_name__ }}">
+                                    <i class="fa fa-circle-info"></i>
+                                </button>
+                                <span class="align-items-top">{{ value }}</span>
+                            </div>
+                        </td>
                     {% else %}
-                        <td data-column-id="{{ theads.index(key) + 1 }}">
-                        {{ value if value else '' }}
+                        <td data-column-id="{{ theads.index(key) + 1 }}">{{ value if value else '' }}</td>
                     {% endif %}
-                    </td>
                 {% endfor %}
             </tr>
             {% endfor %}
@@ -154,7 +128,7 @@
     </table>
 </div>
 <!-- #tableConfigModal -->
-<div class="modal fade" id="tableConfigModal" tabindex="-1" data-title="{{ _('_table_config') }}" data-close="{{ _('Cancel') }}" data-save="{{ _('Save Changes') }}" data-table>
+<div class="modal fade" id="tableConfigModal" tabindex="-1" data-title="{{ _('_table_config') }}" data-close="{{ _('Cancel') }}" data-save="{{ _('Save Changes') }}">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
