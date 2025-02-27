@@ -33,7 +33,7 @@
 	"_return_to_viewtable": "回到表格查询",
 	"confirm": "确定",
 	"_table_not_found": "未找到表格",
-	"togglejson": "查看JSON数据",
+	"toggle": "查看",
 	"_admin": "数据库增删改查",
 	"_contract_man": "合同管理",
 	"my": "我的",
@@ -62,5 +62,8 @@
 	"remove": "去除",
 	"filter": "过滤器",
 	"asc": "升序",
-	"desc": "降序"
+	"desc": "降序",
+	"_extend_data": "查看扩展数据",
+	"extended": "扩展",
+	"extend": "扩展"
 }
