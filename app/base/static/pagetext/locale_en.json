@@ -17,5 +17,6 @@
 	"_warning_delete": "Are you sure of deleting the record?",
 	"_table_config": "Table Config",
 	"_homepage": "Home",
-	"_failedto": "Failed to"
+	"_failedto": "Failed to",
+	"_extend_data": "Toggle extended data"
 }
