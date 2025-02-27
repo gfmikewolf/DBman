@@ -112,6 +112,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if(deleteButtons.length > 0 && alertModal) {
             initializeDeleteButtons(dataTable, deleteButtons, alertModal);   
         }
+        const extensionButtons = document.querySelectorAll('[data-dbman-toggle="extension"]');
+        if(extensionButtons.length > 0 && alertModal) {
+            initializeExtension(dataTable, extensionButtons, alertModal);
+        }
     }
     // 初始化修改和添加页面的提示框
     const modifyForm = document.getElementById('ModifyForm');
@@ -126,6 +130,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // 初始化所有的工具提示
 function initializeTooltips(tooltipList) {
+    // 提示栏只在悬停时触发
+    tooltipList.forEach((tooltip) => {tooltip.dataset.bsTrigger = 'hover';});
     var tooltipTriggerList = [].slice.call(tooltipList);
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
@@ -380,6 +386,89 @@ function initializeTableConfig(dataTable, tableConfigButton, tableConfigModal) {
 }
 // 初始化删除提示框
 function initializeDeleteButtons(dataTable, deleteButtons, alertModal) {
+    initializeAlertModal(alertModal);
+    function initializeConfirmBtn() {
+        const activeConfirmBtn = alertModal.querySelector('#AlertModalActiveConfirm');
+        if(activeConfirmBtn) { activeConfirmBtn.remove();}
+        const alertConfirmButton = alertModal.querySelector('[data-am-confirm]').cloneNode(true);
+        alertConfirmButton.classList.remove('d-none');
+        const alertFooter = alertModal.querySelector('.modal-footer');
+        alertFooter.appendChild(alertConfirmButton);
+        return alertConfirmButton;
+    }
+    deleteButtons.forEach(function(deleteButton) {
+        deleteButton.addEventListener('click', function() {
+            const alertConfirmButton = initializeConfirmBtn();
+            setAlertMsg(alertModal, 'warning-delete', '');
+            alertConfirmButton.dataset.deleteRecordUrl = deleteButton.dataset.deleteRecordUrl;
+            alertConfirmButton.id = 'AlertModalActiveConfirm';
+            alertConfirmButton.addEventListener('click', function() {
+                this.classList.add('d-none');        
+                $.ajax({
+                    type: 'post',
+                    url: alertConfirmButton.dataset.deleteRecordUrl,
+                    success: function(response) {
+                        setAlertMsg(alertModal, 'success', tabulate(response.message));
+                        const dismissButtons = alertModal.querySelectorAll('[data-bs-dismiss]');
+                        dismissButtons.forEach(function(dismissButton) {
+                            dismissButton.addEventListener('click', reloadWindow); 
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        setAlertMsg(alertModal, 'error', error);
+                    }
+                });
+            });
+            showModal(alertModal);
+        });
+    });
+    const deleteAllButton = document.getElementById('deleteAllButton');
+    deleteAllButton.addEventListener('click', () => {
+        const alertConfirmButton = initializeConfirmBtn();
+        setAlertMsg(alertModal, 'warning-delete', '');
+        alertConfirmButton.addEventListener('click', () => {
+            const checkboxes = dataTable.querySelectorAll('[data-check-item]:checked');
+            const promises = [];
+            checkboxes.forEach((checkbox) => {
+                const row = checkbox.parentElement.parentElement;
+                const delBtn = row.querySelector('[data-delete-record-url]');
+                const msg = {};
+        
+                const promise = new Promise((resolve, reject) => {
+                    $.ajax({
+                        type: 'post',
+                        url: delBtn.dataset.deleteRecordUrl,
+                        success: function(response) {
+                            msg[checkbox.dataset.checkItem] = "successful";
+                            resolve(msg);
+                        },
+                        error: function(xhr, status, error) {
+                            msg[checkbox.dataset.checkItem] = "failed";
+                            resolve(msg);
+                        }
+                    });
+                });
+                promises.push(promise);
+            });
+            Promise.all(promises).then((results) => {
+                var finalMsg = '{';
+                var flagError = false;
+                results.forEach(result => {
+                    for (const key in result) {
+                        finalMsg += `"${key}": "${result[key]}",`;
+                        flagError = flagError || key=='failed';                    }
+                });
+                finalMsg += '"id":"status"}';
+                const msgType = 'success';
+                if(flagError) { msgType = 'error'};
+                setAlertMsg(alertModal, msgType, tabulate(finalMsg));
+            });
+        });
+        showModal(alertModal);     
+    });
+}
+// 初始化扩展表提示框
+function initializeExtension(dataTable, extensionButtons, alertModal) {
     initializeAlertModal(alertModal);
     function initializeConfirmBtn() {
         const activeConfirmBtn = alertModal.querySelector('#AlertModalActiveConfirm');
