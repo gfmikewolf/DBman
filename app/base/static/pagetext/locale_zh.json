@@ -57,5 +57,10 @@
 	"default": "默认",
 	"close": "关闭",
 	"operation": "操作",
-	"error": "错误"
+	"error": "错误",
+	"batch": "批量",
+	"remove": "去除",
+	"filter": "过滤器",
+	"asc": "升序",
+	"desc": "降序"
 }

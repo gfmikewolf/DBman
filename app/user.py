@@ -1,6 +1,6 @@
 # app/user.py
 from typing import List
-from sqlalchemy import ForeignKey, Date
+from sqlalchemy import ForeignKey, Date, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.orm import Session
 from datetime import date
@@ -58,3 +58,28 @@ class MAPUserANDUserRole(ForeignKeyMixin, Base):
             'fk_attr_name':'user_role_name'
         }
     )
+
+class UserTablePreference(Base):
+    __tablename__ = 'user_table_preference'
+    user_table_preference_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden': True})
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey('user.user_id'),
+        primary_key=True,
+        info={
+            'rel_name': 'user', 
+            'fk_attr_name':'user_name'
+        }
+    )
+    user_table_preference_view_name: Mapped[str]
+    user_table_preference_table_name: Mapped[str]
+    user_table_preference_config: Mapped[dict] = mapped_column(JSON)
+
+    id = synonym('user_table_preference_id')
+    name = synonym('user_table_preference_view_name')
+
+    user: Mapped['User'] = relationship(
+        back_populates='user_table_preference',
+        lazy='selectin'
+    )
+
+    

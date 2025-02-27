@@ -51,12 +51,6 @@
     z-index: 1050; /* Higher than the sticky headers */
 }
 
-/* Style for active toggle button */
-#toggle_maximize.active {
-    background-color: black;
-    color: white;
-}
-
-#search_query {
-    max-width: 200px;
+.dropdown-item {
+    font-size: smaller;
 }

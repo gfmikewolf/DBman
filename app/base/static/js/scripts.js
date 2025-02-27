@@ -119,9 +119,9 @@ document.addEventListener('DOMContentLoaded', function () {
         initializeModifyForm(modifyForm);
     }
     //初始化JSON显示的提示框
-    if(jsonviewButtons.length > 0 && jsonModal && jsonModalBody && jsonModalCloseButtons.length > 0) {
-        initializeJSONview(jsonviewButtons, jsonModal, jsonModalBody, jsonModalCloseButtons);
-    }    
+    //if(jsonviewButtons.length > 0 && jsonModal && jsonModalBody && jsonModalCloseButtons.length > 0) {
+    //    initializeJSONview(jsonviewButtons, jsonModal, jsonModalBody, jsonModalCloseButtons);
+    //}    
 });
 
 // 初始化所有的工具提示
@@ -470,7 +470,7 @@ function initializeDownloadCSV(dataTable, downloadButton) {
         // Extract header data
         const headers = [];
         headRow.querySelectorAll('th[data-column-id]').forEach(th => {
-            headers.push(th.textContent.trim());
+            headers.push(th.dataset.columnData.trim());
         });
     
         // Extract data row content
@@ -478,7 +478,10 @@ function initializeDownloadCSV(dataTable, downloadButton) {
         dataRows.forEach(row => {
             const rowData = [];
             row.querySelectorAll('td[data-column-id]').forEach(td => {
-                rowData.push(td.textContent.trim());
+                var data = td.textContent.trim();
+                const colData = td.dataset.columnData
+                if(colData) { data = colData }
+                rowData.push(data);
             });
             rows.push(rowData);
         });
