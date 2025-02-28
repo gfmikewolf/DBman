@@ -134,6 +134,9 @@ class Clause(ForeignKeyMixin, Base):
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
 
+    id = synonym('clause_id')
+    name = synonym('clause_text')
+
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
         lazy='selectin'
@@ -148,9 +151,6 @@ class Clause(ForeignKeyMixin, Base):
         back_populates='clauses',
         lazy='selectin'
     )
-
-    id = synonym('clause_id')
-    name = synonym('clause_text')
     
     @classmethod
     def get_options_fk(cls, session: Session):
