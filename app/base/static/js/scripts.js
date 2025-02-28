@@ -8,6 +8,56 @@ var initialTHeadsOrder = []; // 点击表头自定义按钮前前表头顺序
 var initialTHeadsChecked = []; // 点击表头自定义按钮前表头显隐状态
 /*** 全局变量 block ends */
 
+/*** 类 block */
+// base.html 提示框类
+class DBManModal {
+    constructor(selector) {
+        this.modal = document.querySelector(selector);
+        this.bsModal = new bootstrap.Modal(this.modal);
+        this.selector = selector;
+    }
+    show() {
+        this.modal.show();
+    }
+    // 让模态框内部失去聚焦
+    blurFocus() {
+        if (document.activeElement && document.activeElement.closest(this.selector)) {
+            document.activeElement.blur();
+        }
+    }
+    // 隐藏模态框
+    hide() {
+        this.blurFocus();
+        bsModal.hide();
+    }
+}
+class AlertModal extends DBManModal {
+    constructor(selector) {
+        super(selector);
+        this.msgTypes = this.modal.querySelectorAll('')
+        this.modal.addEventListener('hide.bs.modal', () => {
+            super.blurFocus();
+            this.msgTypes.forEach((msgType) => 
+                this.model.querySelector('[data-' + msgType + ']').classList.add('d-none'));
+        });
+    }
+    getConfirmBtn(id_confirm='alertmodal') {
+        const activeConfirmBtn = modal.querySelector('#'+id_confirm);
+        if(activeConfirmBtn) { activeConfirmBtn.remove();}
+        const alertConfirmButton = modal.querySelector('[data-am-confirm]').cloneNode(true);
+        alertConfirmButton.classList.remove('d-none');
+        alertConfirmButton.id = id_confirm;
+        const alertFooter = modal.querySelector('.modal-footer');
+        alertFooter.appendChild(alertConfirmButton);
+        return alertConfirmButton;
+    }
+    
+}
+class ModifyModal extends DBManModal {
+
+}
+/*** 类 block ends ***/
+
 /*** utils block begins: 工具函数集 ***/
 // 显示模态框
 function showModal(modal) {
@@ -467,19 +517,21 @@ function initializeDeleteButtons(dataTable, deleteButtons, alertModal) {
         showModal(alertModal);     
     });
 }
+
 // 初始化扩展表提示框
 function initializeExtension(dataTable, extensionButtons, alertModal) {
     initializeAlertModal(alertModal);
-    function initializeConfirmBtn() {
+    function initializeConfirmBtn(alertModal) {
         const activeConfirmBtn = alertModal.querySelector('#AlertModalActiveConfirm');
         if(activeConfirmBtn) { activeConfirmBtn.remove();}
         const alertConfirmButton = alertModal.querySelector('[data-am-confirm]').cloneNode(true);
         alertConfirmButton.classList.remove('d-none');
+        alertConfirmButton.id = 'AlertModalActiveConfirm';
         const alertFooter = alertModal.querySelector('.modal-footer');
         alertFooter.appendChild(alertConfirmButton);
         return alertConfirmButton;
     }
-    deleteButtons.forEach(function(deleteButton) {
+    extensionButtons.forEach(function(deleteButton) {
         deleteButton.addEventListener('click', function() {
             const alertConfirmButton = initializeConfirmBtn();
             setAlertMsg(alertModal, 'warning-delete', '');

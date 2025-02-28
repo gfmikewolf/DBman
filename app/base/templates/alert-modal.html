@@ -1,0 +1,23 @@
+    
+    <!-- 警告提示框 #alert-modal -->
+    <div class="modal fade dbman-alert-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{{ _('Alert') }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    {% for msg_type in alert_msgs %}
+                        <span class="d-none dbman-alert-msg" data-dbman-msg="{{ msg_type }}">{{ alert_msgs[msg_type] }}: </span>
+                    {% endfor %}
+                    <span class="dbman-alert-msg" data-dbman-msg="extra"></span>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" data-am-close>{{ _('Close') }}</button>
+                    <button type="button" class="btn btn-outline-dark d-none" data-am-confirm>{{ _('Confirm') }}</button>
+                    <button type="button" class="btn btn-outline-dark d-none" data-am-back>{{ _('_return_to_viewtable') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
