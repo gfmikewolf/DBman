@@ -65,5 +65,7 @@
 	"desc": "降序",
 	"_extend_data": "查看扩展数据",
 	"extended": "扩展",
-	"extend": "扩展"
+	"extend": "扩展",
+	"illegal": "非法",
+	"access": "访问"
 }

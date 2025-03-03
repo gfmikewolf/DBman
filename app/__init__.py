@@ -1,5 +1,5 @@
-# app/__init__.py
-from flask import Flask, abort, session
+# /app/__init__.py
+from flask import Flask, abort, session, render_template
 from app.translation import get_pagetext, translate_text
 
 def _(input_text):
@@ -21,6 +21,10 @@ def create_app():
     app.register_blueprint(base_bp)
 
     app.jinja_env.globals["_"] = _
+
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return render_template('error/404.jinja'), 404
 
     # 请求前确认翻译文件正确读取
     @app.before_request

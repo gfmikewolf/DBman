@@ -28,7 +28,8 @@ class Amendment(ForeignKeyMixin, Base):
     
     contract: Mapped['Contract'] = relationship(
         back_populates='amendments', 
-        lazy='selectin'
+        lazy='selectin',
+        info={'int_fk_attr_name': 'contract_id'}
     )
     clauses: Mapped['Clause'] = relationship(
         back_populates='amendment',
@@ -57,7 +58,10 @@ class Contract(Base):
     id = synonym('contract_id')
     name = synonym('contract_name')
     
-    amendments: Mapped[List['Amendment']] = relationship(back_populates='contract', lazy='select')
+    amendments: Mapped[List['Amendment']] = relationship(
+        back_populates='contract', 
+        lazy='select', 
+    )
     clauses_expiry: Mapped[List['ClauseExpiry']] = relationship(
         back_populates='contract',
         lazy='select'

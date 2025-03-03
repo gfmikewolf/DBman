@@ -1,56 +1,76 @@
-/* app/base/static/css/styles.css */
+/* /app/base/static/css/styles.css */
 
-/* 滚动容器样式 */
-.table-responsive {
-    max-height: 500px;
-    overflow-x: auto;
-}
-
-.table-responsive.maximized {
-    max-height: none;
-    height: 100vh;
-    overflow: auto;
-}
-
-/* 固定前两列 */
-#data_table th:nth-child(1),
-#data_table td:nth-child(1),
-#data_table th:nth-child(2),
-#data_table td:nth-child(2) {
-    position: sticky;
-    left: 0;
-    background-color: white; /* Ensure the background color matches the table */
-    z-index: 1; /* Ensure the columns are above other content */
-}
-#data_table th:nth-child(1),
-#data_table td:nth-child(1) {
-    left: 0px; /* Adjust this value based on the width of the first column */
-    min-width: 22px; /* Set the minimum width */
-    width: 22px; /* Set the fixed width */
-}
-#data_table th:nth-child(2),
-#data_table td:nth-child(2) {
-    left: 22px; /* Adjust this value based on the width of the first column */
-    min-width: 50px; /* Set the minimum width */
-    width: 50px; /* Set the fixed width */
-}
+/* z-index 分层规则：
+   下拉菜单：3
+   固定表头: 2
+   固定表列: 1
+*/
 
 /* 按钮大小适配 */
 @media (max-width: 768px) {
     .table-responsive {
         max-height: 1000px;
-            }
-
+    }
     .table-responsive thead.sticky-top {
-        z-index: 2; /* Ensure the header is above other content */
+        z-index: 2; /* 确保表头在其他内容之上 */
     }
 }
 
-/* Ensure dropdown menu has higher z-index */
-.dropdown-menu {
-    z-index: 1050; /* Higher than the sticky headers */
+/* 滚动容器样式 */
+.table-responsive {
+    max-height: 500px;
+    background-color: white; /* 覆盖其下的内容 */
+    overflow-x: auto;
+    position: relative; /* 确保子元素的定位相对于此元素 */
+    border: 1px solid #ddd; /* 可选：添加边框以限制内容范围 */
+    box-sizing: border-box ; /* 确保边框和内边距不会影响宽度 */
+    padding-left: 0;
 }
 
+/* 固定前两列 */
+.dbman-datatable-table {
+    th:nth-child(1),
+    td:nth-child(1),
+    th:nth-child(2),
+    td:nth-child(2) {
+        position: sticky;
+        background-color: white; /* 覆盖其下的内容 */
+        z-index: 1; /* 确保列在其他内容之上 */
+    }
+
+    th:nth-child(1),
+    td:nth-child(1) {
+        left: 0; /* 固定第一列的位置 */
+        min-width: 22px; /* 设置最小宽度 */
+        width: 22px; /* 设置固定宽度 */
+        text-align: center; /* 文本居中 */
+        padding-left: 5px;
+    }
+
+    th:nth-child(2),
+    td:nth-child(2) {
+        left: 22px; /* 固定第二列的位置 */
+        min-width: 50px; /* 设置最小宽度 */
+        width: 50px; /* 设置固定宽度 */
+    }
+
+    th:nth-child(n+3),
+    td:nth-child(n+3) {
+        width: auto; /* 其他列宽度自适应 */
+    }
+}
+
+/* 确保下拉菜单具有更高的 z-index */
+.dropdown-menu {
+    z-index: 3; /* 高于固定表头 */
+}
+
+/* 下拉菜单项字体大小 */
 .dropdown-item {
     font-size: smaller;
+}
+
+/* 侧边导航栏宽度 */
+#offcanvas-navigation {
+    width: 250px;
 }
