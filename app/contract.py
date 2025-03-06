@@ -4,9 +4,9 @@ from sqlalchemy import ForeignKey, Date, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.orm import Session
 from datetime import date
-from .base_mixin import Base, ForeignKeyMixin, JSONMixin
+from .base import Base
 
-class Amendment(ForeignKeyMixin, Base):
+class Amendment(Base):
     __tablename__ = 'amendment'
     amendment_id: Mapped[int] = mapped_column(primary_key=True, info={'readonly': True, 'hidden':True})
     amendment_name: Mapped[str]
