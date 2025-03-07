@@ -1,4 +1,4 @@
-/* /app/base/static/css/styles.css */
+/* app/base/static/css/styles.css */
 
 /* z-index 分层规则：
    下拉菜单：3
@@ -11,9 +11,7 @@
     .table-responsive {
         max-height: 1000px;
     }
-    .table-responsive thead.sticky-top {
-        z-index: 2; /* 确保表头在其他内容之上 */
-    }
+
 }
 
 /* 滚动容器样式 */
@@ -25,6 +23,10 @@
     border: 1px solid #ddd; /* 可选：添加边框以限制内容范围 */
     box-sizing: border-box ; /* 确保边框和内边距不会影响宽度 */
     padding-left: 0;
+
+    thead.sticky-top {
+        z-index: 2; /* 确保表头在其他内容之上 */
+    }
 }
 
 /* 固定前两列 */
