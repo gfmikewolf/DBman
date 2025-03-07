@@ -1,3 +1,4 @@
+# utils/navigation.py
 # 获取本层的导航字典：默认为首页到crud页，可选参数为后续添加的导航项
 # 本层的默认导航字典需要设置全局变量_navigation
 class PageNavigation:
