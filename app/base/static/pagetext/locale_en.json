@@ -10,7 +10,7 @@
 	"_return_to_add": "Continue",
 	"_return_to_viewtable": "Back to view table",
 	"_table_not_found": "Table not found",
-	"_admin": "Database CRUD",
+	"_crud": "Database CRUD",
 	"_contract_man": "Contract Management",
 	"_enter_form_data": "Enter data (* means required)",
 	"_table_action": "Actions",
