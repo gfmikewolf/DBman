@@ -1,4 +1,4 @@
-# app/contract.py
+# app/database/contract.py
 from enum import Enum
 from typing import List
 from sqlalchemy import ForeignKey, Date,Integer, String, JSON
