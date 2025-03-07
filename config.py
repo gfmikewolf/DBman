@@ -1,4 +1,4 @@
-# /config.py
+# config.py
 import os
 
 class Config:
@@ -8,5 +8,6 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY')
     SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
     SQLALCHEMY_TRACK_MODIFICATION = os.getenv('SQLALCHEMY_TRACK_MODIFICATION')
-    LOCALES = os.getenv('LOCALES').split(',') if os.getenv('LOCALES') else ['locale']
+    locales_env = os.getenv('LOCALES')
+    LOCALES = locales_env.split(',') if locales_env else ['locale']
     
