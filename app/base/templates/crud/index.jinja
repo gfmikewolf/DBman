@@ -1,0 +1,28 @@
+{# /app/base/templates/crud/index.jinja #}
+{# 后端渲染需要的参数：
+    table_names: 数据库中的表名列表
+#}
+{#  base.jinja中需要的参数：
+    prev_page: 返回上一页的链接
+#}
+{% extends "base.jinja" %}
+{% set prev_page = url_for('base.index') %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-6 col-sm-12">
+            <div class="card d-flex">
+                <div class="card-header">{{ _('My Tables') }}</div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for table_name in table_names %}
+                        <a href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
+                            class="list-group-item list-group-item-action">{{ table_name }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
