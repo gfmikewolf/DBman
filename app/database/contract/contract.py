@@ -1,10 +1,12 @@
-# app/database/contract.py
-from enum import Enum
+# app/database/contract/contract.py
 from typing import List
 from sqlalchemy import ForeignKey, Date,Integer, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from datetime import date
-from .base import Base, JsonBase
+from app.database.base import Base
+from app.database.jsonbase import JsonBase
+from .clauses import *
+from .types import *
 
 class Contract(Base):
     __tablename__ = 'contract'
@@ -35,7 +37,8 @@ class Contract(Base):
             contract_scope,
             contract_entities
         ],
-        'required': [contract_name]
+        'required': [contract_name],
+        'date': [contract_effectivedate, contract_expirydate]
     }
     
     def refresh_effective_date(self):
@@ -53,7 +56,7 @@ class Contract(Base):
 
 class Amendment(Base):
     __tablename__ = 'amendment'
-    amendment_id: Mapped[int] = mapped_column(primary_key=True)
+    amendment_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     amendment_name: Mapped[str] = mapped_column(String)
     amendment_fullname: Mapped[str | None]
     amendment_signdate: Mapped[date] = mapped_column(Date)
@@ -87,116 +90,56 @@ class Amendment(Base):
             contract_id
         ],
         'ref_map': {
-            Contract: { Contract.contract_name: [Contract.contract_name] } # 合同id显示为合同名，按合同名正序排列
-        }
-    }
-
-class ClauseType(Base):
-    __tablename__ = 'clause_type'
-    clause_type_id: Mapped[int] = mapped_column(primary_key=True)
-    clause_type_name: Mapped[str] = mapped_column(String)
-
-    name = synonym('clause_type_name')
-
-    clauses: Mapped[List['Clause']] = relationship(
-        back_populates='clause_type',
-        lazy = 'select'
-    )
-
-    attr_info = {
-        'pk': [clause_type_id],
-        'hidden': [clause_type_id],
-        'required': [clause_type_name],
-        'readonly': [clause_type_id]
-    }
-    
-class ClausePos(Base):
-    __tablename__ = 'clause_pos'
-    clause_pos_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    clause_pos_name: Mapped[str] = mapped_column(String)
-
-    attr_info = {
-        'hidden': [clause_pos_id],
-        'required': [clause_pos_name],
-        'readonly': [clause_pos_id]
-    }
- 
-    name = synonym('clause_pos_name')
-
-    clauses: Mapped[List['Clause']] = relationship(
-        back_populates='clause_pos',
-        lazy = 'select'
-    )
-
-    attr_info = {
-        'pk': [clause_pos_id],
-        'hidden': [clause_pos_id],
-        'required': [clause_pos_name],
-        'readonly': [clause_pos_id]
-    }
-
-class ExpiryType(Enum):
-    Date = 'Date'
-    linked_to_Contract = 'linked_to_Contract'
-    later_of_last_COA_or_Date = 'later_of_last_COA_or_Date'
-
-class JsonClauseExpiry(JsonBase):
-    expiry_type: ExpiryType
-    expiry_date: date | None
-    linked_contract_id: int | None
-    attr_info = {
-        'data_keys': ['expiry_type', 'expiry_date', 'linked_contract_id'],
-        'required_keys': ['expiry_type'],
-        'readonly_keys': []
+            Contract: {
+                'ref_name_attr': Contract.contract_name,
+                'order_by': [Contract.contract_name]
+            }
+        },
+        'date': [amendment_signdate, amendment_effectivedate]
     }
 
 class Clause(Base):
     __tablename__ = 'clause'
     clause_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    clause_type_id: Mapped[int] = mapped_column(Integer, ForeignKey('clause_type.clause_type_id'))
+    clause_type: Mapped[ClauseType] = mapped_column(Integer, ForeignKey('clause_type.clause_type_id'))
     clause_ref: Mapped[str | None]
     clause_text: Mapped[str | None]
     amendment_id: Mapped[int] = mapped_column(Integer, ForeignKey('amendment.amendment_id'))
-    clause_pos_id: Mapped[int] = mapped_column(Integer, ForeignKey('clause_pos.clause_pos_id'))
+    clause_pos: Mapped[ClausePos] = mapped_column(Integer, ForeignKey('clause_pos.clause_pos_id'))
     clause_reviewcomments: Mapped[str | None]
     clause_remarks: Mapped[str | None]
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
-    clause_json: Mapped[dict] = mapped_column(JSON)
-    clause_type: Mapped['ClauseType'] = relationship(
-        back_populates='clauses',
-        lazy='selectin'
-    )
-
-    id = synonym('clause_id')
-    name = synonym('clause_text')
-
+    clause_json: Mapped[JsonBase] = mapped_column(JSON)
+    
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
         lazy='selectin'
     )
 
-    clause_pos: Mapped['ClausePos'] = relationship(
-        back_populates='clauses',
-        lazy='selectin'
-    )
-
     attr_info = {
-        'hidden': [clause_id, clause_type_id, clause_pos_id],
+        'pk': [clause_id],
+        'hidden': [clause_id, clause_type, clause_pos],
         'readonly': [clause_id],
-        'required': [clause_type_id, amendment_id, clause_pos_id, clause_json],
+        'required': [clause_type, amendment_id, clause_pos, clause_json],
         'json_classes': {
             clause_json: {
-                'identity_on': clause_type,
-                'identity_attr': 'name',
-                'classes_map': {
-                    'expiry': JsonClauseExpiry
+                'type': 'polymorphic',
+                'identity_on': 'clause_type',
+                'identity_map': {
+                    ClauseType.EXPIRY : ClauseExpiry,
+                    ClauseType.ENTITY : ClauseEntity,
+                    ClauseType.SCOPE : ClauseScope
                 }
             }
         },
         'ref_map': {
-            ClauseType: { ClauseType.clause_type_name: [] },
-            ClausePos: { ClausePos.clause_pos_name: [] },
-            Amendment: { Amendment.amendment_name: [] }
-        }
+            Amendment : {
+                'ref_name_attr': Amendment.amendment_name,
+                'order_by': [Amendment.amendment_name]
+            }
+        },
+        'date': [clause_effectivedate, clause_expirydate]
     }
+
+

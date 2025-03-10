@@ -3,15 +3,11 @@ from .base import Base
 from .contract import (
     Contract, 
     Amendment,
-    Clause,
-    ClauseType,
-    ClausePos,
+    Clause
 )
 
 DBModel: dict[str, type[Base]] = {
     'contract': Contract,
     'amendment': Amendment,
-    'clause': Clause,
-    'clause_type': ClauseType,
-    'clause_pos': ClausePos,
+    'clause': Clause
 }

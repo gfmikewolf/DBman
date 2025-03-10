@@ -1,2 +1,2 @@
 # app/extensions.py
-from .database import db_session, DBModel, Base
+from app.database import db_session, DBModel, Base

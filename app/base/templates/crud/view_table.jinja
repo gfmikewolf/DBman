@@ -4,18 +4,8 @@
     table_names: List 所有表格名列表
     theads: List 表格的表头列表
     data: List[row] 表格数据的列表，每行一个列表记录行数据
-    pk_data: List[pks] 表格中主键的数据, pks用逗号连接多主键的情况
-    col_infos: {column.key : {字段信息}} 
-        字段信息有：
-            主键：PK=True
-            外键： FK=True
-            日期格式：Date=True
-            JSON格式：JSON=True
-            Boolean格式：Boolean=True
-            必填项：required=True
-            默认项：default=默认值
-            只读项：readonly=True
-            隐藏显示：hidden=True
+    pk_data: List[str] 表格中主键的数据, pks用逗号连接多主键的情况
+    json_cols: List[str] 表格中的JSON列名列表
 #}
 {# 基模板 base.jinja 需要的参数：
     prev_page: 返回上一页的链接
@@ -143,9 +133,8 @@
                         </td>
                         {% for thead in theads %}
                             {% set value = row[loop.index0] %}
-                            {% set info = col_infos.get(thead) %}
-                            {% if info and info.get('JSON') %}
-                                {% set value = 'JSON:' + value %}
+                            {% if thead in json_cols %}
+                                {% set value = 'JSON: ' + value %}
                             {% endif %}
                                 <td data-dbman-col-num="{{ loop.index }}"> {{ value if value else '' }}</td>
                         {% endfor %}

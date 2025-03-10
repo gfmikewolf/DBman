@@ -4,7 +4,7 @@ from sqlalchemy import ForeignKey, Date, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.orm import Session
 from datetime import date
-from .base_mixin import Base, ForeignKeyMixin
+from ..base import Base
 
 class UserRole(Base):
     __tablename__ = 'user_role'

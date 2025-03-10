@@ -1,4 +1,4 @@
-# /app/__init__.py
+# app/__init__.py
 from flask import Flask, abort, session, render_template
 from app.translation import get_pagetext, translate_text
 
