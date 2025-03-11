@@ -1,28 +1,33 @@
 # app/database/base.py
 import logging
 import json
-from math import e
 from typing import Any
 from datetime import date
-from enum import Enum
 from sqlalchemy import (
     Result, select, Select
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
-    ColumnProperty
+    ColumnProperty,
+    scoped_session
 )
 from sqlalchemy.sql.expression import ColumnClause
 from copy import deepcopy
-from app.utils.type_tools import convert_string_by_attr_type
 from .jsonbase import JsonBase
 
 class Base(DeclarativeBase):
     # 当前用户可访问的表与数据模型的映射
-    map_table_Model: dict[str, 'Base'] = {}
+    model_map: dict[str, type['Base']] = {}
     """
     map_table_Model: dict[str, Base]
         当前用户可访问的表与数据模型的映射。
+    """
+
+    db_session: scoped_session | None = None
+    """
+    db_session: scoped_session
+
+    SQLAlchemy 会话对象，用于与数据库进行交互。
     """
 
     attr_info_keys: dict[str, set[str]] = {
@@ -365,3 +370,11 @@ class Base(DeclarativeBase):
             logging.error(f"Error in updating {self}. Error: {e}")
             return False
 
+if __name__ == '__main__':
+    # 测试代码
+    from .contract import Contract
+    Base.model_map = {
+        'contract': Contract
+    }
+    print(Base.model_map)
+    print(Base.attr_info_keys)

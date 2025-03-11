@@ -1,5 +1,5 @@
 from app.database.jsonbase import JsonBase
-from ..contract.common import ClauseAction
+from ..types import ClauseAction
 
 class ClauseScope(JsonBase):
     """

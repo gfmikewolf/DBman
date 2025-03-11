@@ -10,7 +10,7 @@ from .contract import (
     ClauseScope
 )
 
-Base.class_map = {
+Base.model_map = {
     'contract': Contract,
     'amendment': Amendment,
     'clause': Clause

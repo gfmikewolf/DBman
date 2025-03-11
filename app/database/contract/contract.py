@@ -4,9 +4,7 @@ from sqlalchemy import ForeignKey, Date,Integer, String, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from datetime import date
 from app.database.base import Base
-from app.database.jsonbase import JsonBase
-from .clauses import *
-from .types import *
+from app.database.jsonbase import JsonBase, JsonBaseType
 
 class Contract(Base):
     __tablename__ = 'contract'
@@ -110,7 +108,7 @@ class Clause(Base):
     clause_remarks: Mapped[str | None]
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
-    clause_json: Mapped[JsonBase] = mapped_column(JSON)
+    clause_json: Mapped[JsonBase] = mapped_column(JsonBaseType)
     
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
