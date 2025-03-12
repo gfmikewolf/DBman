@@ -1,14 +1,24 @@
+# app.database.datajson.py
+"""
+数据JSON类的基类，提供类、字典、序列化字符串与json类型的转换
+
+可引用的成员：
+- serialize_value(value: Any) -> Any
+    将数据转化为可序列化的类型
+- class DataJsonType
+    类修饰器，转换类实例与Json字符串
+- class DataJson
+    JSON数据模型基类，用于定义JSON数据模型的基本属性和方法。
+"""
 from typing import Any, Iterable
 from datetime import date
 from enum import Enum
 import json
 from copy import deepcopy
-import logging
+from sqlalchemy.types import TypeDecorator, JSON
+from sqlalchemy.orm import ColumnProperty
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.ERROR)
-
-def serialize_value(value: Any) -> Any:
+def serialize_value(attr: Any) -> Any:
     """
     将值序列化为可存储为JSON的值。
 
@@ -18,26 +28,25 @@ def serialize_value(value: Any) -> Any:
     返回:
     Any: 序列化后的值。
     """
-    srl_value = None
-    if isinstance(value, Enum):
-        srl_value = value.value
-    elif isinstance(value, set):
-        srl_value = [serialize_value(v) for v in value]
-    elif isinstance(value, date):
-        srl_value = value.isoformat()
-    elif isinstance(value, dict):
-        srl_value = {k: serialize_value(v) for k, v in value.items()}
-    elif isinstance(value, list):
-        srl_value = [serialize_value(v) for v in value]
-    elif isinstance(value, tuple):
-        srl_value = [serialize_value(v) for v in value]
-    elif isinstance(value, DataJson):
-        srl_value = value.data_dict(serializable=True)
+    if isinstance(attr, ColumnProperty):
+        attr_type = attr.type.python_type
     else:
-        srl_value = value
+        attr_type = type(attr)
+    srl_value = None
+    if isinstance(attr, list) or isinstance(attr, tuple) or isinstance(attr, list):
+        srl_value = [serialize_value(v) for v in attr]
+    elif isinstance(attr, dict):
+        srl_value = {k: serialize_value(v) for k,v in attr.items()}
+    elif issubclass(attr_type, Enum):
+        srl_value = attr.value
+    elif attr_type == date:
+        srl_value = attr.isoformat()
+    elif issubclass(attr_type, DataJson):
+        srl_value = attr.data_dict(serializable=True)
+    else:
+        srl_value = attr
     return srl_value
 
-from sqlalchemy.types import TypeDecorator, JSON
 class DataJsonType(TypeDecorator):
     """
     JsonBase类修饰器，转换类实例与Json字符串
@@ -61,37 +70,38 @@ class DataJson:
     JSON数据模型基类，用于定义JSON数据模型的基本属性和方法。
     - 类属性:
         - _cls_type (str): 模型类的类型。
-        - class_map (dict[str, JsonBase]): 模型类的映射。
+        - class_map (dict[str, type['DataJson']]): 模型类的映射。
         - attr_info (dict[str, Any]): 模型类的属性信息。
     - 类方法:
-        - loads(data_str: str) -> dict[str, Any]: 将JSON字符串转换为字典。
-        - str_to_dict(data_str: str, class_map: dict[str, JsonBase] | None = None) -> dict[str, Any]: 将JSON字符串转换为字典。
-        - get_type(jsonData: str | dict | None = None, default: Any = None) -> str | None: 获取JSON数据的类型。
+        - load(data: dict | str | None = None, **kwargs) -> dict[str, Any]: 将JSON字符串或字典转换为字典。
+        - load_dict(data: dict) -> dict[str, Any]: 将字典中对应attr_info里'data'类型的数据按_cls_type的类属性进行数据类型转换。
         - convert_value_by_attr_type(attr_key: str, value: Any) -> Any: 根据属性类型转换值。
-        - load_dict(obj) -> dict[str, Any]: 将表单JSON数据字符串转换为字典。
+        - get_obj(data: str | dict, default: Any = None) -> 'DataJson': 获取JSON数据的DataJson类实例。
     """
-    _cls_type: str = 'data_json'
+    _cls_type = 'data_json'
     """
     模型类的类型，str类型
     
     类型示例:
-    - 'base'：基本父类
-    - 'entity'：合同实体条款
-    - 'scope'：合同范围条款
-    - 'expiry': 合同到期条款
+    - 'data_json'：基本父类
+    - 'clause_entity'：合同实体条款
+    - 'clause_scope'：合同范围条款
+    - 'clause_expiry': 合同到期条款
     """
+
     class_map: dict[str, type['DataJson']] = {}
     """
-    模型类的映射，dict类型，建议在JsonBase类使用前定义该变量
+    模型类的映射，dict类型，建议在DataJson类使用前定义该变量
 
     映射示例:
     - {
-        'base': JsonBase,
+        'base': DataJson,
         'entity': ClauseEntity,
         'scope': ClauseScope,
         'expiry': ClauseExpiry
     }
     """
+
     attr_info: dict[str, Any] = {
         'data': set(),
         'required': set(),
@@ -103,46 +113,54 @@ class DataJson:
         'ref_map': dict
     }
     """
-    模型类的属性信息，dict类型，建议在JsonBase类使用前定义该变量
+    模型类的属性信息，dict类型，建议在DataJson类使用前定义该变量
 
-    属性信息示例:
-    - data: 需要存储的数据属性，不包括不需要存储的属性
-    - required: 必需赋值的属性
-    - readonly: 只读属性
-    - hidden: 不需要显示给用户的属性
-    - date: 日期属性
-    - enum: 枚举属性
-    - json: JSON属性
-    - ref_map: 外键映射
+    必需的属性信息:
+    - data: 需要存储的数据属性: str
+
+    可选的属性信息
+    - required: 必需赋值的属性: str
+    - readonly: 只读属性: str
+    - hidden: 不需要显示给用户的属性: str
+    - foreignkeys: 外键信息: dict
+        - model: 引用的数据库模型: Base
+        - id: 引用的数据库模型键: ColumnProperty
+        - name: 引用的数据库模型表征名称: ColumnProperty
+        - order_by: list[ColumnProperty | ColumnClause] 如 [Contract.name.desc()]
     """
-    def __init__(self, data: str | dict | None, **kwargs):
+    def __init__(self, data: str | dict | None = None, **kwargs):
         data_dict = self.load(data, **kwargs)
         self.__dict__.update(data_dict)
 
     @classmethod
     def load(cls, data: dict | str | None = None, **kwargs) -> dict[str, Any]:
         """
-        将JSON字符串转换为字典。
+        将JSON字符串或字典转换为字典。
 
         参数:
-        data_str (str): JSON字符串。
+        data (dict | str | None): JSON字符串或字典。
 
         返回:
         dict[str, Any]: 转换后的字典。
         """
-
-        if isinstance(data, str):
+        if data is None:
+            data_dict = {}
+        elif isinstance(data, str):
             data_dict = json.loads(data)
         elif isinstance(data, dict):
             if kwargs:
-                data_dict = deepcopy(data)
-                data_dict.update(kwargs)
+                data_dict = deepcopy(data) # 防止load函数修改用户data原始数据
             else:
                 data_dict = data
-        elif data is None:
-            data_dict = {}
-            raise ValueError(f'Invalid data type for {cls} in init_obj')
-        return cls.load_dict(data_dict or {})
+        else:
+            raise ValueError(f'Invalid data type for {cls} in {cls}.load(data={data}, kwargs={kwargs})')
+        if kwargs:
+            data_dict.update(kwargs)
+
+        if not data_dict:
+            return data_dict
+        else:
+            return cls.load_dict(data_dict)
     
     def dumps(self) -> str:
         """
@@ -161,22 +179,20 @@ class DataJson:
         - 忽略'readonly'键的数据
 
         参数:
-        data_dict (dict): 原始数据。
+        data (dict): 原始数据。
 
         返回:
         dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
         """
-        
-        cls_type = data.get('_cls_type', None)
-        
-        if cls_type is None:
-            data_json_cls = cls
-            cls_type = cls._cls_type
-        else:
+        if cls._cls_type == 'data_json':
+            cls_type = data.get('_cls_type', None)
             data_json_cls = cls.class_map.get(cls_type, None)
             if data_json_cls is None:
                 raise AttributeError(f'No valid json_class for {cls_type} in class_map {cls.class_map}')
-        
+        else:
+            cls_type = cls._cls_type
+            data_json_cls = cls
+                  
         data_keys = data_json_cls.attr_info.get('data', set())
         required_keys = data_json_cls.attr_info.get('required', set())
         # 找到required_keys中不存在data.keys()的键
@@ -266,7 +282,7 @@ class DataJson:
         返回:
         dict[str, Any]: 包含模型实例数据的字典。
         """
-        data_keys = self.attr_info.get('data', [])
+        data_keys = self.attr_info.get('data', {})
         data_dict = {'_cls_type': self._cls_type}
         for key, value in self.__dict__.items():
             if key in data_keys:
@@ -278,14 +294,14 @@ class DataJson:
     @classmethod
     def get_obj(cls, data: str | dict, default: Any = None) -> 'DataJson':
         """
-        获取JSON数据的DataJson类。
+        获取JSON数据的DataJson类实例。
 
         参数:
-        jsonData (str | dict): JSON数据，可以是字符串或字典。
+        data (str | dict): JSON数据，可以是字符串或字典。
         default (Any): 默认值。
 
         返回:
-        Any 任何继承了DataJson的类。
+        DataJson: 任何继承了DataJson的类实例。
         """
 
         data_dict = DataJson.load(data)
@@ -300,58 +316,3 @@ class DataJson:
             raise AttributeError(f'json_cls not found in class_map of {cls} for _cls_type: {cls_type}')
         return data_json_cls(data_dict) # type: ignore
 
-
-if __name__ == '__main__':
-    
-    class ClauseAction(Enum):
-        """
-        { 'add', 'remove', 'update' }
-        """
-        ADD = 'add'
-        REMOVE = 'remove'
-        UPDATE = 'update'
-
-    class ClauseEntity(DataJson):
-        """
-        attributes:
-            action (ClauseAction): 
-                - Add, Remove, Novate
-            entity_id (int): 
-                - map table entity
-            old_entity_id (int | None): 
-                - only used in Novation
-
-        constraints:
-            - action is required.
-            - entity_id is required.
-            - old_entity_id is required if action is Novate.
-        """
-        _cls_type = 'clause_entity'
-        
-        action: ClauseAction = ClauseAction.UPDATE
-        entity_id: int = 0
-        old_entity_id: int | None = 0
-        records: DataJson | None = DataJson({})
-        
-        attr_info = {
-            'data': {'action', 'entity_id', 'old_entity_id', 'records'},
-            'required': {'action', 'entity_id'}
-        }
-
-        def __init__(self, data: str | dict | None, **kwargs):
-            super().__init__(data, **kwargs)
-        
-
-    DataJson.class_map = {
-        'clause_entity': ClauseEntity
-    }
-    clause2 = ClauseEntity('{"_cls_type": "clause_entity", "entity_id": 2.1, "action": "remove"}')
-
-    clause1 = ClauseEntity({
-        'action': 'adD',
-        'entity_id': 1.6,
-        'records': clause2
-    })
-
-    print(clause1.data_dict(serializable=True))
-    
