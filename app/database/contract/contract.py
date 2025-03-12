@@ -1,6 +1,6 @@
 # app/database/contract/contract.py
 from typing import List
-from sqlalchemy import ForeignKey, Date,Integer, String, JSON
+from sqlalchemy import ForeignKey, Date,Integer, String, select, Select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from datetime import date
 from app.database.base import Base
@@ -140,4 +140,38 @@ class Clause(Base):
         'date': [clause_effectivedate, clause_expirydate]
     }
 
+class Entitygroup(Base):
+    __tablename__ = 'entitygroup'
+    entitygroup_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entitygroup_name: Mapped[str]
+
+    pks = synonym('entitygroup_id')
+
+    entities: Mapped[List['Entity']] = relationship(
+        back_populates='entitygroup',
+        lazy='select'
+    )
+
+class Entity(Base):
+    __tablename__ = 'entity'
+    entity_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entity_name: Mapped[str] = mapped_column(String)
+    entity_fullname: Mapped[str | None]
+    entitygroup_id: Mapped[int] = mapped_column(ForeignKey('entitygroup.entitygroup_id'))
+    
+    pks = synonym('entity_id')
+
+    entitygroup: Mapped['Entitygroup'] = relationship(
+        back_populates='entities',
+        lazy='selectin'
+    )
+
+    @classmethod
+    def select_all(cls, with_ref_name=True) -> Select:
+        return select(
+            Entity.entity_id, 
+            Entity.entity_name, 
+            Entity.entity_fullname,
+            Entitygroup.entitygroup_name).join_from(Entity, Entitygroup)
+    
 

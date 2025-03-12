@@ -1,8 +1,8 @@
-from typing import Any, Iterable, Type
+from typing import Any, Iterable
 from datetime import date
 from enum import Enum
 import json
-import copy
+from copy import deepcopy
 import logging
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class DataJson:
     - 'scope'：合同范围条款
     - 'expiry': 合同到期条款
     """
-    class_map: dict[str, Type['DataJson']] = {}
+    class_map: dict[str, type['DataJson']] = {}
     """
     模型类的映射，dict类型，建议在JsonBase类使用前定义该变量
 
@@ -135,7 +135,7 @@ class DataJson:
             data_dict = json.loads(data)
         elif isinstance(data, dict):
             if kwargs:
-                data_dict = copy.deepcopy(data)
+                data_dict = deepcopy(data)
                 data_dict.update(kwargs)
             else:
                 data_dict = data
@@ -335,25 +335,12 @@ if __name__ == '__main__':
         
         attr_info = {
             'data': {'action', 'entity_id', 'old_entity_id', 'records'},
-            'required': {'action', 'entity_id'},
-            'ref_map': {
-                'entity_id': {
-                    'ref_table_name': 'entity', 
-                    'fk_attr_name': 'entity_id',
-                    'ref_attr_name': 'entity_name',
-                    'order_by': {'entity_name': 'ASC'}
-                },
-                'old_entity_id': {
-                    'ref_table_name': 'entity', 
-                    'fk_attr_name': 'entity_id',
-                    'ref_attr_name': 'entity_name',
-                    'order_by_attr_names': {'entity_name': 'ASC'} 
-                }
-            }
+            'required': {'action', 'entity_id'}
         }
 
         def __init__(self, data: str | dict | None, **kwargs):
             super().__init__(data, **kwargs)
+        
 
     DataJson.class_map = {
         'clause_entity': ClauseEntity
