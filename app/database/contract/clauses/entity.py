@@ -1,7 +1,7 @@
-from app.database.jsonbase import JsonBase
-from app.database.contract.types import ClauseType, ClauseAction
+from app.database.datajson import DataJson
+from app.database.contract.types import ClauseAction
 
-class ClauseEntity(JsonBase):
+class ClauseEntity(DataJson):
     """
     attributes:
         action (ClauseAction): 
@@ -16,12 +16,13 @@ class ClauseEntity(JsonBase):
         - entity_id is required.
         - old_entity_id is required if action is Novate.
     """
-    type: ClauseType = ClauseType.ENTITY
-    action: ClauseAction
-    entity_id: int
-    old_entity_id: int | None
+    _cls_type = 'clause_entity'
     
-    attr_info_keys = {
+    action: ClauseAction = ClauseAction.UPDATE
+    entity_id: int = 0
+    old_entity_id: int | None = None
+    
+    attr_info = {
         'data': {'action', 'entity_id', 'old_entity_id'},
         'required': {'action', 'entity_id'},
         'ref_map': {
@@ -39,3 +40,6 @@ class ClauseEntity(JsonBase):
             }
         }
     }
+
+    def __init__(self, data: str | dict | None, **kwargs):
+        super().__init__(data, **kwargs)

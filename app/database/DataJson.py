@@ -31,7 +31,7 @@ def serialize_value(value: Any) -> Any:
         srl_value = [serialize_value(v) for v in value]
     elif isinstance(value, tuple):
         srl_value = [serialize_value(v) for v in value]
-    elif isinstance(value, JsonBase):
+    elif isinstance(value, DataJson):
         srl_value = value.data_dict(serializable=True)
     else:
         srl_value = value
@@ -115,6 +115,9 @@ class DataJson:
     - json: JSON属性
     - ref_map: 外键映射
     """
+    def __init__(self, data: str | dict | None, **kwargs):
+        data_dict = self.load(data, **kwargs)
+        self.__dict__.update(data_dict)
 
     @classmethod
     def load(cls, data: dict | str | None = None, **kwargs) -> dict[str, Any]:
@@ -132,14 +135,13 @@ class DataJson:
             data_dict = json.loads(data)
         elif isinstance(data, dict):
             if kwargs:
-                data_dict = copy.deepcopy(data).update(kwargs)
+                data_dict = copy.deepcopy(data)
+                data_dict.update(kwargs)
             else:
                 data_dict = data
         elif data is None:
             data_dict = {}
-        else:
-            raise ValueError(f'Invalid data type for {self} in init_obj')
-
+            raise ValueError(f'Invalid data type for {cls} in init_obj')
         return cls.load_dict(data_dict or {})
     
     def dumps(self) -> str:
@@ -165,13 +167,15 @@ class DataJson:
         dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
         """
         
-        _cls_type = data.get('_cls_type', None)
-        if _cls_type is None:
+        cls_type = data.get('_cls_type', None)
+        
+        if cls_type is None:
             data_json_cls = cls
+            cls_type = cls._cls_type
         else:
-            data_json_cls = cls.class_map.get(_cls_type, None)
-            if _cls_type not in cls.class_map or data_json_cls is None:
-                raise AttributeError(f'No valid json_class for {_cls_type} in class_map {cls.class_map}')
+            data_json_cls = cls.class_map.get(cls_type, None)
+            if data_json_cls is None:
+                raise AttributeError(f'No valid json_class for {cls_type} in class_map {cls.class_map}')
         
         data_keys = data_json_cls.attr_info.get('data', set())
         required_keys = data_json_cls.attr_info.get('required', set())
@@ -185,6 +189,8 @@ class DataJson:
         data_keys -= readonly_keys
 
         data_dict = {}
+        data_dict['_cls_type'] = cls_type
+        
         for data_key in data_keys:
             value = data.get(data_key, None)
             if data_key in data:
@@ -238,11 +244,13 @@ class DataJson:
                     converted_value = json.loads(value)
                 elif isinstance(value, DataJson):
                     converted_value = value.data_dict()
-            elif issubclass(attr.__class__, DataJson):
+            elif isinstance(attr, DataJson):
                 if isinstance(value, str) or isinstance(value, dict):
                     converted_value = DataJson.get_obj(value)
-            elif issubclass(attr.__class__, Enum) and not issubclass(value.__class__, Enum):
-                enum_cls = attr.__class__
+            elif isinstance(attr, Enum) and not isinstance(value, Enum):
+                enum_cls = type(attr)
+                if isinstance(value, str):
+                    value = value.lower()
                 converted_value = enum_cls(value)
             else:
                 raise AttributeError(f'Value {value} of wrong format for key: {attr_key}')     
@@ -253,7 +261,7 @@ class DataJson:
         将模型实例转换为字典。
 
         参数:
-        serializable (bool | None): 是否序列化。
+        serializable (bool): 是否将值序列化以便存储为JSON。
 
         返回:
         dict[str, Any]: 包含模型实例数据的字典。
@@ -268,7 +276,7 @@ class DataJson:
         return data_dict
     
     @classmethod
-    def get_obj(cls, data: str | dict | None, default: Any = None) -> 'DataJson':
+    def get_obj(cls, data: str | dict, default: Any = None) -> 'DataJson':
         """
         获取JSON数据的DataJson类。
 
@@ -284,7 +292,7 @@ class DataJson:
         if not data_dict:
             return default
         
-        cls_type = str(data_dict.get('_cls_type', None))
+        cls_type = data_dict.get('_cls_type', None)
         if cls_type is None:
             raise TypeError(f'_cls_type not found in jsonData: {data}')
         data_json_cls = cls.class_map.get(cls_type, None)
@@ -292,6 +300,71 @@ class DataJson:
             raise AttributeError(f'json_cls not found in class_map of {cls} for _cls_type: {cls_type}')
         return data_json_cls(data_dict) # type: ignore
 
-def __init__(self, data: str | dict | None, **kwargs):
-    data_dict = self.load(data, **kwargs)
-    self.__dict__.update(data_dict)
+
+if __name__ == '__main__':
+    
+    class ClauseAction(Enum):
+        """
+        { 'add', 'remove', 'update' }
+        """
+        ADD = 'add'
+        REMOVE = 'remove'
+        UPDATE = 'update'
+
+    class ClauseEntity(DataJson):
+        """
+        attributes:
+            action (ClauseAction): 
+                - Add, Remove, Novate
+            entity_id (int): 
+                - map table entity
+            old_entity_id (int | None): 
+                - only used in Novation
+
+        constraints:
+            - action is required.
+            - entity_id is required.
+            - old_entity_id is required if action is Novate.
+        """
+        _cls_type = 'clause_entity'
+        
+        action: ClauseAction = ClauseAction.UPDATE
+        entity_id: int = 0
+        old_entity_id: int | None = 0
+        records: DataJson | None = DataJson({})
+        
+        attr_info = {
+            'data': {'action', 'entity_id', 'old_entity_id', 'records'},
+            'required': {'action', 'entity_id'},
+            'ref_map': {
+                'entity_id': {
+                    'ref_table_name': 'entity', 
+                    'fk_attr_name': 'entity_id',
+                    'ref_attr_name': 'entity_name',
+                    'order_by': {'entity_name': 'ASC'}
+                },
+                'old_entity_id': {
+                    'ref_table_name': 'entity', 
+                    'fk_attr_name': 'entity_id',
+                    'ref_attr_name': 'entity_name',
+                    'order_by_attr_names': {'entity_name': 'ASC'} 
+                }
+            }
+        }
+
+        def __init__(self, data: str | dict | None, **kwargs):
+            super().__init__(data, **kwargs)
+
+    DataJson.class_map = {
+        'clause_entity': ClauseEntity
+    }
+    clause2 = ClauseEntity('{"_cls_type": "clause_entity", "entity_id": 2.1, "action": "remove"}')
+
+    clause1 = ClauseEntity({
+        'action': 'adD',
+        'entity_id': 1.6,
+        'records': clause2
+    })
+
+    print(clause1.data_dict(serializable=True))
+    
