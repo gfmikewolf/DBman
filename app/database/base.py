@@ -361,6 +361,9 @@ class Base(DeclarativeBase):
         return select(*query_attrs) # type: ignore
 
     @classmethod
+    def query_all(cls, with_ref_names: bool = True) -> dict[str, Any]
+        return {}
+    @classmethod
     def query_all_ref_attrs(cls, new_order_by: dict[ColumnProperty, list[ColumnProperty | ColumnClause]] = {}) -> dict[ColumnProperty, Select]:
         """
         获取所有关联属性的查询选项。
