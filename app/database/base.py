@@ -5,13 +5,16 @@ Base 模块包含了 Base 类，该类是所有数据模型类的基类。
 from calendar import c
 import logging
 import json
+from pydoc import visiblename
+from sqlite3 import DatabaseError
 from typing import Any, Iterable
 from enum import Enum
 from datetime import date
 from xml.etree.ElementInclude import include
 from sqlalchemy import (
-    Result, select, Select
+    ColumnExpressionArgument, ForeignKey, ForeignKeyConstraint, Result, select, Select
 )
+
 from sqlalchemy.orm import (
     DeclarativeBase,
     ColumnProperty,
@@ -37,59 +40,15 @@ class Base(DeclarativeBase):
     SQLAlchemy 会话对象，用于与数据库进行交互。
     """
 
-    attr_info_keys: dict[str, set[str]] = {
-        'hidden': set(),
-        'readonly': set(),
-        'date': set(),
-        'required': set(),
-        'json': set(),
-        'ref': set()
-    }
-    """
-    attr_info_keys: dict[str, set[str]]
-        - hidden: set[str]
-            隐藏的列属性键集合。
-        - readonly: set[str]
-            只读的列属性键集合。
-        - pk: set[str]
-            主键列属性键集合。
-        - date: set[str]
-            日期列属性键集合。
-        - required: set[str]
-            必需的列属性键集合。
-        - json: set[str]
-            JSON 列属性键集合。
-        - ref: set[str]
-            关联模型的列属性键集合。
-    """
+    attr_info_keys: dict[str, set[str]] = {}
     
     attr_info: dict[str, Any] = {
         'required': set(),
         'hidden': set(),
-        'readonly': set(),
-        'pk': set(),
-        'date': set()
+        'readonly': set()
     }
-    """
-    attr_info: dict[str, Any]
-    - hidden: set[cls.attrs: ColumnProperty]
-    - readonly: set[cls.attrs: ColumnProperty]
-    - pk: set[cls.attrs: ColumnProperty]
-    - date: set[cls.attrs: ColumnProperty]
-    - required: set[cls.attrs: ColumnProperty]
-    - json_classes: dict [
-        - cls.attr: ColumnProperty, 
-        - json_classes: dict[
-            - 'type': set['polymorphic', 'onetoone']
-            - 'json_class': jsonBase = onetoone class
-            - 'identity_on': attr.key: str for polymorphic classification
-            - 'identity_map': dict[identity_on_attr.value:Any, json_class: Any]
-    - ref_map: dict[
-        - ref_model: Base, 
-        - dict[
-            - 'ref_name_attr': ref_name_attr: ColumnProperty, 
-            - 'order_by': order_by_params: list[ColumnProperty | ColumnClause] ] ]
-    """
+
+    _data_dict : dict = {}
 
     def __init__(self, data: str | dict | None = None, **kwargs: Any) -> None:
         """
@@ -100,14 +59,12 @@ class Base(DeclarativeBase):
         """
         super().__init__()
         args_dict = Base._args_to_dict(data, **kwargs)
-        required_attrs = self.get_attrs('required')
+        if not self.validate_attr_dict(args_dict):
+            raise AttributeError('Invalid data: {data} kwargs:{kwargs} to match {self}')
         mod_attrs = self.get_attrs('modifiable')
-        if not data_dict:
-            raise ValueError('Invalid arguments {data}')
-        for key, value in data_dict.items():
-            setattr(self, key, value)
-        # 保存数据字典，类似于self.__dict__
-        self._data_dict = data_dict
+        for attr in mod_attrs:
+            attr = args_dict[attr.name]
+            self._data_dict[attr.name] = attr
     
     @staticmethod
     def _args_to_dict(data: str | dict | None = None, **kwargs: Any) -> dict[str, Any]:
@@ -152,47 +109,69 @@ class Base(DeclarativeBase):
             if info in cls.attr_info:
                 attrs.update(cls.attr_info[info])
             elif info == 'data':
-                cached = cls.attr_info.get(info, set())
-                if not cached:
-                    cached = set().update(cls.__mapper__.column_attrs)
-                    cls.attr_info[info] = cached
+                cached = set().update(cls.__mapper__.column_attrs)
+                cls.attr_info[info] = cached
                 attrs.update(cached) # type: ignore
             elif info == 'pk':
-                cached = cls.attr_info.get(info, set())
-                if not cached:
-                    cached = set()
-                    for attr in cls.__mapper__.column_attrs:
-                        if attr in cls.__mapper__.primary_key:
-                            cached.add(attr)
-                    cls.attr_info[info] = cached
+                cached = set()
+                for attr in cls.__mapper__.column_attrs:
+                    if attr in cls.__mapper__.primary_key:
+                        cached.add(attr)
+                cls.attr_info[info] = cached
                 attrs.update(cached)
             elif info == 'modifiable':
-                cached = cls.attr_info.get(info, set())
-                if not cached:
-                    cached = cls.get_attrs('data') - cls.get_attrs('readonly')
-                    cls.attr_info[info] = cached
+                cached = cls.get_attrs('data') - cls.get_attrs('readonly')
+                cls.attr_info[info] = cached
+                attrs.update(cached) # type: ignore
+            elif info == 'visible':
+                cached = cls.get_attrs('data') - cls.get_attrs('hidden')
+                cls.attr_info[info] = cached
                 attrs.update(cached) # type: ignore
             elif info in ('date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict'):
-                cached = cls.attr_info.get(info, set())
-                if not cached:
-                    for attr in cls.__mapper__.column_attrs:
-                        if isinstance(attr.type.python_type, eval(info)):
-                            cached.add(attr)
-                            cls.attr_info[info] = cached
+                cached = set()
+                for attr in cls.__mapper__.column_attrs:
+                    if isinstance(attr.type.python_type, eval(info)):
+                        cached.add(attr)
+                cls.attr_info[info] = cached
                 attrs.update(cached)
             elif info in ('DataJson', 'Enum'):
-                cached = cls.attr_info.get(info, set())
-                if not cached:
-                    for attr in cls.__mapper__.column_attrs:
-                        if issubclass(attr.type.python_type, eval(info)):
-                            cached.add(attr)
-                            cls.attr_info[info] = cached
+                cached = set()
+                for attr in cls.__mapper__.column_attrs:
+                    if issubclass(attr.type.python_type, eval(info)):
+                        cached.add(attr)
+                cls.attr_info[info] = cached
                 attrs.update(cached)
+            elif info == 'ref_name':
+                cached = set()
+                for col in cls.__mapper__.columns:
+                    fks = col.foreignkeys
+                    if col.type.python_type == int:
+                        for fk in fks:
+                            table = fk.column.table
+                            if table is not None:
+                                ref_name_attr = getattr(table, 'name', None)
+                                if ref_name_attr is not None:
+                                    cached.add(ref_name_attr)
+                cls.attr_info[info] = cached
+                attrs.update(cached)    
             else:
                 raise AttributeError(f'Invalid info {info} in {cls}')
         return attrs # type: ignore
+    
     @classmethod
-    def validate_data_attr(cls, data : dict[str, Any]) -> bool:
+    def get_attr_keys(cls, *args: str) -> set[str]:
+        attr_keys = set()
+        for arg in args:
+            keys = cls.attr_info_keys.get(arg, None)
+            if not keys:
+                attrs = cls.get_attrs(arg)
+                keys = {attr.name for attr in attrs}
+                cls.attr_info_keys[arg] = keys
+            attr_keys.update(keys) # type: ignore
+        return attr_keys # type:ignore
+    
+    @classmethod
+    def validate_attr_dict(cls, data : dict[str, Any]) -> bool:
         """
         验证数据字典中的数据是否符合模型的属性要求。
 
@@ -202,20 +181,12 @@ class Base(DeclarativeBase):
         返回:
         bool: 如果数据字典中的数据符合模型的属性要求，则返回 True，否则返回 False。
         """
-        required_keys = cls.get_attrs('required')
-        data_keys = cls.get_attrs('data')
-        readonly_keys = cls.get_attrs('readonly', set())
+        required_keys = cls.get_attr_keys('required')
         missing_keys = required_keys - data.keys()
         if missing_keys:
-            raise AttributeError(f'Missing required keys: {missing_keys} in data: {data}')
-        for key in data_keys:
-            if key in data:
-                value = data[key]
-                if key in readonly_keys:
-                    return False
-                if not cls.validate_attr_type(key, value):
-                    return False
+            return False
         return True
+
     @classmethod
     def _dict_to_data_dict(cls, args_dict: dict[str, Any]) -> dict[str, Any]:
         """
@@ -229,22 +200,15 @@ class Base(DeclarativeBase):
         返回:
         dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
         """
-
-        data_keys = cls.attr_info.get('data', set())
-        required_keys = cls.attr_info.get('required', set())
-        # 找到required_keys中不存在data.keys()的键
-        missing_keys = required_keys - args_dict.keys()
-        if missing_keys:
-            raise AttributeError(f'Missing required keys: {missing_keys} in data: {args_dict}')
-        
-        # 在遍历前去掉data_keys中readonly的键
-        readonly_keys = cls.attr_info.get('readonly', set())
-        data_keys -= readonly_keys
+        if not cls.validate_attr_dict(args_dict):
+            raise AttributeError('Invalid data: {args_dict} to match {cls}')
+            
+        data_attrs = cls.get_attrs('modifiable')
 
         data_dict = {}
         data_dict['__tablename__'] = cls.__tablename__
         
-        for data_key in data_keys:
+        for data_key in data_attrs:
             value = args_dict.get(data_key.name, None)
             if data_key in args_dict:
                 data_dict[data_key.name] = cls.convert_value_by_attr_type(data_key, value)
@@ -262,6 +226,8 @@ class Base(DeclarativeBase):
         dict[str, Any]: 转换后的字典。
         """
         args_dict = Base._args_to_dict(data, **kwargs)
+        if not cls.validate_attr_dict(args_dict):
+            raise AttributeError('Invalid data: {data} kwargs:{kwargs} to match {cls}')
 
         if not args_dict:
             return args_dict
@@ -361,64 +327,39 @@ class Base(DeclarativeBase):
         """
 
         """
-        readonly_keys = self.get_attr_keys(('readonly',))
-        date_keys = self.get_attr_keys(('date',))
-        json_keys = self.get_attr_keys(('json',))
+        readonly_keys = self.get_attr_keys('readonly')
         
-        if key in readonly_keys or key in json_keys:
+
+        if key in readonly_keys:
             return
-        if key in date_keys:
-            if isinstance(value, str):
-                value = date.fromisoformat(value)
-        elif key in json_keys and isinstance(value, str):
-            value = JsonBase.loads(value)
-        else:
-            super().__setattr__(key, value)
+        
+        attr = getattr(self, key, None)
+        if attr is None:
+            return
+        
+        converted_value = self.convert_value_by_attr_type(attr, value)
+        
+        super().__setattr__(key, value)
 
     @classmethod
-    def get_columns(cls, attr_info_keys: tuple[str,...]) -> list[ColumnProperty]:
-        info_keys = list(attr_info_keys)
-        attrs = []
-        for key in info_keys:
-            attrs.extend(cls.attr_info.get(key, []))
-        return attrs
-
-    @classmethod
-    def query_all(cls, exclude: tuple[str, ...]=('hidden',), with_ref_attrs: bool=True) -> Select:
-        """
-        查询所有数据，排除特定信息的列属性，添加关联模型的属性。
-
-        参数:
-        exclude (tuple[str, ...]): 需要排除的列属性，默认为 ('hidden',)。
-        with_ref_attrs (bool): 是否添加关联模型的属性，默认为 True。
-
-        返回:
-        Select: 一个 SQLAlchemy Select 对象，用于查询数据。
-        """
-        pk_columns = cls.attr_info.get('pk', [])
-        if not pk_columns:
+    def get_select(cls, with_ref_names: bool = True) -> Select:
+        if cls.db_session is None:
+            raise DatabaseError(f'{cls} db_session is not valid {cls.db_session}')
+        pk_attrs = cls.get_attrs('pk')
+        if not pk_attrs:
             raise AttributeError(f'Primary key not defined in {cls} attr_info')
-        query_columns = []
-        exclude_columns = cls.get_columns(exclude)
-        exclude_columns.extend(pk_columns)
-        for attr in cls.__mapper__.column_attrs:
-            if attr not in exclude_columns:
-                query_columns.append(attr)
-        join_models = []
-        if with_ref_attrs:
-            ref_map = cls.attr_info.get('ref_map', {})
-            for join_model, attr_orderby_dict in ref_map.items():
-                for ref_name_attr in attr_orderby_dict.keys():
-                    if ref_name_attr is not None and join_model is not None:
-                        query_columns.append(ref_name_attr)
-                        join_models.append(join_model)
-        query = select(*pk_columns,*query_columns)
-        if join_models:
-            query = query.select_from(cls)
-            for model in join_models:
-                query = query.join(model)
-        return query
-    
+        visible_attrs = cls.get_attrs('visible')
+        query_attrs = pk_attrs | visible_attrs
+        if with_ref_names:
+            ref_name_attrs = cls.get_attrs('ref_name')
+            if ref_name_attrs:
+                query_attrs |= ref_name_attrs
+                stmt = select(*query_attrs).select_from(cls) # type: ignore
+                for ref_name_attr in ref_name_attrs:
+                    stmt = stmt.join(ref_name_attr.parent.class_)
+                return stmt
+        return select(*query_attrs) # type: ignore
+
     @classmethod
     def query_all_ref_attrs(cls, new_order_by: dict[ColumnProperty, list[ColumnProperty | ColumnClause]] = {}) -> dict[ColumnProperty, Select]:
         """
