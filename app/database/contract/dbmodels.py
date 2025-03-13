@@ -4,26 +4,34 @@ from sqlalchemy import ForeignKey, Date,Integer, String, select, Select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from datetime import date
 from app.database.base import Base
-from app.database.jsonbase import JsonBase, JsonBaseType
 
 class Contract(Base):
     __tablename__ = 'contract'
     contract_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     contract_name: Mapped[str] = mapped_column(String)
-    contract_fullname: Mapped[str | None]
+    contract_fullname: Mapped[str | None] = mapped_column(String)
     contract_effectivedate: Mapped[date] = mapped_column(Date)
     contract_expirydate: Mapped[date] = mapped_column(Date)
     contract_scope: Mapped[str] = mapped_column()
-    contract_entities: Mapped[str | None] = mapped_column()
-    contract_remarks: Mapped[str | None]
-    contract_number_huawei: Mapped[str | None]
+    contract_entities: Mapped[str | None] = mapped_column(String)
+    contract_remarks: Mapped[str | None] = mapped_column(String)
+    contract_number_huawei: Mapped[str | None] = mapped_column(String)
+    contract_number_customer: Mapped[str | None] = mapped_column(String)
     
+    pks = synonym('contract_id')
     name = synonym('contract_name')
     
     amendments: Mapped[List['Amendment']] = relationship(
         back_populates='contract', 
         lazy='select', 
     )
+
+    @classmethod
+    def select_all(cls) -> Select:
+        if cls.db_session is None:
+            raise ValueError("db_session is not set in the Base class")
+        with cls.db_session() as sess:
+            return sess.execute(select(cls)).scalars().all()
 
     attr_info = {
         'pk': [contract_id],

@@ -20,7 +20,7 @@ from sqlalchemy.orm import ColumnProperty
 
 def serialize_value(attr: Any) -> Any:
     """
-    将值序列化为可存储为JSON的值。
+    将变量转换为可序列化为存储为JSON的数据类型。可适配ColumnProperty属性。
 
     参数:
     value (Any): 值。
@@ -263,11 +263,11 @@ class DataJson:
             elif isinstance(attr, DataJson):
                 if isinstance(value, str) or isinstance(value, dict):
                     converted_value = DataJson.get_obj(value)
-            elif isinstance(attr, Enum) and not isinstance(value, Enum):
+            elif issubclass(type(attr), Enum) and not isinstance(value, Enum):
                 enum_cls = type(attr)
                 if isinstance(value, str):
                     value = value.lower()
-                converted_value = enum_cls(value)
+                converted_value = enum_cls(value) # type: ignore
             else:
                 raise AttributeError(f'Value {value} of wrong format for key: {attr_key}')     
         return converted_value

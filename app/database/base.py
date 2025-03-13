@@ -1,8 +1,14 @@
 # app/database/base.py
+"""
+Base 模块包含了 Base 类，该类是所有数据模型类的基类。
+"""
+from calendar import c
 import logging
 import json
-from typing import Any
+from typing import Any, Iterable
+from enum import Enum
 from datetime import date
+from xml.etree.ElementInclude import include
 from sqlalchemy import (
     Result, select, Select
 )
@@ -13,7 +19,8 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.sql.expression import ColumnClause
 from copy import deepcopy
-from .jsonbase import JsonBase
+from app.database.datajson import DataJson  # Adjust the import path as necessary
+
 
 class Base(DeclarativeBase):
     # 当前用户可访问的表与数据模型的映射
@@ -33,7 +40,6 @@ class Base(DeclarativeBase):
     attr_info_keys: dict[str, set[str]] = {
         'hidden': set(),
         'readonly': set(),
-        'pk': set(),
         'date': set(),
         'required': set(),
         'json': set(),
@@ -58,13 +64,11 @@ class Base(DeclarativeBase):
     """
     
     attr_info: dict[str, Any] = {
+        'required': set(),
         'hidden': set(),
         'readonly': set(),
-        'json_classes': dict(),
         'pk': set(),
-        'date': set(),
-        'ref_map': dict(),
-        'required': set()
+        'date': set()
     }
     """
     attr_info: dict[str, Any]
@@ -87,36 +91,7 @@ class Base(DeclarativeBase):
             - 'order_by': order_by_params: list[ColumnProperty | ColumnClause] ] ]
     """
 
-    @classmethod
-    def get_attr_keys(cls, include_info: tuple[str, ...]) -> set[str]:
-        """
-        获取包含指定信息的列属性键集合。
-
-        - 参数:
-        include_info (tuple[str, ...]): 包含的信息集合。
-
-        - 返回:
-        set[str]: 包含指定信息的列属性键集合。
-        """
-        attr_keys = set()
-        for key in include_info:
-            if key not in cls.attr_info_keys:
-                raise AttributeError(f'Wrong include_info {key} in {cls}')
-            info_keys = cls.attr_info_keys.get(key, set())
-            if not info_keys:
-                if key == 'json':
-                    json_attrs = cls.attr_info.get('json_classes', {}).keys()
-                    info_keys.update({json_attr.name for json_attr in json_attrs})
-                if key == 'ref':
-                    ref_attrs = cls.attr_info.get('ref_map', {}).keys()
-                    info_keys.update({ref_attr.name for ref_attr in ref_attrs})
-                else:
-                    info_keys.update({attr.name for attr in cls.attr_info.get(key, set())})
-                cls.attr_info_keys[key].update(info_keys)
-            attr_keys.update(info_keys)
-        return attr_keys
-
-    def __init__(self, form_data: dict[str, str] | None = None):
+    def __init__(self, data: str | dict | None = None, **kwargs: Any) -> None:
         """
         初始化模型实例。如果提供了 form_data，则使用表单数据初始化实例。
 
@@ -124,10 +99,264 @@ class Base(DeclarativeBase):
         form_data (dict[str, str], 可选): 表单数据的字典，其中键是表单字段名，值是表单字段的值。
         """
         super().__init__()
-        if form_data is not None:
-            for key, value in form_data.items():
-                setattr(self, key, value)
+        args_dict = Base._args_to_dict(data, **kwargs)
+        required_attrs = self.get_attrs('required')
+        mod_attrs = self.get_attrs('modifiable')
+        if not data_dict:
+            raise ValueError('Invalid arguments {data}')
+        for key, value in data_dict.items():
+            setattr(self, key, value)
+        # 保存数据字典，类似于self.__dict__
+        self._data_dict = data_dict
     
+    @staticmethod
+    def _args_to_dict(data: str | dict | None = None, **kwargs: Any) -> dict[str, Any]:
+        """
+        将参数转换为数据字典。
+
+        参数:
+        data (str | dict | None): JSON 字符串或字典。
+        kwargs (Any): 其他关键字参数。
+
+        返回:
+        dict[str, Any]: 数据字典。
+        """
+        if data is None:
+            data_dict = {}
+        elif isinstance(data, str):
+            data_dict = json.loads(data)
+        elif isinstance(data, dict):
+            if kwargs and data:
+                data_dict = deepcopy(data) # 防止load函数修改用户data原始数据
+            else:
+                data_dict = data
+        else:
+            raise ValueError(f'Invalid data type for arguments (data={data}, kwargs={kwargs})')
+        if kwargs:
+            data_dict.update(kwargs)
+        return data_dict
+    
+    @classmethod
+    def get_attrs(cls, *args: str) -> set[ColumnProperty]:
+        """
+        获取包含指定信息的列属性集合。
+        
+        参数:
+        include_info (tuple[str, ...]): 包含的信息集合。
+        
+        返回:
+        set[ColumnProperty]: 包含指定信息的列属性集合。
+        """
+        attrs = {}
+        for info in args:
+            if info in cls.attr_info:
+                attrs.update(cls.attr_info[info])
+            elif info == 'data':
+                cached = cls.attr_info.get(info, set())
+                if not cached:
+                    cached = set().update(cls.__mapper__.column_attrs)
+                    cls.attr_info[info] = cached
+                attrs.update(cached) # type: ignore
+            elif info == 'pk':
+                cached = cls.attr_info.get(info, set())
+                if not cached:
+                    cached = set()
+                    for attr in cls.__mapper__.column_attrs:
+                        if attr in cls.__mapper__.primary_key:
+                            cached.add(attr)
+                    cls.attr_info[info] = cached
+                attrs.update(cached)
+            elif info == 'modifiable':
+                cached = cls.attr_info.get(info, set())
+                if not cached:
+                    cached = cls.get_attrs('data') - cls.get_attrs('readonly')
+                    cls.attr_info[info] = cached
+                attrs.update(cached) # type: ignore
+            elif info in ('date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict'):
+                cached = cls.attr_info.get(info, set())
+                if not cached:
+                    for attr in cls.__mapper__.column_attrs:
+                        if isinstance(attr.type.python_type, eval(info)):
+                            cached.add(attr)
+                            cls.attr_info[info] = cached
+                attrs.update(cached)
+            elif info in ('DataJson', 'Enum'):
+                cached = cls.attr_info.get(info, set())
+                if not cached:
+                    for attr in cls.__mapper__.column_attrs:
+                        if issubclass(attr.type.python_type, eval(info)):
+                            cached.add(attr)
+                            cls.attr_info[info] = cached
+                attrs.update(cached)
+            else:
+                raise AttributeError(f'Invalid info {info} in {cls}')
+        return attrs # type: ignore
+    @classmethod
+    def validate_data_attr(cls, data : dict[str, Any]) -> bool:
+        """
+        验证数据字典中的数据是否符合模型的属性要求。
+
+        参数:
+        data (dict[str, Any]): 数据字典。
+
+        返回:
+        bool: 如果数据字典中的数据符合模型的属性要求，则返回 True，否则返回 False。
+        """
+        required_keys = cls.get_attrs('required')
+        data_keys = cls.get_attrs('data')
+        readonly_keys = cls.get_attrs('readonly', set())
+        missing_keys = required_keys - data.keys()
+        if missing_keys:
+            raise AttributeError(f'Missing required keys: {missing_keys} in data: {data}')
+        for key in data_keys:
+            if key in data:
+                value = data[key]
+                if key in readonly_keys:
+                    return False
+                if not cls.validate_attr_type(key, value):
+                    return False
+        return True
+    @classmethod
+    def _dict_to_data_dict(cls, args_dict: dict[str, Any]) -> dict[str, Any]:
+        """
+        将字典中对应attr_info里'data'类型的数据按_tablename的类属性进行数据类型转换。
+        - 如果数据缺失'required'属性，抛出属性异常。
+        - 忽略'readonly'键的数据
+
+        参数:
+        args_dict (dict[str, Any]): 原始数据。
+
+        返回:
+        dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
+        """
+
+        data_keys = cls.attr_info.get('data', set())
+        required_keys = cls.attr_info.get('required', set())
+        # 找到required_keys中不存在data.keys()的键
+        missing_keys = required_keys - args_dict.keys()
+        if missing_keys:
+            raise AttributeError(f'Missing required keys: {missing_keys} in data: {args_dict}')
+        
+        # 在遍历前去掉data_keys中readonly的键
+        readonly_keys = cls.attr_info.get('readonly', set())
+        data_keys -= readonly_keys
+
+        data_dict = {}
+        data_dict['__tablename__'] = cls.__tablename__
+        
+        for data_key in data_keys:
+            value = args_dict.get(data_key.name, None)
+            if data_key in args_dict:
+                data_dict[data_key.name] = cls.convert_value_by_attr_type(data_key, value)
+        return data_dict
+
+    @classmethod
+    def load(cls, data: dict | str | None = None, **kwargs) -> dict[str, Any]:
+        """
+        将JSON字符串或字典转换为字典。
+
+        参数:
+        data (dict | str | None): JSON字符串或字典。
+
+        返回:
+        dict[str, Any]: 转换后的字典。
+        """
+        args_dict = Base._args_to_dict(data, **kwargs)
+
+        if not args_dict:
+            return args_dict
+        else:
+            return cls.load_dict(args_dict)
+          
+    @classmethod
+    def load_dict(cls, data: dict) -> dict[str, Any]:   
+        """
+        将字典中对应attr_info里'data'类型的数据按_tablename的类属性进行数据类型转换。
+        - 如果数据缺失'required'属性，抛出属性异常。
+        - 忽略'readonly'键的数据
+
+        参数:
+        data (dict): 原始数据。
+
+        返回:
+        dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
+        """
+        if cls.__tablename__ is None:
+            tablename = data.get('__tablename__', None)
+            Model = cls.model_map.get(tablename, None)
+            if Model is None:
+                raise AttributeError(f'Invalid {tablename} in model_map {cls.model_map}')
+        else:
+            tablename = cls.__tablename__
+            Model = cls
+                  
+        mod_attrs = Model.get_attrs('modifiable')
+
+        data_dict = {}
+        data_dict['__tablename__'] = tablename
+        
+        for mod_attr in mod_attrs:
+            value = data.get(mod_attr.name, None)
+            if mod_attr in data:
+                data_dict[mod_attr.name] = Model.convert_value_by_attr_type(mod_attr, value)
+        return data_dict
+
+    @classmethod
+    def convert_value_by_attr_type(cls, attr: ColumnProperty, value: Any) -> Any:
+        """
+        根据属性类型转换值。如果value不在data_keys中，不进行转换。
+
+        参数:
+        attr (ColumnProperty): 属性键。
+        value (Any): 属性值。
+
+        返回:
+        Any: 转换后的属性值。
+        """    
+        data_keys = cls.attr_info.get('data', set())
+        converted_value = value
+        if attr in data_keys:
+            attr_type = attr.type.python_type
+            if attr_type == type(value):
+                return value
+            if attr_type == date and isinstance(value, str):
+                converted_value = date.fromisoformat(value)
+            elif attr_type == int:
+                if isinstance(value, str):
+                    converted_value = int(value)
+                elif isinstance(value, float):
+                    converted_value = round(value)
+            elif attr_type == float:
+                if isinstance(value, str) or isinstance(value, int):
+                    converted_value = float(value)
+            elif attr_type == bool:
+                if isinstance(value, str):
+                    converted_value = value.lower() not in ['false', '0', '', 'none', 'null']
+                if isinstance(value, int) or isinstance(value, float):
+                    converted_value = value != 0
+                else:
+                    converted_value = value is not None
+            elif issubclass(attr_type, set) and isinstance(value, Iterable):
+                converted_value = set(value)
+            elif issubclass(attr_type, list) and isinstance(value, Iterable):
+                converted_value = list(value)
+            elif issubclass(attr_type, dict):
+                if isinstance(value, str):
+                    converted_value = json.loads(value)
+                elif isinstance(value, DataJson):
+                    converted_value = value.data_dict()
+            elif issubclass(attr_type, DataJson):
+                if isinstance(value, str) or isinstance(value, dict):
+                    converted_value = DataJson.get_obj(value)
+            elif issubclass(attr_type, Enum) and not isinstance(value, Enum):
+                enum_cls = attr_type
+                if isinstance(value, str):
+                    value = value.lower()
+                converted_value = enum_cls(value)
+            else:
+                raise AttributeError(f'Value {value} of wrong format for key: {attr.name}')
+        return converted_value
+
     def __setattr__(self, key: str, value: Any) -> None:
         """
 

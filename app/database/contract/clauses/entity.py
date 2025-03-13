@@ -1,7 +1,7 @@
 from app.database.datajson import DataJson
 from app.database.contract.types import ClauseAction
 from sqlalchemy import select, Select
-from app.database.contract.contract import Entity
+from app.database.contract.dbmodels import Entity
 
 class ClauseEntity(DataJson):
     """
