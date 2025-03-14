@@ -315,4 +315,3 @@ class DataJson:
         if data_json_cls is None:
             raise AttributeError(f'json_cls not found in class_map of {cls} for _cls_type: {cls_type}')
         return data_json_cls(data_dict) # type: ignore
-
