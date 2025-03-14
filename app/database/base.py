@@ -6,10 +6,12 @@ from calendar import c
 import logging
 import json
 from pydoc import visiblename
+import re
 from sqlite3 import DatabaseError
 from typing import Any, Iterable
 from enum import Enum
 from datetime import date
+from weakref import ref
 from xml.etree.ElementInclude import include
 from sqlalchemy import (
     ColumnExpressionArgument, ForeignKey, ForeignKeyConstraint, Result, select, Select
@@ -18,9 +20,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import (
     DeclarativeBase,
     ColumnProperty,
-    scoped_session
+    scoped_session,
+    RelationshipProperty
 )
 from sqlalchemy.sql.expression import ColumnClause
+from sqlalchemy import Column
 from copy import deepcopy
 from app.database.datajson import DataJson  # Adjust the import path as necessary
 
@@ -94,7 +98,7 @@ class Base(DeclarativeBase):
         return data_dict
     
     @classmethod
-    def get_attrs(cls, *args: str) -> set[ColumnProperty]:
+    def get_attrs(cls, *args: str) -> set[ColumnProperty | Column | RelationshipProperty]:
         """
         获取包含指定信息的列属性集合。
         
@@ -104,29 +108,26 @@ class Base(DeclarativeBase):
         返回:
         set[ColumnProperty]: 包含指定信息的列属性集合。
         """
-        attrs = {}
+        attrs = set()
         for info in args:
             if info in cls.attr_info:
                 attrs.update(cls.attr_info[info])
             elif info == 'data':
-                cached = set().update(cls.__mapper__.column_attrs)
+                cached = set(cls.__mapper__.column_attrs)
                 cls.attr_info[info] = cached
-                attrs.update(cached) # type: ignore
+                attrs.update(cached)
             elif info == 'pk':
-                cached = set()
-                for attr in cls.__mapper__.column_attrs:
-                    if attr in cls.__mapper__.primary_key:
-                        cached.add(attr)
+                cached = set(cls.__mapper__.primary_key)
                 cls.attr_info[info] = cached
                 attrs.update(cached)
             elif info == 'modifiable':
                 cached = cls.get_attrs('data') - cls.get_attrs('readonly')
                 cls.attr_info[info] = cached
-                attrs.update(cached) # type: ignore
+                attrs.update(cached)
             elif info == 'visible':
                 cached = cls.get_attrs('data') - cls.get_attrs('hidden')
                 cls.attr_info[info] = cached
-                attrs.update(cached) # type: ignore
+                attrs.update(cached)
             elif info in ('date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict'):
                 cached = set()
                 for attr in cls.__mapper__.column_attrs:
@@ -141,22 +142,15 @@ class Base(DeclarativeBase):
                         cached.add(attr)
                 cls.attr_info[info] = cached
                 attrs.update(cached)
-            elif info == 'ref_name':
+            elif info == 'fk':
                 cached = set()
-                for col in cls.__mapper__.columns:
-                    fks = col.foreignkeys
-                    if col.type.python_type == int:
-                        for fk in fks:
-                            table = fk.column.table
-                            if table is not None:
-                                ref_name_attr = getattr(table, 'name', None)
-                                if ref_name_attr is not None:
-                                    cached.add(ref_name_attr)
-                cls.attr_info[info] = cached
-                attrs.update(cached)    
+                for attr in cls.__mapper__.column_attrs:
+                    if attr.foreign_keys:
+                        cached.add(attr)
+                cls.attr_info[info] = cached    
             else:
                 raise AttributeError(f'Invalid info {info} in {cls}')
-        return attrs # type: ignore
+        return attrs
     
     @classmethod
     def get_attr_keys(cls, *args: str) -> set[str]:
@@ -342,79 +336,53 @@ class Base(DeclarativeBase):
         super().__setattr__(key, value)
 
     @classmethod
-    def get_select(cls, with_ref_names: bool = True) -> Select:
+    def fetch_datatable(cls) -> dict[str, Any]:
         if cls.db_session is None:
-            raise DatabaseError(f'{cls} db_session is not valid {cls.db_session}')
+            raise DatabaseError(f'{cls}.db_session is not valid.')
         pk_attrs = cls.get_attrs('pk')
         if not pk_attrs:
             raise AttributeError(f'Primary key not defined in {cls} attr_info')
         visible_attrs = cls.get_attrs('visible')
-        query_attrs = pk_attrs | visible_attrs
-        if with_ref_names:
-            ref_name_attrs = cls.get_attrs('ref_name')
-            if ref_name_attrs:
-                query_attrs |= ref_name_attrs
-                stmt = select(*query_attrs).select_from(cls) # type: ignore
-                for ref_name_attr in ref_name_attrs:
-                    stmt = stmt.join(ref_name_attr.parent.class_)
-                return stmt
-        return select(*query_attrs) # type: ignore
-
-    @classmethod
-    def query_all(cls, with_ref_names: bool = True) -> dict[str, Any]:
-        if cls.db_session is None:
-            raise DatabaseError(f'{cls}.db_session is not valid.')
-        stmt = cls.get_select(with_ref_names)
+        query_attrs = list(visible_attrs)
+        joins = []
+        for rel in cls.__mapper__.relationships:
+            if hasattr(rel.entity, 'name'):
+                ref_id_attr = getattr(rel.entity, 'id')
+                ref_name_attr = getattr(rel.entity, 'name')
+                query_attrs.extend([ref_id_attr, ref_name_attr])
+                joins.append(rel)
+        pk_attrs = cls.get_attrs('pk')
         with cls.db_session() as sess:
-            result = sess.execute(stmt).all()
+            models = sess.select(cls).scalars().all()
+            if not models:
+                return {}
+            
         pk_keys = cls.get_attr_keys('pk')
         visible_keys = cls.get_attr_keys('visible')
-        invisible_pk_keys = pk_keys - visible_keys
-        pk_quantity = len(pk_keys)
-        invisible_pk_quantity = len(invisible_pk_keys)
+        visible_pk_keys = pk_keys - (pk_keys - visible_keys)
 
         datatable = {}
-        datatable['theads'] = visible_keys
+        if with_ref_names:
+            ref_name_attrs_keys = cls.get_attr_keys('ref_name')
+            visible_keys |= ref_name_attrs_keys
+            datatable['ref_names'] = ref_name_attrs_keys
+            fk = cls.get_attrs('fk')
+            ref_map = {}
+            ref_name_attrs = cls.get_attrs('ref_name')
+            for ref_name_attr in ref_name_attrs:
+                ref_map[ref_name_attr.name] = ref_name_attr.parent.class_.__tablename__
+            datatable['ref_map'] = ref_map
+            
+        datatable['theads'] = [key for key in result.keys() if key in visible_keys]
         datatable['pks'] = ','.join(pk_keys)
+        datatable['data'] = []
+        json_keys = cls.get_attr_keys('DataJson', 'json')
+        datatable['json'] = json_keys - (json_keys - visible_keys)
         for row in result:
-            datatable['theads'] = []
-            datatable['theads'] = (list(row[invisible_pk_quantity:]))
-
-        return {}
-    
-
-
-    @classmethod
-    def split_result(cls, result: Result, exclude_info: tuple[str, ...]=('hidden',)) -> tuple[list[str], list[str], list[str], list[list[Any]]]:
-        """
-        从查询结果中分离出主键列和其他列的数据。本函数需要主键在最左侧，主要用于cls.query_all()的结果，否则会出现错误。
-
-        参数:
-        result (Result): 查询结果对象。
-        exclude (tuple[str, ...]): 需要排除的列属性，默认为 ('hidden',)。
-
-        返回:
-        tuple[list[str], list[list[Any]]]: 包含主键列和其他列数据的元组。
-        """
-        pk_attrs = cls.attr_info.get('pk', [])
-        if not pk_attrs:
-            raise AttributeError('Primary key not defined in {cls} attr_info')
-
-        exclude_columns = cls.get_columns(exclude_info)
-       
-        pk_len = len(pk_attrs)
-        hidden_pk_len = pk_len
-        for pk_attr in pk_attrs:
-            if pk_attr not in exclude_columns:
-                hidden_pk_len -= 1
-        pks = []
-        data = []
-        theads = list(result.keys())[hidden_pk_len:]
-        for row in result:
-            pks.append(','.join([str(row[i]) for i in range(pk_len)]))
-            data.append(row[pk_len:])
-        json_cols = [key.name for key in cls.attr_info.get('json_classes', {}).keys()]
-        return pks, theads, json_cols, data
+            datarow = [row.get(key) for key in visible_pk_keys]
+            datarow.extend(row[len(pk_keys):])
+            datatable['data'].append(datarow)
+        return datatable
     
     @classmethod
     def retrieve_tuple_pks(cls, pks: str) -> tuple[Any, ...]:
