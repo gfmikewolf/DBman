@@ -1,37 +1,29 @@
-# app/database/contract/contract.py
+
+# app/database/contract/dbmodels.py
 from typing import List
 from sqlalchemy import ForeignKey, Date,Integer, String, select, Select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from datetime import date
 from app.database.base import Base
+from app.database.datajson import DataJson, DataJsonType
+from .clausetypes import *
 
 class Contract(Base):
     __tablename__ = 'contract'
     contract_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     contract_name: Mapped[str] = mapped_column(String)
-    contract_fullname: Mapped[str | None] = mapped_column(String)
+    contract_fullname: Mapped[str | None]
     contract_effectivedate: Mapped[date] = mapped_column(Date)
     contract_expirydate: Mapped[date] = mapped_column(Date)
-    contract_scope: Mapped[str] = mapped_column()
+    contract_scope: Mapped[str] = mapped_column(String)
     contract_entities: Mapped[str | None] = mapped_column(String)
     contract_remarks: Mapped[str | None] = mapped_column(String)
     contract_number_huawei: Mapped[str | None] = mapped_column(String)
-    contract_number_customer: Mapped[str | None] = mapped_column(String)
-    
-    pks = synonym('contract_id')
-    name = synonym('contract_name')
     
     amendments: Mapped[List['Amendment']] = relationship(
         back_populates='contract', 
         lazy='select', 
     )
-
-    @classmethod
-    def select_all(cls) -> Select:
-        if cls.db_session is None:
-            raise ValueError("db_session is not set in the Base class")
-        with cls.db_session() as sess:
-            return sess.execute(select(cls)).scalars().all()
 
     attr_info = {
         'pk': [contract_id],
@@ -107,45 +99,54 @@ class Amendment(Base):
 class Clause(Base):
     __tablename__ = 'clause'
     clause_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    clause_type: Mapped[ClauseType] = mapped_column(Integer, ForeignKey('clause_type.clause_type_id'))
-    clause_ref: Mapped[str | None]
-    clause_text: Mapped[str | None]
+    clause_ref: Mapped[str | None] = mapped_column(String)
+    clause_text: Mapped[str | None] = mapped_column(String)
     amendment_id: Mapped[int] = mapped_column(Integer, ForeignKey('amendment.amendment_id'))
-    clause_pos: Mapped[ClausePos] = mapped_column(Integer, ForeignKey('clause_pos.clause_pos_id'))
-    clause_reviewcomments: Mapped[str | None]
-    clause_remarks: Mapped[str | None]
+    clause_reviewcomments: Mapped[str | None] = mapped_column(String)
+    clause_remarks: Mapped[str | None] = mapped_column(String)
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
-    clause_json: Mapped[JsonBase] = mapped_column(JsonBaseType)
+    clause_pos: Mapped[ClausePos] = mapped_column(DataJsonType)
+    clause_json: Mapped[DataJson] = mapped_column(DataJsonType)
+    
+    @property
+    def clause_type(self):
+        return self.clause_json._cls_type
     
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
         lazy='selectin'
     )
 
+    _cls_type = __tablename__
+
     attr_info = {
-        'pk': [clause_id],
-        'hidden': [clause_id, clause_type, clause_pos],
-        'readonly': [clause_id],
-        'required': [clause_type, amendment_id, clause_pos, clause_json],
-        'json_classes': {
-            clause_json: {
-                'type': 'polymorphic',
-                'identity_on': 'clause_type',
-                'identity_map': {
-                    ClauseType.EXPIRY : ClauseExpiry,
-                    ClauseType.ENTITY : ClauseEntity,
-                    ClauseType.SCOPE : ClauseScope
-                }
-            }
+        'data': {
+            clause_id, 
+            clause_ref, 
+            amendment_id,
+            amendment_id, 
+            clause_reviewcomments,
+            clause_remarks,
+            clause_effectivedate,
+            clause_expirydate,
+            clause_json,
+            clause_type
+        },
+        'hidden': { clause_id },
+        'readonly': { clause_id },
+        'required': {  
+            amendment_id, 
+            clause_pos, 
+            clause_json
         },
         'ref_map': {
             Amendment : {
-                'ref_name_attr': Amendment.amendment_name,
+                'model': Amendment,
+                'name': Amendment.amendment_name,
                 'order_by': [Amendment.amendment_name]
             }
-        },
-        'date': [clause_effectivedate, clause_expirydate]
+        }
     }
 
 class Entitygroup(Base):
@@ -164,10 +165,11 @@ class Entity(Base):
     __tablename__ = 'entity'
     entity_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     entity_name: Mapped[str] = mapped_column(String)
-    entity_fullname: Mapped[str | None]
+    entity_fullname: Mapped[str | None] = mapped_column(String)
     entitygroup_id: Mapped[int] = mapped_column(ForeignKey('entitygroup.entitygroup_id'))
     
-    pks = synonym('entity_id')
+    id = synonym('entity_id')
+    name = synonym('entity_name')
 
     entitygroup: Mapped['Entitygroup'] = relationship(
         back_populates='entities',
@@ -180,6 +182,5 @@ class Entity(Base):
             Entity.entity_id, 
             Entity.entity_name, 
             Entity.entity_fullname,
-            Entitygroup.entitygroup_name).join_from(Entity, Entitygroup)
+            Entitygroup.entitygroup_name).join(Entity.entitygroup)
     
-
