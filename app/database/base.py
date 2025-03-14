@@ -361,44 +361,28 @@ class Base(DeclarativeBase):
         return select(*query_attrs) # type: ignore
 
     @classmethod
-    def query_all(cls, with_ref_names: bool = True) -> dict[str, Any]
+    def query_all(cls, with_ref_names: bool = True) -> dict[str, Any]:
+        if cls.db_session is None:
+            raise DatabaseError(f'{cls}.db_session is not valid.')
+        stmt = cls.get_select(with_ref_names)
+        with cls.db_session() as sess:
+            result = sess.execute(stmt).all()
+        pk_keys = cls.get_attr_keys('pk')
+        visible_keys = cls.get_attr_keys('visible')
+        invisible_pk_keys = pk_keys - visible_keys
+        pk_quantity = len(pk_keys)
+        invisible_pk_quantity = len(invisible_pk_keys)
+
+        datatable = {}
+        datatable['theads'] = visible_keys
+        datatable['pks'] = ','.join(pk_keys)
+        for row in result:
+            datatable['theads'] = []
+            datatable['theads'] = (list(row[invisible_pk_quantity:]))
+
         return {}
-    @classmethod
-    def query_all_ref_attrs(cls, new_order_by: dict[ColumnProperty, list[ColumnProperty | ColumnClause]] = {}) -> dict[ColumnProperty, Select]:
-        """
-        获取所有关联属性的查询选项。
+    
 
-        该方法生成一个包含所有关联属性查询的字典，每个键是关联属性，
-        值是一个 SQLAlchemy Select 对象，用于查询该属性的值。
-
-        参数:
-        new_order_by (dict[ColumnProperty, list[ColumnProperty | ColumnClause]]): 
-            一个可选的字典，用于指定新的排序规则。字典的键是关联属性，
-            值是一个包含排序列的列表。如果未提供，则使用默认的排序规则。
-
-        返回:
-        dict[ColumnProperty, Select]: 一个字典，其中键是关联属性，值是对应的查询对象。
-        """
-        queries = {}
-        ref_map = cls.attr_info.get('ref_map', {})
-        for model, attr_orderby_dict in ref_map.items():
-            query_columns = []
-            order_by_columns = []
-            for ref_name_attr, order_by in attr_orderby_dict.items():
-                if ref_name_attr is not None and model is not None:
-                    query_columns.append(ref_name_attr)
-                    replace_order_by = []
-                    if new_order_by:
-                        replace_order_by = new_order_by.get(ref_name_attr, [])
-                    if replace_order_by:
-                        order_by_columns.extend(replace_order_by)
-                    elif order_by:
-                        order_by_columns.extend(order_by)
-                    query = select(*query_columns)
-                    if order_by_columns:
-                        query = query.order_by(*order_by_columns)
-                    queries[ref_name_attr] = query
-        return queries
 
     @classmethod
     def split_result(cls, result: Result, exclude_info: tuple[str, ...]=('hidden',)) -> tuple[list[str], list[str], list[str], list[list[Any]]]:
