@@ -2,32 +2,22 @@
 """
 Base 模块包含了 Base 类，该类是所有数据模型类的基类。
 """
-from calendar import c
-import logging
 import json
-from pydoc import visiblename
-import re
 from sqlite3 import DatabaseError
 from typing import Any, Iterable
 from enum import Enum
 from datetime import date
-from weakref import ref
-from xml.etree.ElementInclude import include
 from sqlalchemy import (
-    ColumnExpressionArgument, ForeignKey, ForeignKeyConstraint, Result, select, Select
+    select, Select
 )
 
 from sqlalchemy.orm import (
     DeclarativeBase,
     ColumnProperty,
     scoped_session,
-    RelationshipProperty
 )
-from sqlalchemy.sql.expression import ColumnClause
-from sqlalchemy import Column
 from copy import deepcopy
-from app.database.datajson import DataJson  # Adjust the import path as necessary
-
+from .datajson import DataJson, serialize_value
 
 class Base(DeclarativeBase):
     # 当前用户可访问的表与数据模型的映射
@@ -36,7 +26,7 @@ class Base(DeclarativeBase):
     map_table_Model: dict[str, Base]
         当前用户可访问的表与数据模型的映射。
     """
-
+    
     db_session: scoped_session | None = None
     """
     db_session: scoped_session
@@ -52,23 +42,19 @@ class Base(DeclarativeBase):
         'readonly': set()
     }
 
-    _data_dict : dict = {}
-
-    def __init__(self, data: str | dict | None = None, **kwargs: Any) -> None:
+    def update(self, data: str | dict | None = None, **kwargs: Any) -> None:
         """
         初始化模型实例。如果提供了 form_data，则使用表单数据初始化实例。
 
         参数:
         form_data (dict[str, str], 可选): 表单数据的字典，其中键是表单字段名，值是表单字段的值。
         """
-        super().__init__()
         args_dict = Base._args_to_dict(data, **kwargs)
         if not self.validate_attr_dict(args_dict):
             raise AttributeError('Invalid data: {data} kwargs:{kwargs} to match {self}')
         mod_attrs = self.get_attrs('modifiable')
         for attr in mod_attrs:
             attr = args_dict[attr.name]
-            self._data_dict[attr.name] = attr
     
     @staticmethod
     def _args_to_dict(data: str | dict | None = None, **kwargs: Any) -> dict[str, Any]:
@@ -98,15 +84,17 @@ class Base(DeclarativeBase):
         return data_dict
     
     @classmethod
-    def get_attrs(cls, *args: str) -> set[ColumnProperty | Column | RelationshipProperty]:
+    def get_attrs(cls, *args: str) -> set[ColumnProperty]:
         """
         获取包含指定信息的列属性集合。
         
         参数:
-        include_info (tuple[str, ...]): 包含的信息集合。
+        *args (str): 包含的信息字符串参数。
         
         返回:
-        set[ColumnProperty]: 包含指定信息的列属性集合。
+        set[ColumnProperty | Column] | tuple[Column | ColumnProperty, ...]: 包含指定信息的列属性集合。
+        参数为'data'和'pk'时返回模型属性的元组，保持参数顺序，方便后续查询
+        其他参数返回模型属性的集合
         """
         attrs = set()
         for info in args:
@@ -128,26 +116,27 @@ class Base(DeclarativeBase):
                 cached = cls.get_attrs('data') - cls.get_attrs('hidden')
                 cls.attr_info[info] = cached
                 attrs.update(cached)
-            elif info in ('date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict'):
+            elif info in {'date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict'}:
                 cached = set()
-                for attr in cls.__mapper__.column_attrs:
+                for attr in cls.get_attrs('data'):
                     if isinstance(attr.type.python_type, eval(info)):
                         cached.add(attr)
                 cls.attr_info[info] = cached
                 attrs.update(cached)
-            elif info in ('DataJson', 'Enum'):
+            elif info in {'DataJson', 'Enum'}:
                 cached = set()
-                for attr in cls.__mapper__.column_attrs:
+                for attr in cls.get_attrs('data'):
                     if issubclass(attr.type.python_type, eval(info)):
                         cached.add(attr)
                 cls.attr_info[info] = cached
                 attrs.update(cached)
             elif info == 'fk':
                 cached = set()
-                for attr in cls.__mapper__.column_attrs:
+                for attr in cls.get_attrs('data'):
                     if attr.foreign_keys:
                         cached.add(attr)
-                cls.attr_info[info] = cached    
+                cls.attr_info[info] = cached 
+                attrs.update(cached)   
             else:
                 raise AttributeError(f'Invalid info {info} in {cls}')
         return attrs
@@ -159,10 +148,10 @@ class Base(DeclarativeBase):
             keys = cls.attr_info_keys.get(arg, None)
             if not keys:
                 attrs = cls.get_attrs(arg)
-                keys = {attr.name for attr in attrs}
+                keys = set(attr.name for attr in attrs)
                 cls.attr_info_keys[arg] = keys
-            attr_keys.update(keys) # type: ignore
-        return attr_keys # type:ignore
+            attr_keys.update(keys)
+        return attr_keys
     
     @classmethod
     def validate_attr_dict(cls, data : dict[str, Any]) -> bool:
@@ -202,10 +191,10 @@ class Base(DeclarativeBase):
         data_dict = {}
         data_dict['__tablename__'] = cls.__tablename__
         
-        for data_key in data_attrs:
-            value = args_dict.get(data_key.name, None)
-            if data_key in args_dict:
-                data_dict[data_key.name] = cls.convert_value_by_attr_type(data_key, value)
+        for data_attr in data_attrs:
+            value = args_dict.get(data_attr.name, None)
+            if data_attr in args_dict:
+                data_dict[data_attr.name] = cls.convert_value_by_attr_type(data_attr, value)
         return data_dict
 
     @classmethod
@@ -264,7 +253,7 @@ class Base(DeclarativeBase):
     @classmethod
     def convert_value_by_attr_type(cls, attr: ColumnProperty, value: Any) -> Any:
         """
-        根据属性类型转换值。如果value不在data_keys中，不进行转换。
+        根据属性类型转换值。如果value不在data_attrs中，不进行转换。
 
         参数:
         attr (ColumnProperty): 属性键。
@@ -273,9 +262,9 @@ class Base(DeclarativeBase):
         返回:
         Any: 转换后的属性值。
         """    
-        data_keys = cls.attr_info.get('data', set())
+        data_attrs = cls.get_attrs('data')
         converted_value = value
-        if attr in data_keys:
+        if attr in data_attrs:
             attr_type = attr.type.python_type
             if attr_type == type(value):
                 return value
@@ -318,22 +307,17 @@ class Base(DeclarativeBase):
         return converted_value
 
     def __setattr__(self, key: str, value: Any) -> None:
-        """
-
-        """
         readonly_keys = self.get_attr_keys('readonly')
-        
-
         if key in readonly_keys:
             return
         
         attr = getattr(self, key, None)
         if attr is None:
+            super().__setattr__(key, value)
             return
         
         converted_value = self.convert_value_by_attr_type(attr, value)
-        
-        super().__setattr__(key, value)
+        super().__setattr__(key, converted_value)
 
     @classmethod
     def fetch_datatable(cls) -> dict[str, Any]:
@@ -342,164 +326,69 @@ class Base(DeclarativeBase):
         pk_attrs = cls.get_attrs('pk')
         if not pk_attrs:
             raise AttributeError(f'Primary key not defined in {cls} attr_info')
-        visible_attrs = cls.get_attrs('visible')
-        query_attrs = list(visible_attrs)
-        joins = []
-        for rel in cls.__mapper__.relationships:
-            if hasattr(rel.entity, 'name'):
-                ref_id_attr = getattr(rel.entity, 'id')
-                ref_name_attr = getattr(rel.entity, 'name')
-                query_attrs.extend([ref_id_attr, ref_name_attr])
-                joins.append(rel)
-        pk_attrs = cls.get_attrs('pk')
-        with cls.db_session() as sess:
-            models = sess.select(cls).scalars().all()
-            if not models:
-                return {}
-            
-        pk_keys = cls.get_attr_keys('pk')
-        visible_keys = cls.get_attr_keys('visible')
-        visible_pk_keys = pk_keys - (pk_keys - visible_keys)
-
-        datatable = {}
-        if with_ref_names:
-            ref_name_attrs_keys = cls.get_attr_keys('ref_name')
-            visible_keys |= ref_name_attrs_keys
-            datatable['ref_names'] = ref_name_attrs_keys
-            fk = cls.get_attrs('fk')
-            ref_map = {}
-            ref_name_attrs = cls.get_attrs('ref_name')
-            for ref_name_attr in ref_name_attrs:
-                ref_map[ref_name_attr.name] = ref_name_attr.parent.class_.__tablename__
-            datatable['ref_map'] = ref_map
-            
-        datatable['theads'] = [key for key in result.keys() if key in visible_keys]
-        datatable['pks'] = ','.join(pk_keys)
-        datatable['data'] = []
-        json_keys = cls.get_attr_keys('DataJson', 'json')
-        datatable['json'] = json_keys - (json_keys - visible_keys)
-        for row in result:
-            datarow = [row.get(key) for key in visible_pk_keys]
-            datarow.extend(row[len(pk_keys):])
-            datatable['data'].append(datarow)
-        return datatable
-    
-    @classmethod
-    def retrieve_tuple_pks(cls, pks: str) -> tuple[Any, ...]:
-        """
-        从字符串中解析出主键元组，并将其转换为相应的类型。
-
-        参数:
-        pks (str): 包含主键值的字符串。
-
-        返回:
-        tuple[Any, ...]: 包含主键值的元组。
-        """
-        pk_attrs = cls.attr_info.get('pk', [])
-        if not pk_attrs:
-            raise AttributeError(f'Primary key not defined in {cls} attr_info')
-        pk_values = pks.split(',')
-        if len(pk_values) != len(pk_attrs):
-            raise ValueError(f'Primary key values not fully set: {pk_values}')
-        
-        # 将字符串格式的主键值转换为相应的类型
-        converted_pk_values = []
-        for pk_attr, pk_value in zip(pk_attrs, pk_values):
-            converted_value = convert_string_by_attr_type(pk_attr, pk_value)
-            if converted_value is None:
-                raise ValueError(f'Failed to convert primary key value: {pk_value}')
-            converted_pk_values.append(converted_value)
-        
-        return tuple(converted_pk_values)
-    
-    @classmethod
-    def form_to_dict(cls, form_data: dict[str, str]) -> dict[str, Any]:
-        """
-        将表单数据转换为字典，并将其转换为相应的类型。
-
-        参数:
-        form_data (dict[str, str]): 表单数据的字典，其中键是表单字段名，值是表单字段的值。
-
-        返回:
-        dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
-
-        异常:
-        AttributeError: 如果表单数据缺少必需的键，或者在模型中找不到相应的属性。
-        ValueError: 如果表单数据的值无法转换为预期的类型。
-        """
         mapper = cls.__mapper__
-        data_attrs = mapper.column_attrs
-        required = cls.attr_info.get('required', [])
-        readonly = cls.attr_info.get('readonly', [])
-        json_classes = cls.attr_info.get('json_classes', {})
-        data_dict = {}
-        for data_attr in data_attrs:
-            if data_attr in required and data_attr.name not in form_data:
-                raise AttributeError(f'Required key {data_attr} not found in form data')
-            if data_attr in readonly:
-                converted_value = None
-            if data_attr in json_classes.keys():
-                classes_info = json_classes[data_attr]
-                if classes_info.get('identity_on') is None:
-                    raise AttributeError(f'Identity attribute not found in json_classes')
-                identity_on = getattr(cls, classes_info['identity_on'], None)
-                if identity_on is None:
-                    raise AttributeError(f'Identity attribute {classes_info["identity_on"]} not found in Model {cls}')
-                identity_attr = classes_info.get('identity_attr', None)
-                if identity_attr is None:
-                    raise AttributeError(f'Identity attribute not found in json_classes')
-                
-                identity_value = getattr(identity_on, identity_attr, None)
-                if identity_value is None:
-                    raise AttributeError(f'Identity attribute {identity_attr} not found in Model {identity_on}')
-                classes_map = classes_info[identity_on].get('json_classes', {})
-                if not classes_map:
-                    raise AttributeError(f'Json classes map not found in {classes_info.identity_on}')
-                json_class = classes_map.get(identity_value, None)
-                if json_class is None:
-                    raise AttributeError(f'Json class not found in {classes_map} with key {identity_value}')
-                if not issubclass(json_class, JsonBase):
-                    raise AttributeError(f'Json class {json_class} is not subclass of JsonBase')
-                converted_value = json.loads(form_data[key], object_hook=json_classes[key].object_hook)
-            else:
-                converted_value = convert_string_by_attr_type(attr, form_data[key])
-            if converted_value is None:
-                raise ValueError(f'Value cannot be converted as expected {key}:{form_data[key]}')
-            data_dict[key] = converted_value
-        return data_dict
-
-    def update_from_form(self, form_data: dict[str, str]) -> bool:
-        """
-        使用表单数据更新模型实例。
-
-        参数:
-        form_data (dict[str, str]): 表单数据的字典，其中键是表单字段名，值是表单字段的值。
-
-        返回:
-        bool: 如果更新成功返回 True，否则返回 False。
-
-        异常:
-        AttributeError: 如果表单数据缺少必需的键，或者在模型中找不到相应的属性。
-        ValueError: 如果表单数据的值无法转换为预期的类型。
-        """
-        original_data = deepcopy(self.__dict__)  # 深拷贝原始数据
+        visible_attrs = cls.get_attrs('visible')
+        query_cols = [attr.expression for attr in mapper.column_attrs if attr in visible_attrs | pk_attrs]
+        joins = []
+        ref_map = dict()
+        for rel in cls.__mapper__.relationships:
+            if rel.uselist:
+                continue
+            ref_model = rel.entity.class_
+            if hasattr(ref_model, 'name'):
+                ref_id_attr = getattr(ref_model, 'id', None)
+                ref_name_attr = getattr(ref_model, 'name', None)
+                ref_tablename = ref_model.__tablename__
+                if not (ref_model is None or ref_id_attr is None or ref_name_attr is None):
+                    ref_map[ref_name_attr.name] = (ref_tablename, ref_id_attr.name)
+                    query_cols.extend([ref_name_attr.expression, ref_id_attr.expression])
+                    visible_attrs.add(ref_name_attr)
+                    joins.append(rel)
+        query = select(*query_cols)
+        if joins:
+            query = query.join(*joins)
         
-        try:
-            dict_data = self.form_to_dict(form_data)
-            for key, value in dict_data.items():
-                setattr(self, key, value)
-            return True
-        except Exception as e:                
-            # 恢复原始数据，排除以双下划线开头的内置属性
-            self.__dict__.update({k: v for k, v in original_data.items() if not k.startswith('__')})
-            logging.error(f"Error in updating {self}. Error: {e}")
-            return False
+        datatable = dict()
+        with cls.db_session() as sess:
+            result = sess.execute(query).all()
 
-if __name__ == '__main__':
-    # 测试代码
-    from .contract import Contract
-    Base.model_map = {
-        'contract': Contract
-    }
-    print(Base.model_map)
-    print(Base.attr_info_keys)
+        visible_keys = cls.get_attr_keys('visible')    
+        datatable['headers'] = [key for key in result.keys() if key in visible_keys]
+        datatable['data'] = []
+        datatable['_pks'] = []
+        datatable['ref_id'] = []
+        datatable['ref_map'] = ref_map
+        if not result:
+            return datatable  
+        
+        pk_keys = cls.get_attr_keys('pk')
+        json_keys = cls.get_attr_keys('DataJson', 'json')
+        visible_keys = cls.get_attr_keys('visible')
+        datatable['headers_json'] = json_keys - (json_keys - visible_keys)
+        
+        for row in result:
+            datarow = []
+            _pks = []
+            for key in result.keys():
+                if key in visible_keys:
+                    datarow.append(row.get(key, ''))
+                if key in pk_keys:
+                    _pks.append(key)
+            datatable['data'].append(datarow)
+            datatable['_pks'].append(','.join(_pks))
+            if ref_map:
+                ref = dict()
+                for ref_name, ref_table_id in ref_map.items():
+                    ref.update({ref_name:row.get(ref_table_id[1])})
+                datatable['ref_id'].append(ref)
+        return datatable
+
+    def data_dict(self, serializable: bool = False) -> dict[str, Any]:
+        data_dict = {'__tablename__': self.__tablename__}
+        data_keys = self.get_attr_keys('data')
+        for data_key in data_keys:
+            data_attr = getattr(self, data_key, None)
+            if data_attr is None:
+                raise AttributeError(f'Invalid attribute {data_key} for {self}')
+            data_dict[data_attr.name] = serialize_value(data_attr) if serializable else data_attr
+        return data_dict
