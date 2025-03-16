@@ -1,7 +1,7 @@
-from app.database.datajson import DataJson
-from app.database.contract.types import ClauseAction
 from sqlalchemy import select, Select
-from app.database.contract.dbmodels import Entity
+from app.database.datajson import DataJson
+from ..clausetypes import ClauseAction
+from ..dbmodels import Entity
 
 class ClauseEntity(DataJson):
     """
@@ -18,11 +18,11 @@ class ClauseEntity(DataJson):
         - entity_id is required.
         - old_entity_id is required if action is Novate.
     """
-    _cls_type = 'clause_entity'
+    __datajson_id__ = 'clause_entity'
     
     action: ClauseAction = ClauseAction.UPDATE
     entity_id: int = 0
-    old_entity_id: int | None = None
+    old_entity_id: int | None = 0
     
     attr_info = {
         'data': {'action', 'entity_id', 'old_entity_id'},

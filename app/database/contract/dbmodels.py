@@ -111,7 +111,7 @@ class Clause(Base):
     
     @property
     def clause_type(self):
-        return self.clause_json._cls_type
+        return self.clause_json.__datajson_id__
     
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
@@ -154,7 +154,7 @@ class Entitygroup(Base):
     entitygroup_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     entitygroup_name: Mapped[str]
 
-    pks = synonym('entitygroup_id')
+    name = synonym('entitygroup_name')
 
     entities: Mapped[List['Entity']] = relationship(
         back_populates='entitygroup',
@@ -163,7 +163,7 @@ class Entitygroup(Base):
 
 class Entity(Base):
     __tablename__ = 'entity'
-    entity_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entity_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     entity_name: Mapped[str] = mapped_column(String)
     entity_fullname: Mapped[str | None] = mapped_column(String)
     entitygroup_id: Mapped[int] = mapped_column(ForeignKey('entitygroup.entitygroup_id'))
@@ -176,11 +176,11 @@ class Entity(Base):
         lazy='selectin'
     )
 
-    @classmethod
-    def select_all(cls, with_ref_name=True) -> Select:
-        return select(
-            Entity.entity_id, 
-            Entity.entity_name, 
-            Entity.entity_fullname,
-            Entitygroup.entitygroup_name).join(Entity.entitygroup)
+    col_key_info = {
+        'hidden': { 'entity_id', 'entitygroup_id' },
+        'readonly': { 'entity_id' },
+        'ref_name_order': {
+            'entitygroup_name': ['entitygroup_name']
+        }
+    }
     

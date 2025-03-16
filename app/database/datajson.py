@@ -1,4 +1,6 @@
 # app.database.datajson.py
+
+__all__ = ['DataJson', 'DataJsonType', 'serialize_value']
 """
 数据JSON类的基类，提供类、字典、序列化字符串与json类型的转换
 
@@ -10,13 +12,14 @@
 - class DataJson
     JSON数据模型基类，用于定义JSON数据模型的基本属性和方法。
 """
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional, Self
 from datetime import date
 from enum import Enum
 import json
 from copy import deepcopy
 from sqlalchemy.types import TypeDecorator, JSON
 from sqlalchemy.orm import ColumnProperty
+from app.utils import args_to_dict
 
 def serialize_value(attr: Any) -> Any:
     """
@@ -42,10 +45,54 @@ def serialize_value(attr: Any) -> Any:
     elif attr_type == date:
         srl_value = attr.isoformat()
     elif issubclass(attr_type, DataJson):
-        srl_value = attr.data_dict(serializable=True)
+        srl_value = attr.data_dict(serializeable=True)
     else:
         srl_value = attr
     return srl_value
+
+def convert_value_by_python_type(value: Any, python_type: Any) -> Any:
+    """
+    根据python类型转换值。
+
+    参数:
+    value (Any): 值。
+    python_type (Any): Python类型。
+
+    返回:
+    Any: 转换后的值。
+    """
+    if value is None:
+        return None
+    converted_value = value
+    if isinstance(value, python_type):
+        return value
+    elif issubclass(python_type, date) and isinstance(value, str):
+        converted_value = date.fromisoformat(value)
+    elif issubclass(python_type, int) and isinstance(value, str):
+        converted_value = python_type(value)
+    elif issubclass(python_type, float) and (isinstance(value, str) or isinstance(value, int)):
+        converted_value = python_type(value)
+    elif issubclass(python_type, bool) and (isinstance(value, str) or isinstance(value, int) or isinstance(value, float)): 
+        if isinstance(value, str):
+            converted_value = value.lower() not in ['false', '0', '', 'none', 'null']
+        if isinstance(value, int) or isinstance(value, float):
+            converted_value = value != 0
+    elif (issubclass(python_type, set) or issubclass(python_type, list)) and isinstance(value, Iterable):
+        converted_value = python_type(value)
+    elif issubclass(python_type, dict) and (isinstance(value, str) or isinstance(value, DataJson)):
+        if isinstance(value, str):
+            converted_value = json.loads(value)
+        elif isinstance(value, DataJson):
+            converted_value = value.data_dict()
+    elif issubclass(python_type, DataJson) and (isinstance(value, str) or isinstance(value, dict)):
+        converted_value = DataJson.get_obj(value)
+    elif issubclass(python_type, Enum) and (isinstance(value, str) or isinstance(value, int)):
+        if isinstance(value, str):
+            value = value.lower()
+        converted_value = python_type(value)
+    else:
+        raise AttributeError(f'Value {value} ({type(value).__name__}) of wrong format for key: ({python_type.__name__})')
+    return converted_value
 
 class DataJsonType(TypeDecorator):
     """
@@ -69,16 +116,27 @@ class DataJson:
     """
     JSON数据模型基类，用于定义JSON数据模型的基本属性和方法。
     - 类属性:
-        - _cls_type (str): 模型类的类型。
+        - __datajson_id__ (str): 模型类的类型id。
         - class_map (dict[str, type['DataJson']]): 模型类的映射。
         - attr_info (dict[str, Any]): 模型类的属性信息。
-    - 类方法:
-        - load(data: dict | str | None = None, **kwargs) -> dict[str, Any]: 将JSON字符串或字典转换为字典。
-        - load_dict(data: dict) -> dict[str, Any]: 将字典中对应attr_info里'data'类型的数据按_cls_type的类属性进行数据类型转换。
-        - convert_value_by_attr_type(attr_key: str, value: Any) -> Any: 根据属性类型转换值。
-        - get_obj(data: str | dict, default: Any = None) -> 'DataJson': 获取JSON数据的DataJson类实例。
+    
+    公共方法：
+        - 类方法:
+            - load(data: dict | str | None = None, **kwargs) -> dict[str, Any]: 将JSON字符串或字典转换为字典。
+            - get_cls_from_dict(data: dict[str, Any]) -> type['DataJson'] | None: 根据字典获取模型类。
+            - convert_value_by_attr_type(value: Any, attr_key: str) -> Any: 根据属性类型转换值。
+            - get_keys(*args: str) -> set[str]: 获取包含指定信息的属性的键集合。
+            - get_obj(data: str | dict, **kwargs: Any) -> Optional['DataJson']: 获取JSON数据的DataJson类实例。
+        - 实例方法:
+            - __init__(self, data: str | dict | None = None, **kwargs): 初始化模型实例。
+            - dumps(self) -> str: 将模型实例转换为JSON字符串。
+            - data_dict(self, serializeable: bool = False) -> dict[str, Any]:
+    
+    私有方法：
+        - 类方法:
+            - _load_dict(cls, data: dict) -> dict[str, Any]: 将字典中对应attr_info里'data'类型的数据按类属性进行数据类型转换。
     """
-    _cls_type = 'data_json'
+    __datajson_id__ = 'data_json'
     """
     模型类的类型，str类型
     
@@ -107,10 +165,7 @@ class DataJson:
         'required': set(),
         'readonly': set(),
         'hidden': set(),
-        'date': set(),
-        'enum': set(),
-        'json': set(),
-        'ref_map': dict
+        'foreignkeys': dict[str, dict[str, Any]]
     }
     """
     模型类的属性信息，dict类型，建议在DataJson类使用前定义该变量
@@ -123,10 +178,10 @@ class DataJson:
     - readonly: 只读属性: str
     - hidden: 不需要显示给用户的属性: str
     - foreignkeys: 外键信息: dict
-        - model: 引用的数据库模型: Base
-        - id: 引用的数据库模型键: ColumnProperty
-        - name: 引用的数据库模型表征名称: ColumnProperty
-        - order_by: list[ColumnProperty | ColumnClause] 如 [Contract.name.desc()]
+        - tablename: 引用的数据表名称: str, 如 'contract'
+        - pks: 引用的数据库模型键: tuple[str,...] 如 ('contract_id',)
+        - name: 引用的数据库模型表征名称: str, 如 'contract_name'
+        - order_by: 作为列表框供用户选择时选项的排序要求: tuple[str, ...] 如 ('contract_name', 'contract_fullname.desc')
     """
     def __init__(self, data: str | dict | None = None, **kwargs):
         data_dict = self.load(data, **kwargs)
@@ -143,24 +198,16 @@ class DataJson:
         返回:
         dict[str, Any]: 转换后的字典。
         """
-        if data is None:
-            data_dict = {}
-        elif isinstance(data, str):
-            data_dict = json.loads(data)
-        elif isinstance(data, dict):
-            if kwargs:
-                data_dict = deepcopy(data) # 防止load函数修改用户data原始数据
-            else:
-                data_dict = data
-        else:
-            raise ValueError(f'Invalid data type for {cls} in {cls}.load(data={data}, kwargs={kwargs})')
-        if kwargs:
-            data_dict.update(kwargs)
+        args_dict = args_to_dict(data, **kwargs)
+        data_json_cls = cls.get_cls_from_dict(args_dict)
 
-        if not data_dict:
-            return data_dict
+        if  data_json_cls is None:
+            raise AttributeError('Invalid data: {data} kwargs:{kwargs} to match {json_cls}')
+
+        if not args_dict:
+            return args_dict
         else:
-            return cls.load_dict(data_dict)
+            return data_json_cls._load_dict(args_dict)
     
     def dumps(self) -> str:
         """
@@ -169,14 +216,37 @@ class DataJson:
         返回:
         str: 转换后的JSON字符串。
         """
-        return json.dumps(self.data_dict(serializable=True))
+        return json.dumps(self.data_dict(serializeable=True))
     
     @classmethod
-    def load_dict(cls, data: dict) -> dict[str, Any]:   
+    def get_cls_from_dict(cls, data: dict[str, Any]) -> type['DataJson'] | None:
+        if cls.__datajson_id__ == 'data_json':
+            datajson_id = data.get('__datajson_id__', None)
+            data_json_cls = cls.class_map.get(datajson_id, None)
+            if data_json_cls is None:
+                raise AttributeError(f'Invalid {datajson_id} in class_map {cls.class_map}')
+        else:
+            datajson_id = cls.__datajson_id__
+            data_json_cls = cls
+        
+        required_keys = data_json_cls.get_keys('required')
+        # 找到required_keys中不存在于data.keys()的键
+        missing_keys = required_keys - data.keys()
+        if missing_keys:
+            raise AttributeError(f'Missing required keys: {missing_keys} in {data}')
+        
+        # 如果data_keys中有readonly的键，抛出属性异常
+        readonly_keys = data_json_cls.get_keys('readonly')
+        # 如果data_keys中有readonly_keys,下面的计算会得到非空集合
+        if (readonly_keys - (readonly_keys - data.keys())):
+            raise AttributeError(f'Readonly keys: {readonly_keys} in {data}')
+        return data_json_cls
+
+    @classmethod
+    def _load_dict(cls, data: dict) -> dict[str, Any]:   
         """
-        将字典中对应attr_info里'data'类型的数据按_cls_type的类属性进行数据类型转换。
-        - 如果数据缺失'required'属性，抛出属性异常。
-        - 忽略'readonly'键的数据
+        将字典中对应attr_info里'data'类型的数据按类属性进行数据类型转换。
+        - 字典必须经过get_cls_from_dict()方法处理后才能调用该方法。
 
         参数:
         data (dict): 原始数据。
@@ -184,37 +254,23 @@ class DataJson:
         返回:
         dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
         """
-        if cls._cls_type == 'data_json':
-            cls_type = data.get('_cls_type', None)
-            data_json_cls = cls.class_map.get(cls_type, None)
+        data_json_cls = cls
+        if cls.__datajson_id__ == 'data_json':
+            data_json_cls = cls.get_cls_from_dict(data)
             if data_json_cls is None:
-                raise AttributeError(f'No valid json_class for {cls_type} in class_map {cls.class_map}')
-        else:
-            cls_type = cls._cls_type
-            data_json_cls = cls
-                  
-        data_keys = data_json_cls.attr_info.get('data', set())
-        required_keys = data_json_cls.attr_info.get('required', set())
-        # 找到required_keys中不存在data.keys()的键
-        missing_keys = required_keys - data.keys()
-        if missing_keys:
-            raise AttributeError(f'Missing required keys: {missing_keys} in data: {data}')
-        
-        # 在遍历前去掉data_keys中readonly的键
-        readonly_keys = data_json_cls.attr_info.get('readonly', set())
-        data_keys -= readonly_keys
-
+                raise AttributeError(f'Invalid data: {data} to match {data_json_cls}')
         data_dict = {}
-        data_dict['_cls_type'] = cls_type
-        
-        for data_key in data_keys:
-            value = data.get(data_key, None)
-            if data_key in data:
-                data_dict[data_key] = data_json_cls.convert_value_by_attr_type(data_key, value)
+        data_dict['__datajson_id__'] = data_json_cls.__datajson_id__
+        mod_keys = data_json_cls.get_keys('modifiable')
+
+        for key in mod_keys:
+            value = data.get(key, None)
+            if value is not None:
+                data_dict[key] = data_json_cls.convert_value_by_attr_type(value, key)
         return data_dict
 
     @classmethod
-    def convert_value_by_attr_type(cls, attr_key: str, value: Any) -> Any:
+    def convert_value_by_attr_type(cls, value: Any, attr_key: str) -> Any:
         """
         根据属性类型转换值。如果value不在data_keys中，不进行转换。
 
@@ -225,74 +281,34 @@ class DataJson:
         返回:
         Any: 转换后的属性值。
         """
-        
-        data_keys = cls.attr_info.get('data', set())
-        converted_value = value
-        if attr_key in data_keys:
-            # 获取attr_key为名的类属性
-            attr = getattr(cls, attr_key, None)
-            # 转化字符串格式的日期为日期类型
-            if type(attr) == type(value):
-                return value
-            if isinstance(attr, date) and isinstance(value, str):
-                converted_value = date.fromisoformat(value)
-            elif isinstance(attr, int):
-                if isinstance(value, str):
-                    converted_value = int(value)
-                elif isinstance(value, float):
-                    converted_value = round(value)
-            elif isinstance(attr, float):
-                if isinstance(value, str) or isinstance(value, int):
-                    converted_value = float(value)
-            elif isinstance(attr, bool):
-                if isinstance(value, str):
-                    converted_value = value.lower() not in ['false', '0', '', 'none', 'null']
-                if isinstance(value, int) or isinstance(value, float):
-                    converted_value = value != 0
-                else:
-                    converted_value = value is not None
-            elif isinstance(attr, set) and isinstance(value, Iterable):
-                converted_value = set(value)
-            elif isinstance(attr, list) and isinstance(value, Iterable):
-                converted_value = list(value)
-            elif isinstance(attr, dict):
-                if isinstance(value, str):
-                    converted_value = json.loads(value)
-                elif isinstance(value, DataJson):
-                    converted_value = value.data_dict()
-            elif isinstance(attr, DataJson):
-                if isinstance(value, str) or isinstance(value, dict):
-                    converted_value = DataJson.get_obj(value)
-            elif issubclass(type(attr), Enum) and not isinstance(value, Enum):
-                enum_cls = type(attr)
-                if isinstance(value, str):
-                    value = value.lower()
-                converted_value = enum_cls(value) # type: ignore
-            else:
-                raise AttributeError(f'Value {value} of wrong format for key: {attr_key}')     
+        attr = getattr(cls, attr_key, None)
+        if attr is None:
+            raise AttributeError(f'Attribute {attr_key} not found in {cls}')
+        attr_type = type(attr)
+        converted_value = convert_value_by_python_type(value, attr_type)    
         return converted_value
     
-    def data_dict(self, serializable: bool = False) -> dict[str, Any]:
+    def data_dict(self, serializeable: bool = False) -> dict[str, Any]:
         """
         将模型实例转换为字典。
 
         参数:
-        serializable (bool): 是否将值序列化以便存储为JSON。
+        serializeable (bool): 是否将值序列化以便存储为JSON。
 
         返回:
         dict[str, Any]: 包含模型实例数据的字典。
         """
-        data_keys = self.attr_info.get('data', {})
-        data_dict = {'_cls_type': self._cls_type}
+        data_keys = self.get_keys('data')
+        data_dict = {'__datajson_id__': self.__datajson_id__}
         for key, value in self.__dict__.items():
             if key in data_keys:
                 attr = getattr(self, key, None)
                 if attr is not None:
-                    data_dict.update({key: serialize_value(value) if serializable else value})
+                    data_dict.update({key: serialize_value(value) if serializeable else value})
         return data_dict
     
     @classmethod
-    def get_obj(cls, data: str | dict, default: Any = None) -> 'DataJson':
+    def get_obj(cls, data: str | dict, **kwargs: Any) -> Optional['DataJson']:
         """
         获取JSON数据的DataJson类实例。
 
@@ -304,14 +320,60 @@ class DataJson:
         DataJson: 任何继承了DataJson的类实例。
         """
 
-        data_dict = DataJson.load(data)
+        data_dict = args_to_dict(data, **kwargs)
         if not data_dict:
-            return default
+            return None
         
-        cls_type = data_dict.get('_cls_type', None)
-        if cls_type is None:
-            raise TypeError(f'_cls_type not found in jsonData: {data}')
-        data_json_cls = cls.class_map.get(cls_type, None)
-        if data_json_cls is None:
-            raise AttributeError(f'json_cls not found in class_map of {cls} for _cls_type: {cls_type}')
-        return data_json_cls(data_dict) # type: ignore
+        if cls.__datajson_id__ == 'data_json':
+            datajson_id = data_dict.get('__datajson_id__', None)
+            if datajson_id is None:
+                raise TypeError(f'__datajson_id__ not found in jsonData: {data}')
+            data_json_cls = cls.class_map.get(datajson_id, None)
+            if data_json_cls is None:
+                raise AttributeError(f'json_cls not found in class_map of {cls} for __datajson_id__: {datajson_id}')
+        else:
+            data_json_cls = cls
+
+        return data_json_cls(data_dict)
+
+    @classmethod
+    def get_keys(cls, *args: str) -> set[str]:
+        """
+        获取包含指定信息的属性的键集合。
+        
+        参数:
+        *args (str): 包含的信息字符串参数。
+        
+        返回:
+        set[str]: 包含指定信息的键集合。
+        """
+        keys = set()
+        for info in args:
+            # 如果已经缓存了信息，返回缓存信息
+            if info in cls.attr_info:
+                keys.update(cls.attr_info[info])
+            # 如果没有缓存信息，根据参数获取信息并缓存
+            elif info in {'readonly', 'hidden', 'required', 'data', 'foreignkeys'}:
+                info_keys = cls.attr_info.get(info, set())
+                keys.update(info_keys)
+            elif info == 'modifiable':
+                info_keys = cls.get_keys('data') - cls.get_keys('readonly')
+                cls.attr_info[info] = info_keys
+                keys.update(info_keys)
+            elif info == 'visible':
+                info_keys = cls.get_keys('data') - cls.get_keys('hidden')
+                cls.attr_info[info] = info_keys
+                keys.update(info_keys)
+            elif info in {'date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'DataJson', 'Enum'}:
+                info_keys = set()
+                for data_key in cls.get_keys('data'):
+                    attr = getattr(cls, data_key, None)
+                    if attr is None:
+                        raise AttributeError(f'Attribute {data_key} not found in {cls}')
+                    if isinstance(attr, eval(info)):
+                        info_keys.add(data_key)
+                cls.attr_info[info] = info_keys
+                keys.update(info_keys)  
+            else:
+                raise AttributeError(f'Invalid key info {info} for {cls}')
+        return keys

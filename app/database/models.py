@@ -1,10 +1,12 @@
 # app/database/models.py
-from .jsonbase import JsonBase
+from .datajson import DataJson
 from .base import Base
 from .contract import (
     Contract, 
     Amendment,
     Clause,
+    Entity,
+    Entitygroup,
     ClauseExpiry,
     ClauseEntity,
     ClauseScope
@@ -13,11 +15,13 @@ from .contract import (
 Base.model_map = {
     'contract': Contract,
     'amendment': Amendment,
-    'clause': Clause
+    'clause': Clause,
+    'entity': Entity,
+    'entitygroup': Entitygroup
 }
 
-JsonBase.class_map = {
-    'base': JsonBase,
+DataJson.class_map = {
+    'base': DataJson,
     'expiry': ClauseExpiry,
     'entity': ClauseEntity,
     'scope': ClauseScope

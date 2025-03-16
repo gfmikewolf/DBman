@@ -1,3 +1,4 @@
+# app/database/contract/clausetypes.py
 from enum import Enum
 
 class ClauseAction(Enum):

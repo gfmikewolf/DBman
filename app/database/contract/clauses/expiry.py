@@ -1,13 +1,13 @@
 from enum import Enum, auto
 from datetime import date
-from app.database.jsonbase import JsonBase
+from app.database.datajson import DataJson
 
 class ExpiryType(Enum):
     Date = auto()
     linked_to_Contract = auto()
     later_of_last_COA_or_Date = auto()
 
-class ClauseExpiry(JsonBase):
+class ClauseExpiry(DataJson):
     """
     attributes:
         - expiry_type (ExpiryType): 
@@ -23,6 +23,8 @@ class ClauseExpiry(JsonBase):
         - expiry_date is required if expiry_type is Date or later_of_last_COA_or_Date.
         - linked_contract_id is required if expiry_type is linked_to_Contract.
     """
+    __datajson_id__ = 'clause_expiry'
+    
     expiry_type: ExpiryType
     expiry_date: date | None
     linked_contract_id: int | None

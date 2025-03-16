@@ -1,7 +1,7 @@
-from app.database.jsonbase import JsonBase
-from ..types import ClauseAction
+from app.database.datajson import DataJson
+from ..clausetypes import ClauseAction
 
-class ClauseScope(JsonBase):
+class ClauseScope(DataJson):
     """
     attributes:
         action (ClauseAction): 
@@ -16,6 +16,8 @@ class ClauseScope(JsonBase):
         - scope_id is required.
         - old_scope_id is required if action is Novate.
     """
+    __datajson_id__ = 'clause_expiry'
+    
     action: ClauseAction
     scope_id: int
     old_scope_id: int | None
