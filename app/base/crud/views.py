@@ -48,31 +48,38 @@ def modify_record(table_name, pks):
         if form_data is None:
             abort(404)
         _pks = form_data.get('_pks', None)
-        if pks is None:
+        if _pks is None:
             abort(404)
         form_data.pop('_pks', None)
-        pks = Model.retrieve_tuple_pks(_pks)
+        if _pks != '_new':
+            pk_value_tuple = tuple(_pks.split(','))
         
-        with db_session() as sess:
+        if not pks:
+            abort(404)
+        
+        with db_session() as db_sess:
+            Base.db_session = db_sess
             try:
                 if _pks == '_new':
-                    model = Model(form_data)
-                    sess.add(model)
+                    model = Model()
+                    model.replace_data(form_data)
+                    
+                    db_sess.add(model)
                 else:
-                    model = sess.get(Model, pks)
+                    model = db_sess.get(Model, pk_value_tuple) # type: ignore
                     if model is None:
                         return jsonify({
                             'status': 'error', 
                             'message': _('Missing record')
                         }), 404
-                    model.update_from_form(form_data)
-                sess.commit()
+                    model.replace_data(form_data)
+                db_sess.commit()
                 return jsonify({
                     'status': 'success', 
                     'message': _('Successfully saved changes')
                 })
             except Exception as e:
-                sess.rollback()
+                db_sess.rollback()
                 msg = _('_failedto save changes')
                 err = _('Error')
                 return jsonify({
@@ -80,7 +87,19 @@ def modify_record(table_name, pks):
                     'message': f'{msg}: {err} {str(e)}'
                 }), 500
 
-    
+        with db_session() as db_sess:
+            Base.db_session = db_sess
+
+            try:
+                if _pks == '_new':
+                    model = Model()
+                else:
+                    model = db_sess.get(Model, pk_value_tuple)
+                ref_names = Model.fetch_ref_names()
+            except Exception as e:
+                abort(404)
+
+            
     prop_info = Model.get_prop_info(exclude_info={'readonly'})
     
     with db_session() as sess:
