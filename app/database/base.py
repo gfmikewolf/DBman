@@ -3,6 +3,7 @@
 __all__ = ['Base']
 
 # python
+from copy import deepcopy
 from sqlite3 import DatabaseError
 from typing import Any, Iterable
 from enum import Enum # 用到eval('Enum')，需要导入
@@ -59,22 +60,30 @@ class Base(DeclarativeBase):
     - 该对象应该在 database/__init__.py 中初始化。
     """
 
-    col_key_info: dict[str, set[str] | dict[str, list[str]]] = {
-        'readonly': set(),
-        'hidden': set()
-    }
+    col_key_info: dict[str, set[str] | dict[str, list[str]]] = NotImplemented
     """
     数据库列的信息字典{信息字段：数据库列名的集合}
 
     - 特别注意数据库列名与类模型属性名必须一致
     - 注意集合是无序的
     """
-    col_info: dict[str, set[Column]] = {}
+    col_info: dict[str, set[Column]] = NotImplemented
     """
     数据库列的信息字典{信息字段：数据库列属性的集合}
 
     - 注意集合是无序的
     """
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        """
+        每个子类需要定义自己的类属性`col_info`和`col_key_info`，
+        如果未定义，则在子类构建时初始化为空字典。
+        """
+        super().__init_subclass__(**kwargs)
+        if cls.col_key_info is NotImplemented:
+            cls.col_key_info = dict()
+        if cls.col_info is NotImplemented:
+            cls.col_info = dict()
 
     def replace_data(self, data: str | dict | None = None, **kwargs: Any) -> None:
         """
