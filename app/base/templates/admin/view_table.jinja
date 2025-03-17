@@ -1,22 +1,29 @@
-{# app/base/templates/admin/view_table.jinja #}
+{# app/base/templates/crud/view_table.jinja #}
 {# 后端渲染参数：
-table_name: 当前查询的表格名
-table_names: 所有表格名列表
-theads: 表格的表头列表
-models: 当前表格的所有记录模型
-prop_info: 当前表格的所有字段信息
-EXTModel: 扩展模型类
+    table_name: 当前查询的表格名
+    table_names: List 所有表格名列表
+    data: dict datatable的数据字典
+    data = { 
+      _pks: list[str] 主键列表，多主键的情况用逗号分隔各主键 
+      headers: list[str] 表头，数据的列名列表
+      data: list[list[Any]] 表数据，data中每个元素是一个记录（一行）
+      headers_json: set[str] json数据(python dict | DataJson)的相应表头
+      ref_map: dict[str, Any] 引用表数据
+        ref_map = tuple[{
+          'ref_table': 引用表名称
+          'ref_name': 引用列名称
+          'ref_pk': 引用表主键名称 （不支持多主键引用表）
+        }...]
+      ref_pks = list[tuple[Any, ...]] 引用表主键列表，每个元素是一行记录的引用表主键元组，和ref_map的元素顺序一致
+    }
+
 #}
-{# base.jinja中需要的参数：
-prev_page: 返回上一页的链接
+{# 基模板 base.jinja 需要的参数：
+    prev_page: 返回上一页的链接
 #}
 {% extends "base.jinja" %}
-{% set prev_page = url_for('base.admin.admin_index') %}
-
+{% set prev_page = url_for('base.crud.index') %}
 {% block content %}
-{# test area begin #}
-{{ models[0].__dict__ }}
-{# test area end #}
 <div class="container-fluid">
     <!-- 查询表格首行：说明当前功能并生成下拉式查询列表，提供其他表格的查询链接 -->
     <div class="row">
@@ -33,11 +40,11 @@ prev_page: 返回上一页的链接
                     <li>
                         {# 如果列表中的表格名与当前查询的表格名一样，显示为活动项，否则为链接 #}
                         {% if tn == table_name %}
-                        {% set dd_active = 'active' %}
-                        {% set dd_url = '#' %}
+                            {% set dd_active = 'active' %}
+                            {% set dd_url = '#' %}
                         {% else %}
-                        {% set dd_active = '' %}
-                        {% set dd_url = url_for('base.admin.view_table', table_name=tn) %}
+                            {% set dd_active = '' %}
+                            {% set dd_url = url_for('base.crud.view_table', table_name=tn) %}
                         {% endif %}
                         <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
                             {{ tn }}
@@ -85,7 +92,7 @@ prev_page: 返回上一页的链接
             </div>
             <!-- 添加记录按钮，跳转到添加记录页面，添加记录是最常见操作，从人机工程角度放在右侧 -->
             {# record_id='_new' 表示添加新记录，数据库表中不允许任何表主键设置为_new #}
-            <a href="{{ url_for('base.admin.modify_record', table_name=table_name, record_id='_new') }}"
+            <a href="{{ url_for('base.crud.modify_record', table_name=table_name, record_id='_new') }}"
                 class="btn btn-sm btn-outline-dark">
                 <i class="fa fa-plus" data-bs-toggle="tooltip" data-bs-title="{{ _('Add Record') }}"></i>
             </a>
@@ -101,57 +108,62 @@ prev_page: 返回上一页的链接
                         <th><input class="form-check-input" data-dbman-toggle="check-all" type="checkbox" value="">
                         </th>
                         <th>{{ _('_table_action') }}</th>
-                        {% for thead in theads %}
+                        {% for header in data['headers'] %}
                         {# 移动、显隐数据列时用到行号 loop.index #}
                         <th data-dbman-col-num="{{ loop.index }}">
-                            {{ thead }}
+                            {{ header }}
                         </th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
                     {# 填充数据表格 #}
-                    {% for model in models %}
+                    {% for row in data['data'] %}
+                        {# 找到相关行的pks #}
+                        {% set pks = data['_pks'][loop.index0] %}
                     <tr class="align-items-top">
                         <td>
-                            <input class="form-check-imput" data-dbman-toggle="check-item"
-                                data-dbman-record-id="{{ model.id }}" type="checkbox" value="">
+                            <input class="form-check-imput" data-dbman-toggle="check-item" data-dbman-record-id="{{ pks }}"
+                                type="checkbox" value="">
                         </td>
                         <td>
                             <div class="btn-group" role="group">
-                                <a href="{{ url_for('base.admin.modify_record', table_name=table_name, record_id=model.id) }}"
+                                <a href="{{ url_for('base.crud.modify_record', table_name=table_name, record_id=pks) }}"
                                     class="btn btn-sm btn-outline-dark">
                                     <i class="fa fa-edit" data-bs-toggle="tooltip"
                                         data-bs-title="{{ _('Modify') }}"></i>
                                 </a>
                                 &nbsp;
                                 <button
-                                    data-delete-record-url="{{ url_for('base.admin.delete_record', table_name=table_name, record_id=model.id) }}"
+                                    data-delete-record-url="{{ url_for('base.crud.delete_record', table_name=table_name, record_id=pks) }}"
                                     class="btn btn-sm btn-outline-dark" data-bs-toggle="tooltip"
                                     data-bs-title="{{ _('Delete') }}">
                                     <i class="fa fa-trash"></i>
                                 </button>
                             </div>
                         </td>
-                        {% set data_dict = model.data_dict(data_style='rel_name') %}
-                        {% for pi in prop_info %}
-                        {% set key = pi['key'] %}
-                        {% set value = data_dict[key] %}
-                        {% if pi['is_extension'] and value %}
-                        <td data-column-id="{{ theads.index(key) + 1 }}" data-column-data="{{ value }}">
-                            <div class="btn-group align-items-top">
-                                <button class="btn btn-sm align-items-top" data-bs-toggle="tooltip"
-                                    data-bs-title="{{ _('_extend_data') }}" data-dbman-toggle="extension"
-                                    data-column-key="{{ key }}"
-                                    data-column-reltable="{{ EXTModel[value].__table_name__ }}">
-                                    <i class="fa fa-circle-info"></i>
-                                </button>
-                                <span class="align-items-top">{{ value }}</span>
-                            </div>
+                        {% set row_number = loop.index0 %}
+                        {% set headers_fk = data['ref_map']|map(attribute='ref_name')|list %}
+                        {% set ref_header_start_index = -1 %}
+                        {% for header in data['headers'] %}
+                            {% set value = row[loop.index0] %}
+                        <td data-dbman-col-num="{{ loop.index }}">
+                            {% if header in data['headers_json'] %}
+                                {% set value = 'JSON: ' + value %}  
+                            {% elif header in headers_fk: %}
+                                {% if ref_header_start_index == -1 %}
+                                    {% set ref_header_start_index = loop.index0 %}
+                                {% endif %}
+                                {# 取巧，fetch_datatable_dict方法引用列都在最后面挨着 #}
+                                {% set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] %}
+                                {% set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] %}
+                                    <a href="{{ url_for('base.crud.view_record', table_name=ref_table, record_id=ref_pks) }}">
+                                        {{ value if value else '' }}
+                                    </a>
+                            {% else %}
+                                    {{ value if value else '' }}
+                            {% endif %}
                         </td>
-                        {% else %}
-                        <td data-column-id="{{ theads.index(key) + 1 }}">{{ value if value else '' }}</td>
-                        {% endif %}
                         {% endfor %}
                     </tr>
                     {% endfor %}
