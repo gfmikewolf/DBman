@@ -20,7 +20,7 @@ import json
 from sqlalchemy.types import TypeDecorator, JSON
 from sqlalchemy.orm import ColumnProperty
 
-from app.utils import args_to_dict
+from app.utils.common import args_to_dict
 
 def serialize_value(attr: Any) -> Any:
     """
@@ -122,7 +122,7 @@ class DataJson:
     """
     JSON数据模型基类，用于定义JSON数据模型的基本属性和方法。
     - 类属性:
-        - __datajson_id__ (str): 模型类的类型id。
+        - __datajson_id__ (str): 模型类的类型id，子类必须实例化这个属性。
         - class_map (dict[str, type['DataJson']]): 模型类的映射。
         - attr_info (dict[str, Any]): 模型类的属性信息。
     
@@ -142,7 +142,7 @@ class DataJson:
         - 类方法:
             - _load_dict(cls, data: dict) -> dict[str, Any]: 将字典中对应attr_info里'data'类型的数据按类属性进行数据类型转换。
     """
-    __datajson_id__ = 'data_json'
+    __datajson_id__ = NotImplemented
     """
     模型类的类型，str类型
     
@@ -166,13 +166,7 @@ class DataJson:
     }
     """
 
-    attr_info: dict[str, Any] = {
-        'data': set(),
-        'required': set(),
-        'readonly': set(),
-        'hidden': set(),
-        'foreign_keys': dict[str, dict[str, Any]]
-    }
+    attr_info: dict[str, Any] = NotImplemented
     """
     模型类的属性信息，dict类型，建议在DataJson类使用前定义该变量
 
@@ -192,6 +186,12 @@ class DataJson:
     def __init__(self, data: str | dict | None = None, **kwargs):
         data_dict = self.load(data, **kwargs)
         self.__dict__.update(data_dict)
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.attr_info is NotImplemented:
+            cls.attr_info = dict()
 
     @classmethod
     def load(cls, data: dict | str | None = None, **kwargs) -> dict[str, Any]:
@@ -226,13 +226,13 @@ class DataJson:
     
     @classmethod
     def get_cls_from_dict(cls, data: dict[str, Any]) -> type['DataJson'] | None:
-        if cls.__datajson_id__ == 'data_json':
+        if cls.__datajson_id__ is NotImplemented:
             datajson_id = data.get('__datajson_id__', None)
             data_json_cls = cls.class_map.get(datajson_id, None)
             if data_json_cls is None:
                 raise AttributeError(f'Invalid {datajson_id} in class_map {cls.class_map}')
         else:
-            datajson_id = cls.__datajson_id__
+            datajson_id = 'data_json'
             data_json_cls = cls
         
         required_keys = data_json_cls.get_keys('required')
@@ -261,7 +261,7 @@ class DataJson:
         dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
         """
         data_json_cls = cls
-        if cls.__datajson_id__ == 'data_json':
+        if cls.__datajson_id__ == NotImplemented:
             data_json_cls = cls.get_cls_from_dict(data)
             if data_json_cls is None:
                 raise AttributeError(f'Invalid data: {data} to match {data_json_cls}')
@@ -305,7 +305,11 @@ class DataJson:
         dict[str, Any]: 包含模型实例数据的字典。
         """
         data_keys = self.get_keys('data')
-        data_dict = {'__datajson_id__': self.__datajson_id__}
+        if self.__datajson_id__ is NotImplemented:
+            djid = 'data_json'
+        else:
+            djid = self.__datajson_id__
+        data_dict = {'__datajson_id__': djid}
         for key, value in self.__dict__.items():
             if key in data_keys:
                 attr = getattr(self, key, None)
@@ -330,7 +334,7 @@ class DataJson:
         if not data_dict:
             return None
         
-        if cls.__datajson_id__ == 'data_json':
+        if cls.__datajson_id__ is NotImplemented:
             datajson_id = data_dict.get('__datajson_id__', None)
             if datajson_id is None:
                 raise TypeError(f'__datajson_id__ not found in jsonData: {data}')
