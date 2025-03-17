@@ -2,10 +2,7 @@
 {# 后端渲染参数：
     table_name: 当前查询的表格名
     table_names: List 所有表格名列表
-    theads: List 表格的表头列表
-    data: List[row] 表格数据的列表，每行一个列表记录行数据
-    pk_data: List[str] 表格中主键的数据, pks用逗号连接多主键的情况
-    json_cols: List[str] 表格中的JSON列名列表
+    data: dict datatable的数据字典
 #}
 {# 基模板 base.jinja 需要的参数：
     prev_page: 返回上一页的链接
@@ -13,6 +10,7 @@
 {% extends "base.jinja" %}
 {% set prev_page = url_for('base.crud.index') %}
 {% block content %}
+{{ data }}
 <div class="container-fluid">
     <!-- 查询表格首行：说明当前功能并生成下拉式查询列表，提供其他表格的查询链接 -->
     <div class="row">
@@ -97,19 +95,19 @@
                         <th><input class="form-check-input" data-dbman-toggle="check-all" type="checkbox" value="">
                         </th>
                         <th>{{ _('_table_action') }}</th>
-                        {% for thead in theads %}
+                        {% for header in data['headers'] %}
                         {# 移动、显隐数据列时用到行号 loop.index #}
                         <th data-dbman-col-num="{{ loop.index }}">
-                            {{ thead }}
+                            {{ header }}
                         </th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
                     {# 填充数据表格 #}
-                    {% for row in data %}
+                    {% for row in data['data'] %}
                         {# 找到相关行的pks #}
-                        {% set pks = pk_data[loop.index0] %}
+                        {% set pks = data['_pks'][loop.index0] %}
                     <tr class="align-items-top">
                         <td>
                             <input class="form-check-imput" data-dbman-toggle="check-item" data-dbman-record-id="{{ pks }}"
@@ -131,9 +129,9 @@
                                 </button>
                             </div>
                         </td>
-                        {% for thead in theads %}
+                        {% for header in data['headers'] %}
                             {% set value = row[loop.index0] %}
-                            {% if thead in json_cols %}
+                            {% if header in data['headers_json'] %}
                                 {% set value = 'JSON: ' + value %}
                             {% endif %}
                                 <td data-dbman-col-num="{{ loop.index }}"> {{ value if value else '' }}</td>
