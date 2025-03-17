@@ -1,8 +1,6 @@
 # app/database/contract/dbmodels.py
-from typing import List
-from sqlalchemy import ForeignKey, Date,Integer, String, literal
+from sqlalchemy import ForeignKey, Date,Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
-from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import date
 from app.database.base import Base
 from app.database.datajson import DataJson, DataJsonType
@@ -22,7 +20,7 @@ class Contract(Base):
 
     name = synonym('contract_name')
 
-    amendments: Mapped[List['Amendment']] = relationship(
+    amendments: Mapped[list['Amendment']] = relationship(
         back_populates='contract', 
         lazy='select', 
     )
@@ -109,7 +107,7 @@ class Entitygroup(Base):
 
     name = synonym('entitygroup_name')
 
-    entities: Mapped[List['Entity']] = relationship(
+    entities: Mapped[list['Entity']] = relationship(
         back_populates='entitygroup',
         lazy='select'
     )
@@ -137,4 +135,3 @@ class Entity(Base):
         'hidden': { 'entity_id', 'entitygroup_id' },
         'readonly': { 'entity_id' }
     }
-
