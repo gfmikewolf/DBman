@@ -11,7 +11,7 @@ from datetime import date # 用到eval('date')，需要导入
 from sqlalchemy import Column, select, Select
 from sqlalchemy.orm import DeclarativeBase, Session
 # app
-from app.utils import args_to_dict
+from app.utils.common import args_to_dict
 from .datajson import convert_value_by_python_type, serialize_value
 from .datajson import DataJson # 用到eval('DataJson')，需要导入
 
@@ -395,12 +395,15 @@ class Base(DeclarativeBase):
         return datatable
 
     @classmethod
-    def select_ref_names(cls) -> dict[str, list[Any]]:
+    def fetch_ref_names(cls) -> dict[str, tuple[Any]]:
         """
         :rtype: dict[str, Any]
         :return: dict with key = refereneced column name and 
          value = tuple (referenced column values
          in pre-defined order in `cls.col_key_info['ref_name_order']`)}
+        
+        .. example::
+        { 'entity_name': ('entity_id', 'entity_frequency.desc')}
         """
         if cls._validate_session() is False:
             raise DatabaseError('Invalid db_session {cls.db_session} for {cls}')
