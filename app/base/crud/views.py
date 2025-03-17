@@ -121,3 +121,6 @@ def delete_record(table_name, record_id):
                 'status': "error",
                 "message": _('_failedto delete the record')
             }), 500
+        
+def view_record(table_name: str, record_id: str) -> Any:
+    pass
