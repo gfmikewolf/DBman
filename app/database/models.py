@@ -1,28 +1,10 @@
 # app/database/models.py
-from .datajson import DataJson
-from .base import Base
-from .contract import (
-    Contract, 
-    Amendment,
-    Clause,
-    Entity,
-    Entitygroup,
-    ClauseExpiry,
-    ClauseEntity,
-    ClauseScope
-)
+from .contract import Base as DB_Contract, DataJson as DJ_Contract
 
-Base.model_map = {
-    'contract': Contract,
-    'amendment': Amendment,
-    'clause': Clause,
-    'entity': Entity,
-    'entitygroup': Entitygroup
+DB_map = {
+    'contract': DB_Contract
 }
 
-DataJson.class_map = {
-    'base': DataJson,
-    'expiry': ClauseExpiry,
-    'entity': ClauseEntity,
-    'scope': ClauseScope
+DJ_map = {
+    'contract': DJ_Contract
 }
