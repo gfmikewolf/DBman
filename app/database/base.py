@@ -367,11 +367,11 @@ class Base(DeclarativeBase):
         except DatabaseError as e:
             raise DatabaseError(f'Invalid query {query} or session {cls.db_session} for {cls}')
         
-        datatable['headers'] = [key for key in result.keys() if key in visible_keys]
+        datatable['headers'] = tuple(key for key in result.keys() if key in visible_keys)
         datatable['data'] = []
         datatable['_pks'] = []
         datatable['ref_pks'] = []
-        datatable['ref_map'] = tuple(ref_map)
+        datatable['ref_map'] = ref_map
         if not result:
             return datatable  
         
