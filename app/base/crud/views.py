@@ -1,17 +1,12 @@
 # app/base/crud/views.py
-from datetime import datetime
-import json
-import logging
-from flask import render_template, request, jsonify, abort, url_for
-from sqlalchemy import select
-from sqlalchemy.orm.properties import ColumnProperty, RelationshipProperty, SynonymProperty
-from app.extensions import db_session, DBModel, Base
+# python
+from typing import Any
+# flask
+from flask import render_template, request, jsonify, abort
+# app
 from app import _
-from app.utils import PageNavigation
-
-# 配置日志记录
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.utils.templates import PageNavigation
+from app.extensions import db_session, Base
 
 # 本蓝图的基础导航
 navigation = PageNavigation ({
@@ -19,46 +14,35 @@ navigation = PageNavigation ({
     '_crud': '/crud'
 })
 
-Base.models_map = DBModel
-
-def index():
-    table_names = DBModel.keys()
+def index() -> Any:
+    table_names = Base.model_map.keys()
     return render_template(
         'crud/index.jinja',  
         table_names=table_names, 
         navigation=navigation.index
     )
 
-def view_table(table_name):
+def view_table(table_name: str) -> Any:
     """查看表数据"""
-    if table_name not in DBModel:
+    if table_name not in Base.model_map:
         abort(404)
-    Model = DBModel[table_name]
-    data_query = Model.query_all()
-    pk_attrs = Model.attr_info.get('pk', [])
-
-    if not pk_attrs:
-        abort(404)
-    with db_session() as sess:
-        # 查询表的所有记录，默认把有ref_name的列替换为引用表对应的ref_name列
-        result = sess.execute(data_query)
-    pk_data, theads, json_cols, data = Model.split_result(result)
+    Model = Base.model_map[table_name]
+    with db_session() as db_sess:
+        Base.db_session = db_sess
+        data_dict = Model.fetch_datatable_dict()
 
     return render_template(
         'crud/view_table.jinja',
         navigation = navigation.get_nav({'View table': '#'}), 
-        table_names=DBModel.keys(), 
+        table_names=Base.model_map.keys(), 
         table_name=table_name,
-        pk_data=pk_data,
-        theads=theads, 
-        data=data, 
-        json_cols=json_cols
+        data=data_dict
     )
 
 def modify_record(table_name, pks):
-    if table_name not in DBModel:
+    if table_name not in Base.model_map:
         abort(404)
-    Model = DBModel[table_name]
+    Model = Base.model_map[table_name]
     if request.method == 'POST':
         form_data = request.get_json(silent=True)
         if form_data is None:
@@ -117,9 +101,9 @@ def modify_record(table_name, pks):
     )
 
 def delete_record(table_name, record_id):
-    if table_name not in DBModel:
+    if table_name not in Base.model_map:
         abort(404)
-    Model = DBModel[table_name]
+    Model = Base.model_map[table_name]
     pks = tuple(record_id.split(','))
     with db_session() as sess:
         model = sess.get(Model, pks)
