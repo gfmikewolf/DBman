@@ -2,7 +2,6 @@
 from config import Config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
-from .models import Base
 
 if Config.SQLALCHEMY_DATABASE_URI is None:
     raise ValueError("SQLALCHEMY_DATABASE_URI is not set in the configuration")
@@ -16,5 +15,3 @@ db_session = scoped_session(
         bind=engine
     )
 )
-
-Base.db_session = db_session

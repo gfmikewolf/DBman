@@ -2,21 +2,18 @@
 
 __all__ = ['Base']
 
-import json
-from copy import deepcopy
+# python
 from sqlite3 import DatabaseError
-from typing import Any, Iterable, Optional
-from enum import Enum
-from datetime import date
-from numpy import isin
+from typing import Any, Iterable
+from enum import Enum # 用到eval('Enum')，需要导入
+from datetime import date # 用到eval('date')，需要导入
+# sqlalchemy
 from sqlalchemy import Column, select, Select
-from sqlalchemy.orm import DeclarativeBase, scoped_session, ColumnProperty
-from sqlalchemy.orm.attributes import InstrumentedAttribute
-
+from sqlalchemy.orm import DeclarativeBase, Session
+# app
 from app.utils import args_to_dict
-from .datajson import convert_value_by_python_type, serialize_value, DataJson
-
-
+from .datajson import convert_value_by_python_type, serialize_value
+from .datajson import DataJson # 用到eval('DataJson')，需要导入
 
 class Base(DeclarativeBase):
     """
@@ -55,7 +52,7 @@ class Base(DeclarativeBase):
     - 该字典应该在 database/models.py 中初始化。
     """
     
-    db_session: scoped_session | None = None
+    db_session: Session | None = None
     """
     SQLAlchemy 会话对象，用于与数据库进行交互。
 
@@ -294,11 +291,22 @@ class Base(DeclarativeBase):
                 raise AttributeError(f'Invalid attribute {data_key} for {self}')
             data_dict[data_key] = serialize_value(attr) if serializeable else attr
         return data_dict
+
+    @classmethod
+    def _validate_session(cls) -> bool:
+        if cls.db_session is None:
+            return False
+        try:
+            cls.db_session.scalar(select(1))
+        except DatabaseError as e:
+            return False
+        return True
     
     @classmethod
     def fetch_datatable_dict(cls) -> dict[str, Any]:
-        if cls.db_session is None:
-            raise DatabaseError(f'{cls}.db_session is not valid.')
+        if cls._validate_session() is False:
+            raise DatabaseError('Invalid db_session {cls.db_session} for {cls}')
+        
         mapper = cls.__mapper__
         visible_cols = cls.get_cols('visible')
         visible_keys = cls.get_col_keys('visible')
@@ -318,22 +326,24 @@ class Base(DeclarativeBase):
         #       'pk_names': 引用表主键列名元组
         #    }
         # }
-        ref_map = dict()
+        ref_map = []
 
         for rel in mapper.relationships:
             if rel.uselist:
                 continue
             ref_model = rel.entity.class_
             if hasattr(ref_model, 'name'):
-                ref_pk_attr = ref_model.__mapper__.primary_key
+                # 只处理单主键的引用表
+                ref_pk_attr = ref_model.__mapper__.primary_key[0]
                 ref_name_attr = getattr(ref_model, 'name', None)
                 if not (ref_model is None or ref_name_attr is None):
                     ref_dict = dict()
-                    ref_dict['tablename'] = ref_model.__tablename__
-                    ref_dict['pk_names'] = tuple(pk.name for pk in ref_pk_attr)
-                    ref_map[ref_name_attr.name] = ref_dict
+                    ref_dict['ref_name'] = ref_name_attr.name
+                    ref_dict['ref_table'] = ref_model.__tablename__
+                    ref_dict['ref_pk'] = ref_pk_attr.name
+                    ref_map.append(ref_dict)
                     query_cols.append(ref_name_attr.label(ref_name_attr.name))
-                    query_cols.extend(ref_pk_attr)
+                    query_cols.append(ref_pk_attr)
                     visible_keys.add(ref_name_attr.name)
                     joins.append(ref_model)
         query = select(*query_cols)
@@ -341,22 +351,27 @@ class Base(DeclarativeBase):
             query = query.join_from(cls, *joins)
         
         datatable = dict()
-        with cls.db_session() as sess:
-            result = sess.execute(query)
+        
+        # 执行查询，在方法开始已经验证过db_session是可用的
+        try:
+            result = cls.db_session.execute(query) # type: ignore
+        except DatabaseError as e:
+            raise DatabaseError(f'Invalid query {query} or session {cls.db_session} for {cls}')
+        
         datatable['headers'] = [key for key in result.keys() if key in visible_keys]
         datatable['data'] = []
         datatable['_pks'] = []
         datatable['ref_pks'] = []
-        datatable['ref_map'] = ref_map
+        datatable['ref_map'] = tuple(ref_map)
         if not result:
             return datatable  
         
-        pk_keys = set(pk.name for pk in pk_cols)
+        pk_keys = set(pk.name for pk in pk_tuple)
         
         # json 类型的数据列，只显示可见的列
         json_keys = cls.get_col_keys('DataJson', 'dict')
         datatable['headers_json'] = json_keys - (json_keys - visible_keys)
-        
+
         for row in result:
             datarow = []
             _pks = []
@@ -371,20 +386,25 @@ class Base(DeclarativeBase):
             datatable['data'].append(datarow)
             datatable['_pks'].append(','.join(_pks))
             if ref_map:
-                ref_row = dict()
+                ref_row = []
                 _ref_pks = []
-                for ref_name, ref_table_pks in ref_map.items():  
-                    for pk_name in ref_table_pks['pk_names']:
-                        _ref_pks.append(str(row._mapping[pk_name]))
-                    ref_row.update({ref_name: ','.join(_ref_pks)})
-                datatable['ref_pks'].append(ref_row)
+                for ref_dict in ref_map:
+                    _ref_pks = row._mapping[ref_dict['ref_pk']]
+                    ref_row.append(_ref_pks)
+                datatable['ref_pks'].append(tuple(ref_row))
         return datatable
 
     @classmethod
-    def select_ref_names(cls) -> dict[str, Select]:
+    def select_ref_names(cls) -> dict[str, list[Any]]:
         """
-        获取引用表的名称列表。
+        :rtype: dict[str, Any]
+        :return: dict with key = refereneced column name and 
+         value = tuple (referenced column values
+         in pre-defined order in `cls.col_key_info['ref_name_order']`)}
         """
+        if cls._validate_session() is False:
+            raise DatabaseError('Invalid db_session {cls.db_session} for {cls}')
+        
         ref_names = dict() 
         mapper = cls.__mapper__
         for rel in mapper.relationships:
@@ -410,6 +430,13 @@ class Base(DeclarativeBase):
                                             query = query.order_by(getattr(ref_model, rno_strs[0]))
                                         elif len_rno == 2 and rno_strs[1].lower() == 'desc':
                                             query = query.order_by(getattr(ref_model, rno_strs[0]).desc())
-            if ref_name_attr is not None and query is not None:
-                ref_names[ref_name_attr.name] = query
+            if ref_name_attr is not None and \
+                query is not None and \
+                cls.db_session is not None:
+                try:
+                    ref_col_values = cls.db_session.scalars(query)
+                except DatabaseError as e:
+                    raise DatabaseError(f'Invalid query {query} \
+                        or session {cls.db_session} for {cls}')
+                ref_names[ref_name_attr.name] = tuple(ref_col_values)
         return ref_names

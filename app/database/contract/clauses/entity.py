@@ -5,43 +5,45 @@ from ..dbmodels import Entity
 
 class ClauseEntity(DataJson):
     """
-    attributes:
-        action (ClauseAction): 
-            - Add, Remove, Novate
-        entity_id (int): 
-            - map table entity
-        old_entity_id (int | None): 
-            - only used in Novation
+    A clause entity data object.
 
-    constraints:
-        - action is required.
-        - entity_id is required.
-        - old_entity_id is required if action is Novate.
+    :ivar ClauseAction action: 
+        One of {'add', 'update', 'delete'} to be performed on Entity.
+    :ivar int entity_id: 
+        The identifier mapping to the Entity table.
+    :ivar int | None old_entity_id: 
+        The old entity identifier, used only in update cases.
+
+    :cvar str __datajson_id__: 
+        The unique identifier for the DataJson type, set to 'clause_entity'.
+
+    Constraints:
+      - `action` is required.
+      - `entity_id` is required.
+      - `old_entity_id` is required if action is update.
     """
     __datajson_id__ = 'clause_entity'
     
+    # Initiate cvars so that we can get the attribute types from class
     action: ClauseAction = ClauseAction.UPDATE
     entity_id: int = 0
     old_entity_id: int | None = 0
     
     attr_info = {
         'data': {'action', 'entity_id', 'old_entity_id'},
-        'required': {'action', 'entity_id'}
+        'required': {'action', 'entity_id'},
+        'foreign_keys': {
+            'entity_id': {
+                'ref_table': 'Entity', 
+                'ref_pk': 'entity_id',
+                'ref_name': 'entity_name',
+                'order_by': ('entity_name',)
+            },
+            'old_entity_id': {
+                'ref_table': 'Entity', 
+                'ref_pk': 'entity_id',
+                'ref_name': 'entity_name',
+                'order_by': ('entity_name',)
+            }
+        }
     }
-
-    def __init__(self, data: str | dict | None, **kwargs):
-        super().__init__(data, **kwargs)
-
-    @classmethod
-    def select_all(cls, with_ref_name=True) -> Select:
-        if with_ref_name:
-            return select(
-                Entity.entity_id, 
-                Entity.entity_name, 
-                Entity.entity_fullname
-            ).select_from(Entity)
-        return select(
-            Entity.entity_id, 
-            Entity.entity_name, 
-            Entity.entity_fullname
-        ).select_from(Entity)

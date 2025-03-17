@@ -12,13 +12,14 @@ __all__ = ['DataJson', 'DataJsonType', 'serialize_value']
 - class DataJson
     JSON数据模型基类，用于定义JSON数据模型的基本属性和方法。
 """
-from typing import Any, Iterable, Optional, Self
+from typing import Any, Iterable, Optional
 from datetime import date
 from enum import Enum
 import json
-from copy import deepcopy
+
 from sqlalchemy.types import TypeDecorator, JSON
 from sqlalchemy.orm import ColumnProperty
+
 from app.utils import args_to_dict
 
 def serialize_value(attr: Any) -> Any:
@@ -99,6 +100,11 @@ class DataJsonType(TypeDecorator):
     JsonBase类修饰器，转换类实例与Json字符串
     """
     impl = JSON
+    cache_ok = True
+
+    @property
+    def python_type(self):
+        return DataJson
 
     # 将DataJson类通过自有dumps()方法转换为字符串
     def process_bind_param(self, value, dialect):
@@ -165,7 +171,7 @@ class DataJson:
         'required': set(),
         'readonly': set(),
         'hidden': set(),
-        'foreignkeys': dict[str, dict[str, Any]]
+        'foreign_keys': dict[str, dict[str, Any]]
     }
     """
     模型类的属性信息，dict类型，建议在DataJson类使用前定义该变量
@@ -178,9 +184,9 @@ class DataJson:
     - readonly: 只读属性: str
     - hidden: 不需要显示给用户的属性: str
     - foreignkeys: 外键信息: dict
-        - tablename: 引用的数据表名称: str, 如 'contract'
-        - pks: 引用的数据库模型键: tuple[str,...] 如 ('contract_id',)
-        - name: 引用的数据库模型表征名称: str, 如 'contract_name'
+        - ref_table: 引用的数据表名称: str, 如 'contract'
+        - ref_pk: 引用的数据库模型键: tuple[str,...] 如 ('contract_id',)
+        - ref_name: 引用的数据库模型表征名称: str, 如 'contract_name'
         - order_by: 作为列表框供用户选择时选项的排序要求: tuple[str, ...] 如 ('contract_name', 'contract_fullname.desc')
     """
     def __init__(self, data: str | dict | None = None, **kwargs):

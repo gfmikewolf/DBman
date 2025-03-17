@@ -25,19 +25,18 @@ class ClauseExpiry(DataJson):
     """
     __datajson_id__ = 'clause_expiry'
     
-    expiry_type: ExpiryType
-    expiry_date: date | None
-    linked_contract_id: int | None
+    expiry_type: ExpiryType = ExpiryType.Date
+    expiry_date: date | None = date(1981, 12, 5)
+    linked_contract_id: int | None = 0
     attr_info = {
-        'data_keys': ['expiry_type', 'expiry_date', 'linked_contract_id'],
-        'required_keys': ['expiry_type'],
-        'readonly_keys': [],
+        'data': {'expiry_type', 'expiry_date', 'linked_contract_id'},
+        'required': {'expiry_type'},
         'ref_map': {
             'linked_contract_id': {
-                'ref_table_name': 'contract', 
-                'fk_attr_name': 'contract_id',
-                'ref_attr_name': 'contract_name',
-                'order_by_attr_names': ['contract_name'] 
+                'ref_table': 'contract', 
+                'ref_pk': 'contract_id',
+                'ref_name': 'contract_name',
+                'order_by': ['contract_name'] 
             }
         }
     }

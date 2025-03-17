@@ -18,25 +18,25 @@ class ClauseScope(DataJson):
     """
     __datajson_id__ = 'clause_expiry'
     
-    action: ClauseAction
-    scope_id: int
-    old_scope_id: int | None
+    action: ClauseAction = ClauseAction.UPDATE
+    scope_id: int = 0
+    old_scope_id: int | None = 0
     
     attr_info = {
-        'data_keys': ['action', 'scope_id', 'old_scope_id'],
-        'required_keys': ['action', 'scope_id'],
+        'data': ['action', 'scope_id', 'old_scope_id'],
+        'required': ['action', 'scope_id'],
         'ref_map': {
             'scope_id': {
-                'ref_table_name': 'scope', 
-                'fk_attr_name': 'scope_id',
-                'ref_attr_name': 'scope_name',
-                'order_by_attr_names': ['scope_name'] 
+                'ref_table': 'scope', 
+                'ref_pk': 'scope_id',
+                'ref_name': 'scope_name',
+                'order_by': ['scope_name'] 
             },
             'old_scope_id': {
-                'ref_table_name': 'scope', 
-                'fk_attr_name': 'scope_id',
-                'ref_attr_name': 'scope_name',
-                'order_by_attr_names': ['scope_name'] 
+                'ref_table': 'scope', 
+                'ref_pk': 'scope_id',
+                'ref_name': 'scope_name',
+                'order_by': ['scope_name'] 
             }
         }
     }
