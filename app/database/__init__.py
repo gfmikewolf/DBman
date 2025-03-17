@@ -6,8 +6,9 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 # app
 from config import Config
+from .models import Base, DataJson
 
-__all__ = ['engine', 'db_session']
+__all__ = ['engine', 'db_session', 'Base', 'DataJson']
 
 if Config.SQLALCHEMY_DATABASE_URI is None:
     raise ValueError("Invalid SQLALCHEMY_DATABASE_URI in env file")
