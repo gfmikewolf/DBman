@@ -4,73 +4,15 @@
 // Description: This file contains the main JavaScript code for the project DBMan
 // Author: Xiaolong Liu
 
-import ModalDBMan from './modal.js';
-import ModalAlert from './modal.js';
-import ModalDatatableConfig from './modal.js';
+import { ModalDBMan } from './dbman-modal.js';
+// import { ModalAlert } from './modal.js';
+import { ModalDatatableConfig } from './dbman-modal.js';
  
 /*** 全局变量 block ***/
 const msgTypes = ['success', 'error', 'warning-delete']; // 提示模态框的文字类型
 var curSearchQuery = ''; // 存放当前搜索栏的内容
-var originalTheadsOrder = []; // 原始表头顺序
-var originalTheadsChecked = []; // 原始表头显隐状态
-var initialTHeadsOrder = []; // 点击表头自定义按钮前前表头顺序
-var initialTHeadsChecked = []; // 点击表头自定义按钮前表头显隐状态
 /*** 全局变量 block ends */
 
-/*** 类 block */
-// 提示框类
-
-/* DataTable类封闭所有查询表格相关的方法
-    * 该类的实例应该只有一个，因为页面上只有一个数据表格
-    * 该类的实例应该在页面加载完成后初始化
-    * 该类涉及表格本身、表头设置及相关Modal元素
-    * data-table元素选择器:
-    *  - 相关元素: .dbman-datatable
-    *  - 相关元素子类(当前未使用，后续可能扩展到多个datatable的场景):
-    *    > 工具栏: .dbman-datatable-toolbar
-    *    > 表格主体区域: .dbman-datatable-body
-    *    > 数据表格: .dbman-datatable-table
-    *  - 数据表格: #table-datatable
-    *    > 全选框: [data-dbman-toggle]="check-all"
-    *    > 行选项卡: [data-dbman-toggle]="check-item"
-    *    > 数据列号: [data-dbman-col-num]="${列号}"
-    *    > 标签内原始数据(标签内可能会有JSON, 按钮等其他元素时下载csv需要用到): [data-dbman-col-data]="${原始数据}"
-    *  - 表头工具栏
-    *    > 下载csv按钮: #btn-datatable-download
-    *    > 批量删除按钮: #btn-datatable-batch-delete
-    *    > 全文搜索框: #search-datatable-fulltext
-    *    > 全文搜索按钮: #btn-datatable-search-fulltext
-    *    > 删除全文搜索过滤器按钮: #btn-datatable-no-filter
-    *    
-*/
-class DataTable {
-    constructor(selector) {
-        this.table = document.querySelector(selector);
-        
-    }
-}
-/*** 类 block ends ***/
-
-/*** utils block begins: 工具函数集 ***/
-// 显示模态框
-function showModal(modal) {
-    objModal = new bootstrap.Modal(modal)
-    if (objModal) {
-        objModal.show();
-    }
-}
-// 让模态框内部失去聚焦
-function blurModalFocus(modal) {
-    if (document.activeElement && document.activeElement.closest('#'+ modal.id)) {
-        document.activeElement.blur();
-    }
-}
-// 隐藏模态框
-function hideModal(modal) {
-    blurModalFocus(modal);
-    const objModal = bootstrap.Modal.getInstance(modal);
-    objModal.hide();
-}
 // 将json字符串转换为html表格
 function tabulate(jsonData) {
     const jsonTable = document.createElement('table');
@@ -115,8 +57,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (tooltipList.length > 0) {
         initializeTooltips(tooltipList);
     }
-    //初始化唯一数据表格的选行功能
-    const dataTable = document.getElementById('dataTable');
+
+    const dataTable = document.getElementById('datatable-table-main');
     if (dataTable) {
         // 找全选框    
         const checkAll = dataTable.querySelector('[data-check-all]');
@@ -133,11 +75,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         // 初始化表格头、表格设置功能
         // dataTable在上面已经被定义
-        const tableConfigButton = document.getElementById('tableConfigButton');
-        const tableConfigModal = document.getElementById('tableConfigModal');
-        if (tableConfigButton && tableConfigModal) {
-            initializeTableConfig(dataTable, tableConfigButton, tableConfigModal);
-        }
+    //初始化唯一数据表格的选行功能
+    
+    const modalDatatableConfig =  new ModalDatatableConfig('#datatable-modal-config-main', dataTable);
+    if (!modalDatatableConfig.active)
+        console.log('Datatable config modal is not initialized');
         // 初始化表格下载功能
         const downloadButton = document.getElementById('downloadCSVButton');
         if (downloadButton) {
