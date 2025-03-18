@@ -172,8 +172,7 @@
         </div>
     </div>
     <!-- #tableConfigModal -->
-    <div class="modal fade" id="tableConfigModal" tabindex="-1" data-title="{{ _('_table_config') }}"
-        data-close="{{ _('Cancel') }}" data-save="{{ _('Save Changes') }}">
+    <div class="modal fade" id="modal-datatable-config" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -181,21 +180,21 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="card" id="tableConfigTHeads">
-                        <div class="card-header" id="tableTHeadsHeader">{{ _('_table_header') }}</div>
-                        <div class="card-body" id="tableConfigTHeadsBody">
-                            <div class="list-group" id="tableConfigTHeadsList">
-                                {% for thead in theads %}
+                    <div class="card">
+                        <div class="card-header">{{ _('_table_header') }}</div>
+                        <div class="card-body">
+                            <div class="list-group">
+                                {% for header in data['headers'] %}
                                 <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center draggableList"
-                                    data-tcm-li="{{ loop.index }}">
+                                    data-dbman-sn="{{ loop.index }}">
                                     <div>
-                                        <input class="form-check-input" type="checkbox" id="tcmColumn{{ loop.index }}"
-                                            value="{{ thead }}" data-tcm-cb="{{ loop.index }}" checked>
-                                        <label class="form-check-label streched-link" for="tcmColumn{{ loop.index }}">
-                                            {{ thead }}
+                                        <input class="form-check-input" type="checkbox" id="modal-datatable-config-header-cbox-{{ loop.index }}"
+                                            value="{{ thead }}" data-dbman-sn="{{ loop.index }}" checked>
+                                        <label class="form-check-label streched-link" for="modal-datatable-config-header-cbox-{{ loop.index }}">
+                                            {{ header }}
                                         </label>
                                     </div>
-                                    <span class="handle draggable" data-tcm-handle="{{ loop.index }}"><i
+                                    <span class="handle draggable" data-dbman-sn="{{ loop.index }}"><i
                                             class="fa fa-bars"></i></span> <!-- 添加拖拽手柄 -->
                                 </li>
                                 {% endfor %}
@@ -204,12 +203,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-dark" id="restoreTableConfigDefaultButton">{{
-                        _('Restore Default') }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-dark" data-bs-dismiss="modal">{{ _('Cancel')
-                        }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-dark" id="saveTableConfigButton">{{ _('Save
-                        Changes') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" data-dbman-toggle="restore-default">{{ _('Restore Default') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" data-dbman-toggle="save-changes">{{ _('Save Changes') }}</button>
                 </div>
             </div>
         </div>

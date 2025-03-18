@@ -1,4 +1,13 @@
 // app/base/static/js/scripts.js
+// Version: 1.0
+// Date: 2025-09-01
+// Description: This file contains the main JavaScript code for the project DBMan
+// Author: Xiaolong Liu
+
+import ModalDBMan from './modal.js';
+import ModalAlert from './modal.js';
+import ModalDatatableConfig from './modal.js';
+ 
 /*** 全局变量 block ***/
 const msgTypes = ['success', 'error', 'warning-delete']; // 提示模态框的文字类型
 var curSearchQuery = ''; // 存放当前搜索栏的内容
@@ -10,51 +19,7 @@ var initialTHeadsChecked = []; // 点击表头自定义按钮前表头显隐状�
 
 /*** 类 block */
 // 提示框类
-class DBManModal {
-    constructor(selector) {
-        this.modal = document.querySelector(selector);
-        this.bsModal = new bootstrap.Modal(this.modal);
-        this.selector = selector;
-    }
-    show() {
-        this.modal.show();
-    }
-    // 让模态框内部失去聚焦
-    blurFocus() {
-        if (document.activeElement && document.activeElement.closest(this.selector)) {
-            document.activeElement.blur();
-        }
-    }
-    // 隐藏模态框
-    hide() {
-        this.blurFocus();
-        bsModal.hide();
-    }
-}
-class AlertModal extends DBManModal {
-    constructor(selector) {
-        super(selector);
-        this.msgTypes = this.modal.querySelectorAll('')
-        this.modal.addEventListener('hide.bs.modal', () => {
-            super.blurFocus();
-            this.msgTypes.forEach((msgType) => 
-                this.model.querySelector('[data-' + msgType + ']').classList.add('d-none'));
-        });
-    }
-    getConfirmBtn(id_confirm='alertmodal') {
-        const activeConfirmBtn = modal.querySelector('#'+id_confirm);
-        if(activeConfirmBtn) { activeConfirmBtn.remove();}
-        const alertConfirmButton = modal.querySelector('[data-am-confirm]').cloneNode(true);
-        alertConfirmButton.classList.remove('d-none');
-        alertConfirmButton.id = id_confirm;
-        const alertFooter = modal.querySelector('.modal-footer');
-        alertFooter.appendChild(alertConfirmButton);
-        return alertConfirmButton;
-    }    
-}
-class ModifyModal extends DBManModal {
 
-}
 /* DataTable类封闭所有查询表格相关的方法
     * 该类的实例应该只有一个，因为页面上只有一个数据表格
     * 该类的实例应该在页面加载完成后初始化
