@@ -62,7 +62,7 @@
             <div class="btn-group me-1" role="group">
                 <!-- 表头自定义按钮 -->
                 <button class="btn btn-sm btn-outline-dark" data-bs-toggle="modal"
-                    data-bs-target="#modal-datatable-config">
+                    data-bs-target="#datatable-modal-config-main">
                     <i class="fa fa-gear" data-bs-toggle="tooltip" data-bs-title="{{ _('_table_config') }}"></i>
                 </button>
             </div>
@@ -101,16 +101,16 @@
     <!-- 查询表格区，表格左侧第1列为选项卡，用于选中当前记录，第2列为单条记录的修改与删除等单记录功能按钮 -->
     <div class="row">
         <div class="table-responsive dbman-datatable dbman-datatable-body">
-            <table id="table-dataTable" class="table table-hover table-sm dbman-datatable-table">
+            <table id="datatable-table-main" class="table table-hover table-sm dbman-datatable-table">
                 <thead class="sticky-top">
                     <!-- 表头第1行，包括全选按钮，操作按钮，表头列名 -->
                     <tr class="align-items-center">
-                        <th><input class="form-check-input" data-dbman-toggle="check-all" type="checkbox" value="">
+                        <th><input class="form-check-input" data-dbman-toggle="check-all" type="checkbox" name="check-all">
                         </th>
                         <th>{{ _('_table_action') }}</th>
                         {% for header in data['headers'] %}
                         {# 移动、显隐数据列时用到行号 loop.index #}
-                        <th data-dbman-col-num="{{ loop.index }}">
+                        <th data-dbman-sn="{{ loop.index }}">
                             {{ header }}
                         </th>
                         {% endfor %}
@@ -123,8 +123,7 @@
                         {% set pks = data['_pks'][loop.index0] %}
                     <tr class="align-items-top">
                         <td>
-                            <input class="form-check-imput" data-dbman-toggle="check-item" data-dbman-record-id="{{ pks }}"
-                                type="checkbox" value="">
+                            <input class="form-check-imput" data-dbman-toggle="check-item" data-dbman-record-id="{{ pks }}" type="checkbox" value="" name="check-{{ loop.index }}">
                         </td>
                         <td>
                             <div class="btn-group" role="group">
@@ -147,7 +146,7 @@
                         {% set ref_header_start_index = -1 %}
                         {% for header in data['headers'] %}
                             {% set value = row[loop.index0] %}
-                        <td data-dbman-col-num="{{ loop.index }}">
+                        <td data-dbman-sn="{{ loop.index }}">
                             {% if header in data['headers_json'] %}
                                 {% set value = 'JSON: ' + value %}  
                             {% elif header in headers_fk: %}
@@ -172,7 +171,7 @@
         </div>
     </div>
     <!-- #tableConfigModal -->
-    <div class="modal fade" id="modal-datatable-config" tabindex="-1">
+    <div class="modal fade" id="datatable-modal-config-main" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -188,14 +187,12 @@
                                 <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center draggableList"
                                     data-dbman-sn="{{ loop.index }}">
                                     <div>
-                                        <input class="form-check-input" type="checkbox" id="modal-datatable-config-header-cbox-{{ loop.index }}"
-                                            value="{{ thead }}" data-dbman-sn="{{ loop.index }}" checked>
-                                        <label class="form-check-label streched-link" for="modal-datatable-config-header-cbox-{{ loop.index }}">
+                                        <label class="form-check-label streched-link">
+                                            <input class="form-check-input" type="checkbox" name="{{ header }}" checked>
                                             {{ header }}
                                         </label>
                                     </div>
-                                    <span class="handle draggable" data-dbman-sn="{{ loop.index }}"><i
-                                            class="fa fa-bars"></i></span> <!-- 添加拖拽手柄 -->
+                                    <span class="handle draggable"><i class="fa fa-bars"></i></span> <!-- 添加拖拽手柄 -->
                                 </li>
                                 {% endfor %}
                             </div>
