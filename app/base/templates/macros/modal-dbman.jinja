@@ -1,83 +1,229 @@
-{# app/base/templates/macros/modal-dbman.jinja #}
-{%- from 'macros/dragcontainer-dbman.jinja' import DragContainerDBMan -%}
-{%- macro ModalDBMan(
-        id='modal-dbman',
-        type='datatable-modal-config',
-        title='modal-title',
-        data=[]
-    )
--%}
-{%- set valid_types = ('datatable-modal-config', 'modal-alert') -%}
-{%- if type in valid_types -%}
-<div class="modal fade" id="{{ id }}" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">{{ title }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                {%- if type == 'datatable-modal-config' -%}
-                {{ DragContainerDBMan(type='card', title=_('_table_header'), data=data) }}
-                {%- endif -%}
-            </div>
-            <div class="modal-footer">
-                {%- if type == 'modal-alert' -%}
-                <button type="button" class="btn btn-sm btn-outline-dark" data-dbman-toggle="confirm">{{ _('Confirm') }}</button>
-                {%- endif -%}
-                {%- if type == 'datatable-modal-config' -%}
-                <button type="button" class="btn btn-sm btn-outline-dark" data-dbman-toggle="restore-default">{{ _('Restore Default') }}</button>
-                <button type="button" class="btn btn-sm btn-outline-dark" data-dbman-toggle="save-changes">{{ _('Save Changes') }}</button>
-                {%- endif -%}
-            </div>
-        </div>
-    </div>
-</div>
-{%- endif -%}
-{%- endmacro -%}
-{#
-{%- macro ModalDBman(
-        id='modal-dbman',
-        type='alert',
-        title=_('Modal Title'), 
-        msg_titles={
-            'success': _('Operation Success'),
-            'error': _('Operation Error'),
-            'warning_delete': _('_warning_delete')
-        }
-        extra_btns={
-            'confirm': _('Confirm'),
-            'back': _('_return_to_viewtable')
-        }
-    ) 
--%}
+import {DragContainer} from './dragcontainer-dbman.js'
+export class ModalDBMan {
+    constructor(selector) {
+        this.active = false;
+        this.modal = document.querySelector(selector);
+        if(!this.modal)
+            return;
+        this.bsModal = bootstrap.Modal.getOrCreateInstance(this.modal);
+        if(!this.bsModal)
+            return;
+        this.modal.addEventListener('hide.bs.modal', this._extraHandlerHide.bind(this));
+        this.selector = selector;
+        this._saveChanges = false;
+        this.active = true;
+    }
+    
+    show() {
+        this.bsModal.show();
+    }
 
-<div class="modal fade" id="{{ id }}" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">{{ title }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                {% if type == 'table-config'%}
-                {%- for key in msg_titles -%}
-                <span class="d-none" data-msg-title="{{ key|lower }}">{{ msg_titles[key] }}: </span>
-                {%- endfor -%}
-                <span data-msg-body></span>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal" data-am-close>
-                    {{ _('Close') }}
-                </button>
-                {%- for key in extra_btns -%}
-                <button type="button" class="btn btn-outline-dark d-none" data-am-{{ key|lower }}>
-                    {{ extra_btns[key] }}
-                </button>
-                {%- endfor -%}
-            </div>
-        </div>
-    </div>
-</div>
-{%- endmacro %}
-#}
+    hide() {
+        this._blurFocus();
+        this.bsModal.hide();
+    }
+
+    /**
+     * 让模态框内部失去聚焦，防止浏览器aria-hidden警告
+     */
+    _blurFocus() {
+        if (document.activeElement && document.activeElement.closest(this.selector)) {
+            document.activeElement.blur();
+        }
+    }
+
+    _extraHandlerHide() {
+        this._blurFocus();
+    }
+}
+
+export class ModalDatatableConfig extends ModalDBMan {
+    constructor(selector, table) {
+        super(selector);
+        if(!this.active) 
+            return;
+        this.active = false;
+        this.headerListgroup = this.modal.querySelector('.list-group');
+        if(!this.headerListgroup)
+            return; 
+        const headerLis = this.headerListgroup.querySelectorAll('li[data-dbman-sn]');
+        if(headerLis.length === 0)
+            return;
+        const headerCboxes = this.headerListgroup.querySelectorAll('li[data-dbman-sn] [type="checkbox"]');
+        if(headerCboxes.length === 0)
+            return;
+        // save original checkbox orders and checked states
+        this._listOriginalStates = this._saveListStates();
+        this._listInitialStates = [];
+
+        // add extra handler to save initial checkbox orders and checked states
+        this.modal.addEventListener('show.bs.modal', this._extraHandlerSaveInitialStates.bind(this));
+        // add extra handler to restore initial checkbox orders and checked states
+        this.modal.addEventListener('hide.bs.modal', this._extraHandlerRestoreInitialStates.bind(this));
+        // add extra handler to save changes in headers config
+        
+        this._btnSaveChanges = this.modal.querySelector('[data-dbman-toggle="save-changes"]');
+        if(!this._btnSaveChanges)
+            return;
+        this._btnSaveChanges.addEventListener('click', this._handlerSaveChanges.bind(this));
+
+        this._btnRestoreDefault = this.modal.querySelector('[data-dbman-toggle="restore-default"]');
+        if(!this._btnRestoreDefault)
+            return;
+        this._btnRestoreDefault.addEventListener('click', this._handlerRestoreDefault.bind(this));
+        this._dragContainer = new DragContainer(this.headerListgroup, 'vertical')
+        this.table = table;
+        this.active = true;
+    }
+
+    _saveListStates() {
+        const liStates = [];
+        this.headerListgroup.querySelectorAll('li[data-dbman-sn]').forEach((li) => {
+            const cb = li.querySelector('[type="checkbox"]');
+            const liState = [li.dataset.dbmanSn, cb.checked];
+            liStates.push(liState);
+        });
+        return liStates;
+    }
+
+    _restoreListStates(listStates) {
+        listStates.forEach((listState) => {
+            const li = this.headerListgroup.querySelector('li[data-dbman-sn="'+ listState[0] +'"]');
+            const cb = li.querySelector('[type="checkbox"]');
+            cb.checked = listState[1];
+            this.headerListgroup.appendChild(li)
+        });
+    }
+
+    _extraHandlerSaveInitialStates() {
+        this._listInitialStates = this._saveListStates();
+    }
+
+    _extraHandlerRestoreInitialStates() {
+        if(this._saveChanges) {
+            this._saveChanges = false;
+            return;
+        }
+        this._restoreListStates(this._listInitialStates);
+    }
+
+    _handlerSaveChanges() {
+        const theadRow = this.table.querySelector('thead tr');
+        const tbodyRows = this.table.querySelectorAll('tbody tr');
+        this.headerListgroup.querySelectorAll('li[data-dbman-sn]').forEach((li) => {
+            const cb = li.querySelector('[type="checkbox"]');
+            const colNum = li.dataset.dbmanSn;
+
+            const th = this.table.querySelector('th[data-dbman-sn="' + colNum + '"]');
+            const tds = this.table.querySelectorAll('td[data-dbman-sn="' + colNum + '"]');
+            
+            // 移动数据表中选中的表头对应的列
+            theadRow.appendChild(theadRow.querySelector('th[data-dbman-sn="' + colNum + '"]'));
+            tbodyRows.forEach((row) => {
+                row.appendChild(row.querySelector('td[data-dbman-sn="' + colNum + '"]'));
+            });
+
+            // 显示数据表中选中的表头对应的列
+            if (cb.checked) {
+                th.classList.remove('d-none');
+                tds.forEach((cell) => cell.classList.remove('d-none'));
+            // 隐藏数据表中未选中的的表头对应的列
+            } else {
+                th.classList.add('d-none');
+                tds.forEach((cell) => cell.classList.add('d-none'));
+            }
+        });
+        this._saveChanges = true;
+        this.hide();
+    }
+
+    _handlerRestoreDefault() {
+        this._restoreListStates(this._listOriginalStates);
+    }
+}
+
+export class ModalAlert extends ModalDBMan {
+    constructor(selector) {
+        super(selector);
+        if(!this.active) 
+            return;
+        this.active = false;
+        this.modalTitle = this.modal.querySelector('.modal-title');
+        if(!this.modalTitle)
+            return;
+        this.modalBody = this.modal.querySelector('.modal-body');
+        if(!this.modalBody)
+            return;
+        this.btnAcknowledge = this.modal.querySelector('[data-dbman-toggle="acknowledge"]');
+        if(!this.btnConfirm)
+            return;
+        this.btnConfirm = this.modal.querySelector('[data-dbman-toggle="confirm"]');
+        if(!this.btnConfirm)
+            return;
+        this.btnCancel = this.modal.querySelector('[data-dbman-toggle="cancel"]');
+        if(!this.btnCancel)
+            return;
+        this.confirmActionHandlers = [];
+        this.validBtns = {
+            'acknowledge': this.btnAcknowledge,
+            'confirm': this.btnConfirm,
+            'cancel': this.btnCancel
+        }
+        this.msg = this.modalBody.textContent;
+        this.title = this.modalTitle.textContent;
+        this.active = true;
+    }
+
+    update({msg = this.msg, title = this.title, buttonTypes = 'acknowledge', confirmAction = null}) {
+        if (!this.active) 
+            return;
+        if (msg) {
+            this.msg = msg;
+            this.modalBody.textContent = msg;
+        }
+        if (title) {
+            this.title = title;
+            this.modalTitle.textContent = title;
+        }
+        let buttonTypesList = [];
+        if (buttonTypes) {
+            buttonTypesList = buttonTypes.split(',');
+            const validBtnNames = Object.keys(this.validBtns);
+            buttonTypesList.forEach(btnName => {
+                if (validBtnNames.includes(btnName)) {
+                    btn = this.validBtns[btnName];
+                    btn.classList.remove('d-none');
+                    validBtnNames.pop(btnName);
+                }
+            });
+            validBtnNames.forEach(btnName => {
+                btn = this.validBtns[btnName];
+                btn.classList.add('d-none');
+            });
+        }
+        if(confirmAction && typeof confirmAction === 'function' && buttonTypesList.includes('confirm')) {
+            const confirmActionHandler = confirmAction;
+            this.removeAllHandlers();
+            this.btnConfirm.addEventListener('click', confirmActionHandler);
+            this.confirmActionHandlers.push(confirmActionHandler);
+        }
+    }
+
+    _addHandler(handler) {
+        this.btnConfirm.addEventListener('click', handler);
+        this.confirmActionHandlers.push(handler);
+    }
+
+    removeAllHandlers() {
+        this.confirmActionHandlers.forEach((handler) => {
+            this.btnConfirm.removeEventListener('click', handler);
+        });
+    }
+
+    removeHandler(handler) {
+        if(handler && typeof handler === 'function' && this.confirmActionHandlers.includes(handler)) {
+            this.btnConfirm.removeEventListener('click', handler);
+            this.confirmActionHandlers = this.confirmActionHandlers.filter((h) => h !== handler);
+        }
+    }
+}
