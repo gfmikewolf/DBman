@@ -38,7 +38,7 @@ export class ModalDBMan {
 }
 
 export class ModalDatatableConfig extends ModalDBMan {
-    constructor(selector, datatable) {
+    constructor(selector, table) {
         super(selector);
         if(!this.active) 
             return;
@@ -47,10 +47,10 @@ export class ModalDatatableConfig extends ModalDBMan {
         if(!this.headerListgroup)
             return; 
         const headerLis = this.headerListgroup.querySelectorAll('li[data-dbman-sn]');
-        if(headerLis.length == 0)
+        if(headerLis.length === 0)
             return;
         const headerCboxes = this.headerListgroup.querySelectorAll('li[data-dbman-sn] [type="checkbox"]');
-        if(headerCboxes.length == 0)
+        if(headerCboxes.length === 0)
             return;
         // save original checkbox orders and checked states
         this._listOriginalStates = this._saveListStates();
@@ -72,7 +72,7 @@ export class ModalDatatableConfig extends ModalDBMan {
             return;
         this._btnRestoreDefault.addEventListener('click', this._handlerRestoreDefault.bind(this));
         this._dragContainer = new DragContainer(this.headerListgroup, 'vertical')
-        this.datatable = datatable;
+        this.table = table;
         this.active = true;
     }
 
@@ -108,14 +108,14 @@ export class ModalDatatableConfig extends ModalDBMan {
     }
 
     _handlerSaveChanges() {
-        const theadRow = this.datatable.querySelector('thead tr');
-        const tbodyRows = this.datatable.querySelectorAll('tbody tr');
+        const theadRow = this.table.querySelector('thead tr');
+        const tbodyRows = this.table.querySelectorAll('tbody tr');
         this.headerListgroup.querySelectorAll('li[data-dbman-sn]').forEach((li) => {
             const cb = li.querySelector('[type="checkbox"]');
             const colNum = li.dataset.dbmanSn;
 
-            const th = this.datatable.querySelector('th[data-dbman-sn="' + colNum + '"]');
-            const tds = this.datatable.querySelectorAll('td[data-dbman-sn="' + colNum + '"]');
+            const th = this.table.querySelector('th[data-dbman-sn="' + colNum + '"]');
+            const tds = this.table.querySelectorAll('td[data-dbman-sn="' + colNum + '"]');
             
             // 移动数据表中选中的表头对应的列
             theadRow.appendChild(theadRow.querySelector('th[data-dbman-sn="' + colNum + '"]'));
@@ -154,39 +154,64 @@ export class ModalAlert extends ModalDBMan {
         this.modalBody = this.modal.querySelector('.modal-body');
         if(!this.modalBody)
             return;
+        this.btnAcknowledge = this.modal.querySelector('[data-dbman-toggle="acknowledge"]');
+        if(!this.btnConfirm)
+            return;
         this.btnConfirm = this.modal.querySelector('[data-dbman-toggle="confirm"]');
         if(!this.btnConfirm)
             return;
+        this.btnCancel = this.modal.querySelector('[data-dbman-toggle="cancel"]');
+        if(!this.btnCancel)
+            return;
         this.confirmActionHandlers = [];
+        this.validBtns = {
+            'acknowledge': this.btnAcknowledge,
+            'confirm': this.btnConfirm,
+            'cancel': this.btnCancel
+        }
         this.msg = this.modalBody.textContent;
         this.title = this.modalTitle.textContent;
         this.active = true;
     }
 
-    update({msg = this.msg, title = this.title, confirmAction = null}) {
-        if(!this.active) 
+    update({msg = this.msg, title = this.title, buttonTypes = 'acknowledge', confirmAction = null}) {
+        if (!this.active) 
             return;
-        if(msg) {
+        if (msg) {
             this.msg = msg;
             this.modalBody.textContent = msg;
         }
-        if(title) {
+        if (title) {
             this.title = title;
             this.modalTitle.textContent = title;
         }
-        if(confirmAction && typeof confirmAction === 'function') {
-            const confirmActionHandler = confirmAction.bind(this);
+        let buttonTypesList = [];
+        if (buttonTypes) {
+            buttonTypesList = buttonTypes.split(',');
+            const validBtnNames = Object.keys(this.validBtns);
+            buttonTypesList.forEach(btnName => {
+                if (validBtnNames.includes(btnName)) {
+                    btn = this.validBtns[btnName];
+                    btn.classList.remove('d-none');
+                    validBtnNames.pop(btnName);
+                }
+            });
+            validBtnNames.forEach(btnName => {
+                btn = this.validBtns[btnName];
+                btn.classList.add('d-none');
+            });
+        }
+        if(confirmAction && typeof confirmAction === 'function' && buttonTypesList.includes('confirm')) {
+            const confirmActionHandler = confirmAction;
             this.removeAllHandlers();
             this.btnConfirm.addEventListener('click', confirmActionHandler);
             this.confirmActionHandlers.push(confirmActionHandler);
         }
     }
 
-    addHandler(handler) {
-        if(handler && typeof handler === 'function') {
-            this.btnConfirm.addEventListener('click', handler);
-            this.confirmActionHandlers.push(handler);
-        }
+    _addHandler(handler) {
+        this.btnConfirm.addEventListener('click', handler);
+        this.confirmActionHandlers.push(handler);
     }
 
     removeAllHandlers() {
