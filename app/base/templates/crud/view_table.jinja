@@ -51,24 +51,22 @@
             <!-- 表格批量操作功能区，包括当前过滤的表格数据导出为data.csv，批量删除等 -->
             <div class="btn-group me-1" role="group">
                 <!-- 当前过滤的表格数据导出为data.csv -->
-                <button class="btn btn-sm btn-outline-dark" id="btn-datatable-download">
+                <button class="btn btn-sm btn-outline-dark" id="datatable-downloadCSV-main">
                     <i class="fa fa-download" data-bs-toggle="tooltip" data-bs-title="{{ _('Download') }}"></i>
                 </button>
                 <!-- 批量删除选中的记录 -->
-                <button class="btn btn-sm btn-outline-dark" id="btn-datatable-batch-delete">
+                <button class="btn btn-sm btn-outline-dark" id="datatable-batch-delete-main">
                     <i class="fa fa-trash" data-bs-toggle="tooltip" data-bs-title="{{ _('Batch Delete') }}"></i>
                 </button>
             </div>
             <!-- 表格全文前端检索功能区，包括全文检索输入框，全文检索按钮，清除全文检索按钮 -->
-            <div class="input-group input-group-sm justify-content-start" role="group">
-                <input id="search-datatable-fulltext" class="form-control form-control-sm" type="search"
-                    placeholder="{{ _('Search') }}">
-                <button id="btn-datatable-no-filter" class="btn btn-sm btn-outline-dark d-none">
+            <div id="datatable-search-main" class="input-group input-group-sm justify-content-start" role="group">
+                <input name="datatable-search-input" class="form-control form-control-sm" type="search" placeholder="{{ _('Search') }}">
+                <button class="btn btn-sm btn-outline-dark d-none" data-dbman-toggle="no-filter">
                     <i class="fa-solid fa-filter-circle-xmark" data-bs-toggle="tooltip"
                         data-bs-title="{{ _('Remove Filter') }}"></i>
                 </button>
-                <button id="btn-datatable-search-fulltext" class="btn btn-sm btn-outline-dark" data-bs-toggle="tooltip"
-                    data-bs-title="{{ _('Search') }}">
+                <button class="btn btn-sm btn-outline-dark" data-dbman-toggle="search" data-bs-toggle="tooltip" data-bs-title="{{ _('Search') }}">
                     <i class="fa fa-search"></i>
                 </button>
             </div>
@@ -92,7 +90,7 @@
                         <th>{{ _('_table_action') }}</th>
                         {% for header in data['headers'] %}
                         {# 移动、显隐数据列时用到行号 loop.index #}
-                        <th data-dbman-sn="{{ loop.index }}">
+                        <th data-dbman-sn="{{ loop.index }}" daba-dbman-data="{{ header }}">
                             {{ header }}
                         </th>
                         {% endfor %}
@@ -105,7 +103,7 @@
                         {% set pks = data['_pks'][loop.index0] %}
                     <tr class="align-items-top">
                         <td>
-                            <input class="form-check-imput" data-dbman-toggle="check-item" data-dbman-record-id="{{ pks }}" type="checkbox" value="" name="check-{{ loop.index }}">
+                            <input class="form-check-imput" data-dbman-toggle="check-item" type="checkbox" value="{{ pks }}" name="check-{{ pks }}">
                         </td>
                         <td>
                             <div class="btn-group" role="group">
@@ -116,7 +114,8 @@
                                 </a>
                                 &nbsp;
                                 <button
-                                    data-delete-record-url="{{ url_for('base.crud.delete_record', table_name=table_name, record_id=pks) }}"
+                                    data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, record_id=pks) }}"
+                                    data-dbman-toggle="delete-record"
                                     class="btn btn-sm btn-outline-dark" data-bs-toggle="tooltip"
                                     data-bs-title="{{ _('Delete') }}">
                                     <i class="fa fa-trash"></i>
