@@ -1,4 +1,4 @@
-import {DragContainer} from './dbman-dragcontainer.js'
+import {DragContainer} from './dragcontainer-dbman.js'
 export class ModalDBMan {
     constructor(selector) {
         this.active = false;
@@ -141,27 +141,64 @@ export class ModalDatatableConfig extends ModalDBMan {
         this._restoreListStates(this._listOriginalStates);
     }
 }
-/*
 
-class ModalAlert extends DBManModal {
+export class ModalAlert extends ModalDBMan {
     constructor(selector) {
         super(selector);
-        this.msgTypes = this.modal.querySelectorAll('')
-        this.modal.addEventListener('hide.bs.modal', () => {
-            super.blurFocus();
-            this.msgTypes.forEach((msgType) => 
-                this.model.querySelector('[data-' + msgType + ']').classList.add('d-none'));
+        if(!this.active) 
+            return;
+        this.active = false;
+        this.modalTitle = this.modal.querySelector('.modal-title');
+        if(!this.modalTitle)
+            return;
+        this.modalBody = this.modal.querySelector('.modal-body');
+        if(!this.modalBody)
+            return;
+        this.btnConfirm = this.modal.querySelector('[data-dbman-toggle="confirm"]');
+        if(!this.btnConfirm)
+            return;
+        this.confirmActionHandlers = [];
+        this.msg = this.modalBody.textContent;
+        this.title = this.modalTitle.textContent;
+        this.active = true;
+    }
+
+    update({msg = this.msg, title = this.title, confirmAction = null}) {
+        if(!this.active) 
+            return;
+        if(msg) {
+            this.msg = msg;
+            this.modalBody.textContent = msg;
+        }
+        if(title) {
+            this.title = title;
+            this.modalTitle.textContent = title;
+        }
+        if(confirmAction && typeof confirmAction === 'function') {
+            const confirmActionHandler = confirmAction.bind(this);
+            this.removeAllHandlers();
+            this.btnConfirm.addEventListener('click', confirmActionHandler);
+            this.confirmActionHandlers.push(confirmActionHandler);
+        }
+    }
+
+    addHandler(handler) {
+        if(handler && typeof handler === 'function') {
+            this.btnConfirm.addEventListener('click', handler);
+            this.confirmActionHandlers.push(handler);
+        }
+    }
+
+    removeAllHandlers() {
+        this.confirmActionHandlers.forEach((handler) => {
+            this.btnConfirm.removeEventListener('click', handler);
         });
     }
-    getConfirmBtn(id_confirm='alertmodal') {
-        const activeConfirmBtn = modal.querySelector('#'+id_confirm);
-        if(activeConfirmBtn) { activeConfirmBtn.remove();}
-        const alertConfirmButton = modal.querySelector('[data-am-confirm]').cloneNode(true);
-        alertConfirmButton.classList.remove('d-none');
-        alertConfirmButton.id = id_confirm;
-        const alertFooter = modal.querySelector('.modal-footer');
-        alertFooter.appendChild(alertConfirmButton);
-        return alertConfirmButton;
-    }    
+
+    removeHandler(handler) {
+        if(handler && typeof handler === 'function' && this.confirmActionHandlers.includes(handler)) {
+            this.btnConfirm.removeEventListener('click', handler);
+            this.confirmActionHandlers = this.confirmActionHandlers.filter((h) => h !== handler);
+        }
+    }
 }
-*/

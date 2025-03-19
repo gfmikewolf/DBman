@@ -1,29 +1,11 @@
 {# app/base/templates/crud/view_table.jinja #}
-{# 后端渲染参数：
-    table_name: 当前查询的表格名
-    table_names: List 所有表格名列表
-    data: dict datatable的数据字典
-    data = { 
-      _pks: list[str] 主键列表，多主键的情况用逗号分隔各主键 
-      headers: list[str] 表头，数据的列名列表
-      data: list[list[Any]] 表数据，data中每个元素是一个记录（一行）
-      headers_json: set[str] json数据(python dict | DataJson)的相应表头
-      ref_map: dict[str, Any] 引用表数据
-        ref_map = tuple[{
-          'ref_table': 引用表名称
-          'ref_name': 引用列名称
-          'ref_pk': 引用表主键名称 （不支持多主键引用表）
-        }...]
-      ref_pks = list[tuple[Any, ...]] 引用表主键列表，每个元素是一行记录的引用表主键元组，和ref_map的元素顺序一致
-    }
-
-#}
 {# 基模板 base.jinja 需要的参数：
     prev_page: 返回上一页的链接
 #}
-{% extends "base.jinja" %}
-{% set prev_page = url_for('base.crud.index') %}
-{% block content %}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
+{%- extends "base.jinja" -%}
+{%- set prev_page = url_for('base.crud.index') -%}
+{%- block content -%}
 <div class="container-fluid">
     <!-- 查询表格首行：说明当前功能并生成下拉式查询列表，提供其他表格的查询链接 -->
     <div class="row">
@@ -170,43 +152,20 @@
             </table>
         </div>
     </div>
-    <!-- #tableConfigModal -->
-    <div class="modal fade" id="datatable-modal-config-main" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">{{ _('_table_config') }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="card">
-                        <div class="card-header">{{ _('_table_header') }}</div>
-                        <div class="card-body">
-                            <div class="list-group">
-                                {% for header in data['headers'] %}
-                                <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center draggableList"
-                                    data-dbman-sn="{{ loop.index }}">
-                                    <div>
-                                        <label class="form-check-label streched-link">
-                                            <input class="form-check-input" type="checkbox" name="{{ header }}" checked>
-                                            {{ header }}
-                                        </label>
-                                    </div>
-                                    <span class="handle draggable"><i class="fa fa-bars"></i></span> <!-- 添加拖拽手柄 -->
-                                </li>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-dark" data-dbman-toggle="restore-default">{{ _('Restore Default') }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-dark" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
-                    <button type="button" class="btn btn-sm btn-outline-dark" data-dbman-toggle="save-changes">{{ _('Save Changes') }}</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    {# Table Config Modal #}
+    {{ ModalDBMan(
+        id='datatable-modal-config-main',
+        type='datatable-modal-config',
+        title=_('_table_config'),
+        data=data['headers']
+    ) }}  
 </div>
 {% endblock content %}
+{% block alert %}
+{{ ModalDBMan(
+    id='modal-alert',
+    type='modal-alert',
+    title=_('Alert')
+) }}
+{% endblock alert %}
 {% block scripts %}{% endblock scripts %}

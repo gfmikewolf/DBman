@@ -1,0 +1,32 @@
+{# app/base/templates/macros/dragcontainer-dbman.jinja #}
+{%- macro DragContainerDBMan(
+        id='dragcontainer-dbman',
+        type='card',
+        title=_('Drag Container'),
+        data=[]
+    )
+-%}
+{%- if type == 'card' -%}
+<div class="card">
+    <div class="card-header">{{ _('_table_header') }}</div>
+    <div class="card-body">
+{%- endif -%}
+        <div class="list-group">
+            {% for header in data %}
+            <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center draggableList"
+                data-dbman-sn="{{ loop.index }}">
+                <div>
+                    <label class="form-check-label streched-link">
+                        <input class="form-check-input" type="checkbox" name="{{ header }}" checked>
+                        {{ header }}
+                    </label>
+                </div>
+                <span class="handle draggable"><i class="fa fa-bars"></i></span>
+            </li>
+            {% endfor %}
+        </div>
+{%- if type == 'card' -%}
+    </div>
+</div>
+{%- endif -%}
+{%- endmacro -%}

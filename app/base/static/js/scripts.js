@@ -4,9 +4,8 @@
 // Description: This file contains the main JavaScript code for the project DBMan
 // Author: Xiaolong Liu
 
-import { ModalDBMan } from './dbman-modal.js';
-// import { ModalAlert } from './modal.js';
-import { ModalDatatableConfig } from './dbman-modal.js';
+import { ModalAlert } from './modal-dbman.js';
+import { ModalDatatableConfig } from './modal-dbman.js';
  
 /*** 全局变量 block ***/
 const msgTypes = ['success', 'error', 'warning-delete']; // 提示模态框的文字类型
@@ -77,9 +76,15 @@ document.addEventListener('DOMContentLoaded', function () {
         // dataTable在上面已经被定义
     //初始化唯一数据表格的选行功能
     
+    // 初始化表格设置功能
     const modalDatatableConfig =  new ModalDatatableConfig('#datatable-modal-config-main', dataTable);
     if (!modalDatatableConfig.active)
         console.log('Datatable config modal is not initialized');
+
+    const modalAlert = new ModalAlert('#modal-alert');
+    if (!modalAlert.active)
+        console.log('Alert modal is not initialized');
+
         // 初始化表格下载功能
         const downloadButton = document.getElementById('downloadCSVButton');
         if (downloadButton) {
