@@ -41,7 +41,6 @@ export class ModalDBMan {
 
 export class ModalDatatableConfig extends ModalDBMan {
     constructor(selector, table) {
-        this.active = true;
         super(selector);
         if(!this.active) {
             return;
