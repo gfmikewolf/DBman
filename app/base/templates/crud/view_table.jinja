@@ -18,21 +18,21 @@
                 {# 为不是当前查询表格的表格增加访问下拉菜单 #}
                 <ul class="dropdown-menu">
                     {# 生成菜单的访问链接 #}
-                    {% for tn in table_names %}
+                    {%- for tn in table_names -%}
                     <li>
                         {# 如果列表中的表格名与当前查询的表格名一样，显示为活动项，否则为链接 #}
-                        {% if tn == table_name %}
-                            {% set dd_active = 'active' %}
-                            {% set dd_url = '#' %}
-                        {% else %}
-                            {% set dd_active = '' %}
-                            {% set dd_url = url_for('base.crud.view_table', table_name=tn) %}
-                        {% endif %}
+                        {%- if tn == table_name -%}
+                            {%- set dd_active = 'active' -%}
+                            {%- set dd_url = '#' -%}
+                        {%- else -%}
+                            {%- set dd_active = '' -%}
+                            {%- set dd_url = url_for('base.crud.view_table', table_name=tn) -%}
+                        {%- endif -%}
                         <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
                             {{ tn }}
                         </a>
                     </li>
-                    {% endfor %}
+                    {%- endfor -%}
                 </ul>
             </div>
         </h5>
@@ -71,8 +71,8 @@
                 </button>
             </div>
             <!-- 添加记录按钮，跳转到添加记录页面，添加记录是最常见操作，从人机工程角度放在右侧 -->
-            {# record_id='_new' 表示添加新记录，数据库表中不允许任何表主键设置为_new #}
-            <a href="{{ url_for('base.crud.modify_record', table_name=table_name, record_id='_new') }}"
+            {# pks='_new' 表示添加新记录，数据库表中不允许任何表主键设置为_new #}
+            <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks='_new') }}"
                 class="btn btn-sm btn-outline-dark">
                 <i class="fa fa-plus" data-bs-toggle="tooltip" data-bs-title="{{ _('Add Record') }}"></i>
             </a>
@@ -88,33 +88,33 @@
                         <th><input class="form-check-input" data-dbman-toggle="check-all" type="checkbox" name="check-all">
                         </th>
                         <th>{{ _('_table_action') }}</th>
-                        {% for header in data['headers'] %}
+                        {%- for header in data['headers'] -%}
                         {# 移动、显隐数据列时用到行号 loop.index #}
                         <th data-dbman-sn="{{ loop.index }}">
                             {{ header }}
                         </th>
-                        {% endfor %}
+                        {%- endfor -%}
                     </tr>
                 </thead>
                 <tbody>
                     {# 填充数据表格 #}
-                    {% for row in data['data'] %}
+                    {%- for row in data['data'] -%}
                         {# 找到相关行的pks #}
-                        {% set pks = data['_pks'][loop.index0] %}
+                        {%- set pks = data['_pks'][loop.index0] -%}
                     <tr class="align-items-top">
                         <td>
                             <input class="form-check-imput" data-dbman-toggle="check-item" type="checkbox" value="{{ pks }}" name="check-{{ pks }}">
                         </td>
                         <td>
                             <div class="btn-group" role="group">
-                                <a href="{{ url_for('base.crud.modify_record', table_name=table_name, record_id=pks) }}"
+                                <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}"
                                     class="btn btn-sm btn-outline-dark">
                                     <i class="fa fa-edit" data-bs-toggle="tooltip"
                                         data-bs-title="{{ _('Modify') }}"></i>
                                 </a>
                                 &nbsp;
                                 <button
-                                    data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, record_id=pks) }}"
+                                    data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, pks=pks) }}"
                                     data-dbman-toggle="delete-record"
                                     class="btn btn-sm btn-outline-dark" data-bs-toggle="tooltip"
                                     data-bs-title="{{ _('Delete') }}">
@@ -122,31 +122,31 @@
                                 </button>
                             </div>
                         </td>
-                        {% set row_number = loop.index0 %}
-                        {% set headers_fk = data['ref_map']|map(attribute='ref_name')|list %}
-                        {% set ref_header_start_index = -1 %}
-                        {% for header in data['headers'] %}
-                            {% set value = row[loop.index0] %}
+                        {%- set row_number = loop.index0 -%}
+                        {%- set headers_fk = data['ref_map']|map(attribute='ref_name')|list -%}
+                        {%- set ref_header_start_index = -1 -%}
+                        {%- for header in data['headers'] -%}
+                            {%- set value = row[loop.index0] -%}
                         <td data-dbman-sn="{{ loop.index }}">
-                            {% if header in data['headers_json'] %}
-                                {% set value = 'JSON: ' + value %}  
-                            {% elif header in headers_fk: %}
-                                {% if ref_header_start_index == -1 %}
-                                    {% set ref_header_start_index = loop.index0 %}
-                                {% endif %}
+                            {%- if header in data['headers_json'] -%}
+                                {%- set value = 'JSON: ' + value -%}  
+                            {%- elif header in headers_fk: -%}
+                                {%- if ref_header_start_index == -1 -%}
+                                    {%- set ref_header_start_index = loop.index0 -%}
+                                {%- endif -%}
                                 {# 取巧，fetch_datatable_dict方法引用列都在最后面挨着 #}
-                                {% set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] %}
-                                {% set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] %}
-                                    <a href="{{ url_for('base.crud.view_record', table_name=ref_table, record_id=ref_pks) }}">
+                                {%- set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] -%}
+                                {%- set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] -%}
+                                    <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pks) }}">
                                         {{ value if value else '' }}
                                     </a>
-                            {% else %}
+                            {%- else -%}
                                     {{ value if value else '' }}
-                            {% endif %}
+                            {%- endif -%}
                         </td>
-                        {% endfor %}
+                        {%- endfor -%}
                     </tr>
-                    {% endfor %}
+                    {%- endfor -%}
                 </tbody>
             </table>
         </div>
@@ -159,8 +159,8 @@
         data=data['headers']
     ) }}  
 </div>
-{% endblock content %}
-{% block alert %}
+{%- endblock content -%}
+{%- block alert -%}
 {{ ModalDBMan(
     id='modal-alert',
     type='modal-alert',
@@ -171,5 +171,5 @@
         'warning_delete': [_('Alert'), _('_warning_delete')]
     }
 ) }}
-{% endblock alert %}
-{% block scripts %}{% endblock scripts %}
+{%- endblock alert -%}
+{%- block scripts -%}{%- endblock scripts -%}
