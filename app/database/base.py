@@ -165,6 +165,12 @@ class Base(DeclarativeBase):
                         info_cols.add(col)
                 cls.col_info[info] = info_cols 
                 cols.update(info_cols)   
+            elif info == 'longtext':
+                info_cols = set()
+                for str_col in cls.get_cols('str'):
+                    if str_col.info.get('longtext', None) is not None:
+                        info_cols.add(str_col)
+                cols.update(info_cols)
             else:
                 raise AttributeError(f'Invalid col info {info} for {cls}')
         return cols
@@ -295,10 +301,13 @@ class Base(DeclarativeBase):
         data_dict = {'__tablename__': self.__tablename__}
         data_keys = self.get_col_keys('data')
         for data_key in data_keys:
-            attr = getattr(self, data_key, None)
-            if attr is None:
+            if not hasattr(self, data_key):
                 raise AttributeError(f'Invalid attribute {data_key} for {self}')
-            data_dict[data_key] = serialize_value(attr) if serializeable else attr
+            attr = getattr(self, data_key)
+            if attr is None:
+                data_dict[data_key] = None
+            else:
+                data_dict[data_key] = serialize_value(attr) if serializeable else attr
         return data_dict
 
     @classmethod
@@ -404,7 +413,7 @@ class Base(DeclarativeBase):
         return datatable
 
     @classmethod
-    def fetch_ref_names(cls) -> dict[str, tuple[Any]]:
+    def fetch_ref_pks_name(cls) -> dict[str, tuple[Any]]:
         """
         :rtype: dict[str, Any]
         :return: dict with key = refereneced column name and 
@@ -417,7 +426,7 @@ class Base(DeclarativeBase):
         if cls._validate_session() is False:
             raise DatabaseError('Invalid db_session {cls.db_session} for {cls}')
         
-        ref_names = dict() 
+        ref_pks_name = dict() 
         mapper = cls.__mapper__
         for rel in mapper.relationships:
             if rel.uselist:
@@ -428,7 +437,8 @@ class Base(DeclarativeBase):
             if hasattr(ref_model, 'name'):
                 ref_name_attr = getattr(ref_model, 'name', None)
                 if not (ref_model is None or ref_name_attr is None):
-                    query = select(ref_name_attr)
+                    ref_model_pks = ref_model.__mapper__.primary_key
+                    query = select(*ref_model_pks, ref_name_attr)
                     ref_name_order = cls.col_key_info.get('ref_name_order', set())
                     if ref_name_order and isinstance(ref_name_order, dict):
                         rno_str_list = ref_name_order.get(ref_name_attr.name, None)
@@ -446,9 +456,15 @@ class Base(DeclarativeBase):
                 query is not None and \
                 cls.db_session is not None:
                 try:
-                    ref_col_values = cls.db_session.scalars(query)
+                    result = cls.db_session.execute(query)
                 except DatabaseError as e:
-                    raise DatabaseError(f'Invalid query {query} \
-                        or session {cls.db_session} for {cls}')
-                ref_names[ref_name_attr.name] = tuple(ref_col_values)
-        return ref_names
+                    raise DatabaseError(f'Invalid query {query}'
+                        f'or session {cls.db_session} for {cls}') 
+                list_pks_name = []                  
+                for row in result:
+                    pk_values = ','.join(map(str, row[:-1]))
+                    name_value = row[-1]
+                    row_pks_name = (pk_values, name_value)
+                    list_pks_name.append(row_pks_name)
+                ref_pks_name[next(iter(rel.local_columns)).name] = list_pks_name
+        return ref_pks_name
