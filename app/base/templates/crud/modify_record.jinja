@@ -47,7 +47,7 @@
                             {%- elif key in datajson_keys -%}
                                 <div>json place holder</div>
                             {%- elif key in longtext_keys -%}
-                                <textarea name="{{ key }}" class="form-control" rows="{{ ((value|length)/40)|round|int + 1 }}">{{ '' if pks == '_new' else value }}</textarea>
+                                <textarea name="{{ key }}" class="form-control" rows="{{ 3 if value is none else ((value|length)/40)|round|int + 1 }}">{{ '' if pks == '_new' else value }}</textarea>
                             {%- else -%}
                                 <input type="text" class="form-control" name="{{ key }}" value="{{ '' if pks == '_new' else value }}" {{ 'required' if key in required_keys }}>
                             {%- endif -%}
