@@ -47,7 +47,7 @@ class Amendment(Base):
     amendment_signdate: Mapped[date] = mapped_column(Date)
     amendment_effectivedate: Mapped[date] = mapped_column(Date)
     amendment_entities: Mapped[str | None]
-    amendment_remarks: Mapped[str | None]
+    amendment_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
     contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'))
     
     name = synonym('amendment_name')
@@ -78,8 +78,8 @@ class Clause(Base):
     clause_ref: Mapped[str | None] 
     clause_text: Mapped[str | None] 
     amendment_id: Mapped[int] = mapped_column(Integer, ForeignKey('amendment.amendment_id'))
-    clause_reviewcomments: Mapped[str | None] 
-    clause_remarks: Mapped[str | None]
+    clause_reviewcomments: Mapped[str | None] = mapped_column(String, info = {'longtext': True}) 
+    clause_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
     clause_type: Mapped[ClauseType] = mapped_column(String)
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
