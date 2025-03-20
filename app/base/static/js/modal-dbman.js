@@ -1,17 +1,19 @@
 import {DragContainer} from './dragcontainer-dbman.js'
 export class ModalDBMan {
     constructor(selector) {
-        this.active = false;
-        this.modal = document.querySelector(selector);
-        if(!this.modal)
-            return;
-        this.bsModal = bootstrap.Modal.getOrCreateInstance(this.modal);
-        if(!this.bsModal)
-            return;
-        this.modal.addEventListener('hide.bs.modal', this._extraHandlerHide.bind(this));
-        this.selector = selector;
-        this._saveChanges = false;
         this.active = true;
+        this.modal = document.querySelector(selector);
+        if(!this.modal) {
+            this.active = false;
+            return;
+        }
+        this.bsModal = bootstrap.Modal.getOrCreateInstance(this.modal);
+        if(!this.bsModal) {
+            this.active = false;
+            return;
+        }
+        this.modal.addEventListener('hide.bs.modal', this._extraHandlerHide.bind(this));
+        this.selector = selector;       
     }
     
     show() {
@@ -39,19 +41,26 @@ export class ModalDBMan {
 
 export class ModalDatatableConfig extends ModalDBMan {
     constructor(selector, table) {
+        this.active = true;
         super(selector);
-        if(!this.active) 
+        if(!this.active) {
             return;
-        this.active = false;
+        }
         this.headerListgroup = this.modal.querySelector('.list-group');
-        if(!this.headerListgroup)
-            return; 
+        if(!this.headerListgroup) {
+            this.active = false;
+            return;
+        }
         const headerLis = this.headerListgroup.querySelectorAll('li[data-dbman-sn]');
-        if(headerLis.length === 0)
+        if(headerLis.length === 0) {
+            this.active = false;
             return;
+        }
         const headerCboxes = this.headerListgroup.querySelectorAll('li[data-dbman-sn] [type="checkbox"]');
-        if(headerCboxes.length === 0)
+        if(headerCboxes.length === 0) {
+            this.active = false;
             return;
+        }
         // save original checkbox orders and checked states
         this._listOriginalStates = this._saveListStates();
         this._listInitialStates = [];
@@ -63,17 +72,21 @@ export class ModalDatatableConfig extends ModalDBMan {
         // add extra handler to save changes in headers config
         
         this._btnSaveChanges = this.modal.querySelector('[data-dbman-toggle="save-changes"]');
-        if(!this._btnSaveChanges)
+        if(!this._btnSaveChanges) {
+            this.active = false;
             return;
+        }
         this._btnSaveChanges.addEventListener('click', this._handlerSaveChanges.bind(this));
 
         this._btnRestoreDefault = this.modal.querySelector('[data-dbman-toggle="restore-default"]');
-        if(!this._btnRestoreDefault)
+        if(!this._btnRestoreDefault) {
+            this.active = false;
             return;
+        }
         this._btnRestoreDefault.addEventListener('click', this._handlerRestoreDefault.bind(this));
         this._dragContainer = new DragContainer(this.headerListgroup, 'vertical')
         this.table = table;
-        this.active = true;
+        this._saveChanges = false;
     }
 
     _saveListStates() {
@@ -145,24 +158,34 @@ export class ModalDatatableConfig extends ModalDBMan {
 export class ModalAlert extends ModalDBMan {
     constructor(selector) {
         super(selector);
-        if(!this.active) 
+        if(!this.active) {
             return;
-        this.active = false;
+        }
         this.modalTitle = this.modal.querySelector('.modal-title');
-        if(!this.modalTitle)
+        if(!this.modalTitle) {
+            this.active = false;
             return;
+        }
         this.modalBody = this.modal.querySelector('.modal-body');
-        if(!this.modalBody)
+        if(!this.modalBody) {
+            this.active = false;
             return;
+        }
         this.btnAcknowledge = this.modal.querySelector('[data-dbman-toggle="acknowledge"]');
-        if(!this.btnAcknowledge)
+        if(!this.btnAcknowledge) {
+            this.active = false;
             return;
+        }
         this.btnConfirm = this.modal.querySelector('[data-dbman-toggle="confirm"]');
-        if(!this.btnConfirm)
+        if(!this.btnConfirm) {
+            this.active = false;
             return;
+        }
         this.btnCancel = this.modal.querySelector('[data-dbman-toggle="cancel"]');
-        if(!this.btnCancel)
+        if(!this.btnCancel) {
+            this.active = false;
             return;
+        }
         this.predefinedTexts = {};
         const spanElements = this.modal.querySelectorAll('span[data-dbman-key].d-none');
         spanElements.forEach(span => {
@@ -179,7 +202,6 @@ export class ModalAlert extends ModalDBMan {
         }
         this.msg = this.modalBody.textContent;
         this.title = this.modalTitle.textContent;
-        this.active = true;
     }
 
     update({ msgKey = null, message = '', buttonTypes = ['acknowledge'], confirmAction = null }) {
