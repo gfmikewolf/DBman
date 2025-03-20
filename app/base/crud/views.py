@@ -39,7 +39,7 @@ def view_table(table_name: str) -> Any:
         data=data_dict
     )
 
-def modify_record(table_name, pks):
+def modify_record(table_name: str, pks: str) -> Any:
     if table_name not in Base.model_map or pks is None:
             abort(404)
     Model = Base.model_map[table_name]
@@ -64,40 +64,46 @@ def modify_record(table_name, pks):
                 return jsonify(success=False, error=str(e)), 500
         
         # method == GET
-        ref_names = Model.fetch_ref_names()
+        ref_pks_name = Model.fetch_ref_pks_name()
         date_keys = Model.get_col_keys('date')
-        json_keys = Model.get_col_keys('json')
+        pk_keys = Model.get_col_keys('pk')
+        datajson_keys = Model.get_col_keys('DataJson')
         required_keys = Model.get_col_keys('required')
         readonly_keys = Model.get_col_keys('readonly')
-        if pks == '_new':
-            data = dict()
-        else:
-            data = model.data_dict(serializeable=True)
+        longtext_keys = Model.get_col_keys('longtext')
+        
+        data = model.data_dict(serializeable=True)
+        headers = [
+            col.name 
+            for col in model.__mapper__.columns 
+            if col.name in data.keys() and col.name not in pk_keys
+        ]
     
     return render_template(
         'crud/modify_record.jinja',
         navigation=navigation.get_nav({'Modify record': '#'}), 
         table_name=table_name, 
-        model=model,
         pks=pks,
-        ref_names=ref_names,
+        ref_pks_name=ref_pks_name,
         date_keys=date_keys,
-        json_keys=json_keys,
+        datajson_keys=datajson_keys,
         required_keys=required_keys,
         readonly_keys=readonly_keys,
+        longtext_keys=longtext_keys,
+        headers=headers,
         data=data
     )
 
-def delete_record(table_name, record_id):
+def delete_record(table_name: str, pks: str) -> Any:
     if request.method != 'DELETE':
         abort(404)
     if table_name not in Base.model_map:
         abort(404)
     Model = Base.model_map[table_name]
-    pks = tuple(record_id.split(','))
+    pks_tuple = tuple(pks.split(','))
 
     with db_session() as sess:
-        model = sess.get(Model, pks)
+        model = sess.get(Model, pks_tuple)
         if model:
             sess.delete(model)
         try:
