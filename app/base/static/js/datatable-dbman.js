@@ -15,7 +15,8 @@ import { ModalAlert } from "./modal-dbman.js";
 export class Datatable {
     constructor(selector, alertModal) {
         this.active = false;
-        if (!alertModal || !(alertModal instanceof ModalAlert)) {
+        // Initialize all attributes
+        if (!alertModal || !(alertModal instanceof ModalAlert) || !alertModal.active) {
             console.log('Failed to initialize alert modal');
             return;
         }
@@ -73,6 +74,8 @@ export class Datatable {
             return;
         }
         this.curSearchQuery = '';
+
+        // Initialize all event function modules
         this._initSearch();
         this._initCheckAll();
         this._initCheckItems();
@@ -205,19 +208,62 @@ export class Datatable {
     }
     _initDeleteRecord() {
         this.deleteBtns.forEach(deleteBtn => {
+            
             deleteBtn.addEventListener('click', () => {
+                const tr = deleteBtn.closest('tr');
+                const ths = this.table.querySelectorAll('th[data-dbman-sn]:not(.d-none)');
+                const headers = Array.from(ths).map(th => th.dataset.dbmanData ? th.dataset.dbmanData : th.textContent.trim());
+                const tds = tr.querySelectorAll('td[data-dbman-sn]:not(.d-none)');
+                let message = '<div class="container-fluid mt-3">';
+                tds.forEach(td => {
+                    message += '<div class="row">';
+                    const content = td.dataset.dbmanData ? td.dataset.dbmanData.trim() : td.innerText.trim();
+                    message += headers[0] + ': ' + content;
+                    message += '</div>';
+                    headers.shift();
+                });
+                message += '</div>';
+
                 if(deleteBtn.dataset.dbmanUrl) {
-                    this.alertModal.setButtons('confirm', 'cancel');
                     this.alertModal.update({
-                        msg: '',
-                        title: '',
-                        confirmAction: null
+                        msgKey: 'warning_delete',
+                        message: message,
+                        buttonTypes: ['confirm', 'cancel'],
+                        confirmAction: this.deleteRecord.bind(this, deleteBtn.dataset.dbmanUrl)
                     });
+                    this.alertModal.show();
                 }
             });
         });
     }
-    deleteRecord(pks) {
 
+    deleteRecord(deleteUrl) {
+        if(this.active && this.alertModal.active) {
+            fetch(deleteUrl, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if(response.ok) {
+                    this.alertModal.update({
+                        msgKey: 'success',
+                        buttonTypes: ['confirm'],
+                        confirmAction: () => {
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    this.alertModal.update({
+                        msgKey: 'error',
+                        buttonTypes: ['acknowledge']
+                    });
+                }
+            })
+            .catch(error => {
+                this.alertModal.update({
+                    msgKey: 'error',
+                    buttonTypes: ['acknowledge']
+                });
+            });
+        }
     }    
 }

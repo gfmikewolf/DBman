@@ -5,7 +5,6 @@
 // Author: Xiaolong Liu
 
 import { ModalAlert } from './modal-dbman.js';
-import { ModalDatatableConfig } from './modal-dbman.js';
 import { Datatable } from './datatable-dbman.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,9 +14,11 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeTooltips(tooltipList);
     }
     const alertModal = new ModalAlert('#modal-alert');
+    if(!alertModal.active)
+        console.log('Failed to initialize alertModal.');
     const datatable = new Datatable('#datatable-table-main', alertModal);
     if(!datatable.active)
-        console.log('Error in datatable initialization.');
+        console.log('Failed to initialize datatable.');
 });
 
 function initializeTooltips(tooltipList) {

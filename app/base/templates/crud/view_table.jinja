@@ -90,7 +90,7 @@
                         <th>{{ _('_table_action') }}</th>
                         {% for header in data['headers'] %}
                         {# 移动、显隐数据列时用到行号 loop.index #}
-                        <th data-dbman-sn="{{ loop.index }}" daba-dbman-data="{{ header }}">
+                        <th data-dbman-sn="{{ loop.index }}">
                             {{ header }}
                         </th>
                         {% endfor %}
@@ -164,7 +164,12 @@
 {{ ModalDBMan(
     id='modal-alert',
     type='modal-alert',
-    title=_('Alert')
+    title=_('Alert'),
+    msgs={
+        'success': [_('Success'), _('Operation Successful')],
+        'error': [_('Error'), _('Operation Error')],
+        'warning_delete': [_('Alert'), _('_warning_delete')]
+    }
 ) }}
 {% endblock alert %}
 {% block scripts %}{% endblock scripts %}

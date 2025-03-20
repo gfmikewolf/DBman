@@ -4,7 +4,8 @@
         id='modal-dbman',
         type='datatable-modal-config',
         title='modal-title',
-        data=[]
+        data=[],
+        msgs=dict()
     )
 -%}
 {%- set valid_types = ('datatable-modal-config', 'modal-alert') -%}
@@ -33,6 +34,11 @@
                 <button type="button" class="btn btn-sm btn-outline-dark d-none" data-bs-dismiss="modal" data-dbman-toggle="cancel">{{ _('Cancel') }}</button>
             </div>
         </div>
+    </div>
+    <div data-dbman-msgs class="d-none">
+        {%- for key in msgs -%}
+        <span class="d-none" data-dbman-key="{{ key|lower }}" data-dbman-title="{{ msgs[key][0] }}">{{ msgs[key][1] }}</span>
+        {%- endfor -%}
     </div>
 </div>
 {%- endif -%}

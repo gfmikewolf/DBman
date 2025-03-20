@@ -40,106 +40,72 @@ def view_table(table_name: str) -> Any:
     )
 
 def modify_record(table_name, pks):
-    if table_name not in Base.model_map:
-        abort(404)
+    if table_name not in Base.model_map or pks is None:
+            abort(404)
     Model = Base.model_map[table_name]
-    if request.method == 'POST':
-        form_data = request.get_json(silent=True)
-        if form_data is None:
+    with db_session() as db_sess:
+        Base.db_session = db_sess
+        if pks == '_new':
+            model = Model()
+        else:
+            pk_value_tuple = tuple(pks.split(','))
+            model = db_sess.get(Model, pk_value_tuple)
+        if model is None:
             abort(404)
-        _pks = form_data.get('_pks', None)
-        if _pks is None:
-            abort(404)
-        form_data.pop('_pks', None)
-        if _pks != '_new':
-            pk_value_tuple = tuple(_pks.split(','))
-        
-        if not pks:
-            abort(404)
-        
-        with db_session() as db_sess:
-            Base.db_session = db_sess
+        if request.method == 'POST':
             try:
-                if _pks == '_new':
-                    model = Model()
-                    model.replace_data(form_data)
-                    
+                model.replace_data(request.form.to_dict())
+                if pks == '_new':
                     db_sess.add(model)
-                else:
-                    model = db_sess.get(Model, pk_value_tuple) # type: ignore
-                    if model is None:
-                        return jsonify({
-                            'status': 'error', 
-                            'message': _('Missing record')
-                        }), 404
-                    model.replace_data(form_data)
                 db_sess.commit()
-                return jsonify({
-                    'status': 'success', 
-                    'message': _('Successfully saved changes')
-                })
+                return jsonify(success=True), 200
             except Exception as e:
                 db_sess.rollback()
-                msg = _('_failedto save changes')
-                err = _('Error')
-                return jsonify({
-                    'status': 'error', 
-                    'message': f'{msg}: {err} {str(e)}'
-                }), 500
-
-        with db_session() as db_sess:
-            Base.db_session = db_sess
-
-            try:
-                if _pks == '_new':
-                    model = Model()
-                else:
-                    model = db_sess.get(Model, pk_value_tuple)
-                ref_names = Model.fetch_ref_names()
-            except Exception as e:
-                abort(404)
-
-            
-    prop_info = Model.get_prop_info(exclude_info={'readonly'})
-    
-    with db_session() as sess:
-        options_fk = {}
-        if issubclass(Model, ForeignKeyMixin):
-            options_fk = Model.get_options_fk(sess)
-        if record_id != '_new':
-            model = sess.get(Model, record_id)
+                return jsonify(success=False, error=str(e)), 500
+        
+        # method == GET
+        ref_names = Model.fetch_ref_names()
+        date_keys = Model.get_col_keys('date')
+        json_keys = Model.get_col_keys('json')
+        required_keys = Model.get_col_keys('required')
+        readonly_keys = Model.get_col_keys('readonly')
+        if pks == '_new':
+            data = dict()
         else:
-            model = None
+            data = model.data_dict(serializeable=True)
+    
     return render_template(
-        'crud/modify_record.html', 
+        'crud/modify_record.jinja',
+        navigation=navigation.get_nav({'Modify record': '#'}), 
         table_name=table_name, 
         model=model,
-        record_id=record_id,
-        options_fk=options_fk, 
-        prop_info=prop_info
+        pks=pks,
+        ref_names=ref_names,
+        date_keys=date_keys,
+        json_keys=json_keys,
+        required_keys=required_keys,
+        readonly_keys=readonly_keys,
+        data=data
     )
 
 def delete_record(table_name, record_id):
+    if request.method != 'DELETE':
+        abort(404)
     if table_name not in Base.model_map:
         abort(404)
     Model = Base.model_map[table_name]
     pks = tuple(record_id.split(','))
+
     with db_session() as sess:
         model = sess.get(Model, pks)
         if model:
             sess.delete(model)
         try:
             sess.commit()
-            return jsonify({
-                'status': 'success', 
-                'message': _('Successfully deleted the record')
-            })
+            return jsonify(success=True), 200 
         except Exception as e:  
             sess.rollback()
-            return jsonify({
-                'status': "error",
-                "message": _('_failedto delete the record')
-            }), 500
+            return jsonify(success=False, error=str(e)), 500
         
 def view_record(table_name: str, record_id: str) -> Any:
     pass

@@ -155,7 +155,7 @@ export class ModalAlert extends ModalDBMan {
         if(!this.modalBody)
             return;
         this.btnAcknowledge = this.modal.querySelector('[data-dbman-toggle="acknowledge"]');
-        if(!this.btnConfirm)
+        if(!this.btnAcknowledge)
             return;
         this.btnConfirm = this.modal.querySelector('[data-dbman-toggle="confirm"]');
         if(!this.btnConfirm)
@@ -163,6 +163,14 @@ export class ModalAlert extends ModalDBMan {
         this.btnCancel = this.modal.querySelector('[data-dbman-toggle="cancel"]');
         if(!this.btnCancel)
             return;
+        this.predefinedTexts = {};
+        const spanElements = this.modal.querySelectorAll('span[data-dbman-key].d-none');
+        spanElements.forEach(span => {
+            const key = span.dataset.dbmanKey;
+            const title = span.dataset.dbmanTitle;
+            const text = span.textContent;
+            this.predefinedTexts[key] = [ title, text ];
+        });
         this.confirmActionHandlers = [];
         this.validBtns = {
             'acknowledge': this.btnAcknowledge,
@@ -174,38 +182,40 @@ export class ModalAlert extends ModalDBMan {
         this.active = true;
     }
 
-    update({msg = this.msg, title = this.title, buttonTypes = 'acknowledge', confirmAction = null}) {
+    update({ msgKey = null, message = '', buttonTypes = ['acknowledge'], confirmAction = null }) {
         if (!this.active) 
             return;
-        if (msg) {
-            this.msg = msg;
-            this.modalBody.textContent = msg;
+        if (msgKey) {
+            this.msg = '<div class="container"><div class="row">' + 
+                this.predefinedTexts[msgKey][1] + '</div><div class="row">' + 
+                message + '</div></div>';
+            this.title = this.predefinedTexts[msgKey][0];
+            this.modalBody.innerHTML = this.msg;
+            this.modalTitle.textContent = this.title;
         }
-        if (title) {
-            this.title = title;
-            this.modalTitle.textContent = title;
-        }
-        let buttonTypesList = [];
-        if (buttonTypes) {
-            buttonTypesList = buttonTypes.split(',');
-            const validBtnNames = Object.keys(this.validBtns);
-            buttonTypesList.forEach(btnName => {
-                if (validBtnNames.includes(btnName)) {
-                    btn = this.validBtns[btnName];
-                    btn.classList.remove('d-none');
-                    validBtnNames.pop(btnName);
-                }
-            });
-            validBtnNames.forEach(btnName => {
-                btn = this.validBtns[btnName];
-                btn.classList.add('d-none');
-            });
-        }
-        if(confirmAction && typeof confirmAction === 'function' && buttonTypesList.includes('confirm')) {
+
+        const validBtnNames = Object.keys(this.validBtns);
+        // show buttons in buttonTypes and hide buttons not in buttonTypes
+        buttonTypes.forEach(btnName => {
+            if (validBtnNames.includes(btnName)) {
+                const btn = this.validBtns[btnName];
+                btn.classList.remove('d-none');
+                const index = validBtnNames.indexOf(btnName);
+                validBtnNames.splice(index, 1);
+            }
+        });
+
+        validBtnNames.forEach(btnName => {
+            const btn = this.validBtns[btnName];
+            btn.classList.add('d-none');
+        });
+        
+        this.removeAllHandlers();
+        if(confirmAction && 
+            typeof confirmAction === 'function' && 
+            buttonTypes.includes('confirm')) {
             const confirmActionHandler = confirmAction;
-            this.removeAllHandlers();
-            this.btnConfirm.addEventListener('click', confirmActionHandler);
-            this.confirmActionHandlers.push(confirmActionHandler);
+            this._addHandler(confirmActionHandler);
         }
     }
 
@@ -218,6 +228,7 @@ export class ModalAlert extends ModalDBMan {
         this.confirmActionHandlers.forEach((handler) => {
             this.btnConfirm.removeEventListener('click', handler);
         });
+        this.confirmActionHandlers = [];
     }
 
     removeHandler(handler) {
