@@ -8,7 +8,7 @@ from app import _
 from app.utils.templates import PageNavigation
 from app.extensions import db_session, Base
 
-# 本蓝图的基础导航
+
 navigation = PageNavigation ({
     '_homepage': '/',
     '_crud': '/crud'
@@ -54,9 +54,7 @@ def modify_record(table_name: str, pks: str) -> Any:
             abort(404)
         if request.method == 'POST':
             try:
-                print(request.form.to_dict())
                 model.replace_data(request.form.to_dict())
-                print(model.data_dict())
                 if pks == '_new':
                     db_sess.add(model)
                 db_sess.commit()
@@ -66,13 +64,9 @@ def modify_record(table_name: str, pks: str) -> Any:
                 return jsonify(success=False, error=str(e)), 500
         
         # method == GET
-        ref_pks_name = Model.fetch_ref_pks_name()
-        date_keys = Model.get_col_keys('date')
+        select_options = Model.fetch_col_select_options()
         pk_keys = Model.get_col_keys('pk')
         datajson_keys = Model.get_col_keys('DataJson')
-        required_keys = Model.get_col_keys('required')
-        readonly_keys = Model.get_col_keys('readonly')
-        longtext_keys = Model.get_col_keys('longtext')
         
         data = model.data_dict(serializeable=True)
         headers = [
@@ -86,12 +80,12 @@ def modify_record(table_name: str, pks: str) -> Any:
         navigation=navigation.get_nav({'Modify record': '#'}), 
         table_name=table_name, 
         pks=pks,
-        ref_pks_name=ref_pks_name,
-        date_keys=date_keys,
+        select_options=select_options,
+        date_keys=Model.get_col_keys('date'),
         datajson_keys=datajson_keys,
-        required_keys=required_keys,
-        readonly_keys=readonly_keys,
-        longtext_keys=longtext_keys,
+        required_keys=Model.get_col_keys('required'),
+        readonly_keys=Model.get_col_keys('readonly'),
+        longtext_keys=Model.get_col_keys('longtext'),
         headers=headers,
         data=data
     )
