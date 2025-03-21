@@ -415,20 +415,20 @@ class Base(DeclarativeBase):
         return datatable
 
     @classmethod
-    def fetch_ref_pks_name(cls) -> dict[str, tuple[Any]]:
+    def fetch_col_select_options(cls) -> dict[str, tuple[Any]]:
         """
         :rtype: dict[str, Any]
-        :return: dict with key = refereneced column name and 
-         value = tuple (referenced column values
-         in pre-defined order in `cls.col_key_info['ref_name_order']`)}
-        
-        .. example::
-        { 'entity_name': ('entity_id', 'entity_frequency.desc')}
+        :return:
+        - key = local column name 
+        - value = [tuple[referenced column values, referenced column name]]
+        - values are ordered according to col_key_info['ref_name_order']
+        - orderby = { 'entity_name': tuple['entity_id', 'entity_frequency.desc']}
         """
         if cls._validate_session() is False:
             raise DatabaseError('Invalid db_session {cls.db_session} for {cls}')
         
-        ref_pks_name = dict() 
+        col_select_options = dict()
+        # Extract foreign key col and referenced pks and name tuple for each relationship
         mapper = cls.__mapper__
         for rel in mapper.relationships:
             if rel.uselist:
@@ -468,5 +468,12 @@ class Base(DeclarativeBase):
                     name_value = row[-1]
                     row_pks_name = (pk_values, name_value)
                     list_pks_name.append(row_pks_name)
-                ref_pks_name[next(iter(rel.local_columns)).name] = list_pks_name
-        return ref_pks_name
+                col_select_options[next(iter(rel.local_columns)).name] = list_pks_name
+        
+        # Extract Enum types and get options from Enum definition
+        enum_cols = cls.get_cols('Enum')
+        for col in enum_cols:
+            enum_cls = col.type.python_type
+            values = [(member.value, member.value) for member in enum_cls] # type: ignore enum_cls is subclass of Enum
+            col_select_options[col.name] = values
+        return col_select_options
