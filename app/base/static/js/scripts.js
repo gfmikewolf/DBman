@@ -6,6 +6,7 @@
 
 import { ModalAlert } from './modal-dbman.js';
 import { Datatable } from './datatable-dbman.js';
+import { FormModify } from './form-modify-dbman.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // init bs tooltips
@@ -35,7 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } 
             if (moduleNames.includes('form-modify')) {
-
+                const formModify = new FormModify('#form-modify-main', alertModal);
+                if(!formModify.active) {
+                    console.log('Failed to initialize FormModify instance.');
+                }
             }
         }
     }

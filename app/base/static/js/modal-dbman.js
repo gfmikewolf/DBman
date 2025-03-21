@@ -1,19 +1,21 @@
-import {DragContainer} from './dragcontainer-dbman.js'
+import { DragContainer } from './drag-container-dbman.js'
+
 export class ModalDBMan {
     constructor(selector) {
         this.active = true;
         this.modal = document.querySelector(selector);
-        if(!this.modal) {
+        if (!this.modal) {
             this.active = false;
             return;
         }
         this.bsModal = bootstrap.Modal.getOrCreateInstance(this.modal);
-        if(!this.bsModal) {
+        if (!this.bsModal) {
             this.active = false;
             return;
         }
+        // Add an extra handler when the modal is being hidden
         this.modal.addEventListener('hide.bs.modal', this._extraHandlerHide.bind(this));
-        this.selector = selector;       
+        this.selector = selector;
     }
     
     show() {
@@ -26,7 +28,7 @@ export class ModalDBMan {
     }
 
     /**
-     * 让模态框内部失去聚焦，防止浏览器aria-hidden警告
+     * Remove focus from elements inside the modal to prevent aria-hidden warnings.
      */
     _blurFocus() {
         if (document.activeElement && document.activeElement.closest(this.selector)) {
@@ -42,49 +44,51 @@ export class ModalDBMan {
 export class ModalDatatableConfig extends ModalDBMan {
     constructor(selector, table) {
         super(selector);
-        if(!this.active) {
+        if (!this.active) {
             return;
         }
         this.headerListgroup = this.modal.querySelector('.list-group');
-        if(!this.headerListgroup) {
+        if (!this.headerListgroup) {
             this.active = false;
             return;
         }
         const headerLis = this.headerListgroup.querySelectorAll('li[data-dbman-sn]');
-        if(headerLis.length === 0) {
+        if (headerLis.length === 0) {
             this.active = false;
             return;
         }
         const headerCboxes = this.headerListgroup.querySelectorAll('li[data-dbman-sn] [type="checkbox"]');
-        if(headerCboxes.length === 0) {
+        if (headerCboxes.length === 0) {
             this.active = false;
             return;
         }
-        // save original checkbox orders and checked states
+        // Save original checkbox order and checked states
         this._listOriginalStates = this._saveListStates();
         this._listInitialStates = [];
 
-        // add extra handler to save initial checkbox orders and checked states
+        // Add extra handler to save current checkbox order and states when showing the modal
         this.modal.addEventListener('show.bs.modal', this._extraHandlerSaveInitialStates.bind(this));
-        // add extra handler to restore initial checkbox orders and checked states
+        // Add extra handler to restore initial checkbox order and states when hiding the modal
         this.modal.addEventListener('hide.bs.modal', this._extraHandlerRestoreInitialStates.bind(this));
-        // add extra handler to save changes in headers config
-        
+        // Find the "Save Changes" button in the modal header config
         this._btnSaveChanges = this.modal.querySelector('[data-dbman-toggle="save-changes"]');
-        if(!this._btnSaveChanges) {
+        if (!this._btnSaveChanges) {
             this.active = false;
             return;
         }
         this._btnSaveChanges.addEventListener('click', this._handlerSaveChanges.bind(this));
 
+        // Find the "Restore Default" button in the modal header config
         this._btnRestoreDefault = this.modal.querySelector('[data-dbman-toggle="restore-default"]');
-        if(!this._btnRestoreDefault) {
+        if (!this._btnRestoreDefault) {
             this.active = false;
             return;
         }
         this._btnRestoreDefault.addEventListener('click', this._handlerRestoreDefault.bind(this));
-        this._dragContainer = new DragContainer(this.headerListgroup, 'vertical')
+
+        this._dragContainer = new DragContainer(this.headerListgroup, 'vertical');
         this.table = table;
+        // When _saveChanges is true, hiding the modal will not restore the initial states
         this._saveChanges = false;
     }
 
@@ -100,10 +104,10 @@ export class ModalDatatableConfig extends ModalDBMan {
 
     _restoreListStates(listStates) {
         listStates.forEach((listState) => {
-            const li = this.headerListgroup.querySelector('li[data-dbman-sn="'+ listState[0] +'"]');
+            const li = this.headerListgroup.querySelector('li[data-dbman-sn="' + listState[0] + '"]');
             const cb = li.querySelector('[type="checkbox"]');
             cb.checked = listState[1];
-            this.headerListgroup.appendChild(li)
+            this.headerListgroup.appendChild(li);
         });
     }
 
@@ -112,7 +116,7 @@ export class ModalDatatableConfig extends ModalDBMan {
     }
 
     _extraHandlerRestoreInitialStates() {
-        if(this._saveChanges) {
+        if (this._saveChanges) {
             this._saveChanges = false;
             return;
         }
@@ -125,21 +129,20 @@ export class ModalDatatableConfig extends ModalDBMan {
         this.headerListgroup.querySelectorAll('li[data-dbman-sn]').forEach((li) => {
             const cb = li.querySelector('[type="checkbox"]');
             const colNum = li.dataset.dbmanSn;
-
             const th = this.table.querySelector('th[data-dbman-sn="' + colNum + '"]');
             const tds = this.table.querySelectorAll('td[data-dbman-sn="' + colNum + '"]');
             
-            // 移动数据表中选中的表头对应的列
+            // Move the selected header column in the data table
             theadRow.appendChild(theadRow.querySelector('th[data-dbman-sn="' + colNum + '"]'));
             tbodyRows.forEach((row) => {
                 row.appendChild(row.querySelector('td[data-dbman-sn="' + colNum + '"]'));
             });
 
-            // 显示数据表中选中的表头对应的列
+            // Show the column in the data table if checkbox is checked
             if (cb.checked) {
                 th.classList.remove('d-none');
                 tds.forEach((cell) => cell.classList.remove('d-none'));
-            // 隐藏数据表中未选中的的表头对应的列
+            // Hide the column if checkbox is not checked
             } else {
                 th.classList.add('d-none');
                 tds.forEach((cell) => cell.classList.add('d-none'));
@@ -157,31 +160,31 @@ export class ModalDatatableConfig extends ModalDBMan {
 export class ModalAlert extends ModalDBMan {
     constructor(selector) {
         super(selector);
-        if(!this.active) {
+        if (!this.active) {
             return;
         }
         this.modalTitle = this.modal.querySelector('.modal-title');
-        if(!this.modalTitle) {
+        if (!this.modalTitle) {
             this.active = false;
             return;
         }
         this.modalBody = this.modal.querySelector('.modal-body');
-        if(!this.modalBody) {
+        if (!this.modalBody) {
             this.active = false;
             return;
         }
         this.btnAcknowledge = this.modal.querySelector('[data-dbman-toggle="acknowledge"]');
-        if(!this.btnAcknowledge) {
+        if (!this.btnAcknowledge) {
             this.active = false;
             return;
         }
         this.btnConfirm = this.modal.querySelector('[data-dbman-toggle="confirm"]');
-        if(!this.btnConfirm) {
+        if (!this.btnConfirm) {
             this.active = false;
             return;
         }
         this.btnCancel = this.modal.querySelector('[data-dbman-toggle="cancel"]');
-        if(!this.btnCancel) {
+        if (!this.btnCancel) {
             this.active = false;
             return;
         }
@@ -190,25 +193,25 @@ export class ModalAlert extends ModalDBMan {
         spanElements.forEach(span => {
             const key = span.dataset.dbmanKey;
             const title = span.dataset.dbmanTitle;
-            const text = span.textContent;
-            this.predefinedTexts[key] = [ title, text ];
+            const text = span.innerText.trim();
+            this.predefinedTexts[key] = [title, text];
         });
         this.confirmActionHandlers = [];
         this.validBtns = {
             'acknowledge': this.btnAcknowledge,
             'confirm': this.btnConfirm,
             'cancel': this.btnCancel
-        }
+        };
         this.msg = this.modalBody.textContent;
         this.title = this.modalTitle.textContent;
     }
 
     update({ msgKey = null, message = '', buttonTypes = ['acknowledge'], confirmAction = null }) {
-        if (!this.active) 
+        if (!this.active)
             return;
         if (msgKey) {
-            this.msg = '<div class="container"><div class="row">' + 
-                this.predefinedTexts[msgKey][1] + '</div><div class="row">' + 
+            this.msg = '<div class="container"><div class="row">' +
+                this.predefinedTexts[msgKey][1] + '</div><div class="row">' +
                 message + '</div></div>';
             this.title = this.predefinedTexts[msgKey][0];
             this.modalBody.innerHTML = this.msg;
@@ -216,7 +219,7 @@ export class ModalAlert extends ModalDBMan {
         }
 
         const validBtnNames = Object.keys(this.validBtns);
-        // show buttons in buttonTypes and hide buttons not in buttonTypes
+        // Show buttons specified in buttonTypes and hide the others
         buttonTypes.forEach(btnName => {
             if (validBtnNames.includes(btnName)) {
                 const btn = this.validBtns[btnName];
@@ -232,8 +235,8 @@ export class ModalAlert extends ModalDBMan {
         });
         
         this.removeAllHandlers();
-        if(confirmAction && 
-            typeof confirmAction === 'function' && 
+        if (confirmAction &&
+            typeof confirmAction === 'function' &&
             buttonTypes.includes('confirm')) {
             const confirmActionHandler = confirmAction;
             this._addHandler(confirmActionHandler);
@@ -253,7 +256,7 @@ export class ModalAlert extends ModalDBMan {
     }
 
     removeHandler(handler) {
-        if(handler && typeof handler === 'function' && this.confirmActionHandlers.includes(handler)) {
+        if (handler && typeof handler === 'function' && this.confirmActionHandlers.includes(handler)) {
             this.btnConfirm.removeEventListener('click', handler);
             this.confirmActionHandlers = this.confirmActionHandlers.filter((h) => h !== handler);
         }

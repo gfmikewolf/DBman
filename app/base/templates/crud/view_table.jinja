@@ -4,6 +4,7 @@
 #}
 {%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
 {%- extends "base.jinja" -%}
+{%- block head -%}<meta name="modules" content="modal-alert,datatable">{%- endblock head -%}
 {%- set prev_page = url_for('base.crud.index') -%}
 {%- block content -%}
 <div class="container-fluid">

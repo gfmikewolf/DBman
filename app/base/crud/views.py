@@ -54,7 +54,9 @@ def modify_record(table_name: str, pks: str) -> Any:
             abort(404)
         if request.method == 'POST':
             try:
+                print(request.form.to_dict())
                 model.replace_data(request.form.to_dict())
+                print(model.data_dict())
                 if pks == '_new':
                     db_sess.add(model)
                 db_sess.commit()

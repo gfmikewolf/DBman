@@ -49,7 +49,7 @@ def serialize_value(attr: Any) -> Any:
         srl_value = attr.data_dict(serializeable=True)
     else:
         srl_value = attr
-    return srl_value
+    return srl_value if srl_value is not None else ''
 
 def convert_value_by_python_type(value: Any, python_type: Any) -> Any:
     """

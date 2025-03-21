@@ -102,7 +102,9 @@ class Base(DeclarativeBase):
             raise AttributeError(f'Invalid data: {args_dict} to match {self}')
         for key in mod_col_keys:
             if key in args_dict:
-                setattr(self, key, args_dict[key])
+                value = args_dict[key]
+                if value is not None:
+                    setattr(self, key, value)
        
     @classmethod
     def get_cols(cls, *args: str) -> set[Column]:
@@ -305,7 +307,7 @@ class Base(DeclarativeBase):
                 raise AttributeError(f'Invalid attribute {data_key} for {self}')
             attr = getattr(self, data_key)
             if attr is None:
-                data_dict[data_key] = None
+                data_dict[data_key] = '' if serializeable else None
             else:
                 data_dict[data_key] = serialize_value(attr) if serializeable else attr
         return data_dict

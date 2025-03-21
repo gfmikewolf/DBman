@@ -11,57 +11,85 @@
         readonly_keys: set(str),
         data: dict(key, value)
 #}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
 {%- extends "base.jinja" -%}
 {%- set prev_page = url_for('base.crud.view_table', table_name=table_name) -%}
+{%- block head -%}<meta name="modules" content="form-modify,modal-alert">{%- endblock head -%}
 {%- block content -%}
 <div class="container-fluid">
     <div class="row">
-        <h5 class="mt-3">{{ _('Modify Record') }}  [{{ table_name }}] id={{ pks if pks != '_new' else _('Create New Record') }}</h5>
+        <h5 class="mt-3">{{- _('Modify Record') -}}  [{{- table_name -}}] id={{- pks if pks != '_new' else _('Create New Record') -}}</h5>
         <div class="col col-sm-12 col-md-8 col-lg-6 mt-3">
-            <form method="post" id="form-modify-main">
+            <form method="post" id="form-modify-main" class="needs-validation" novalidate>
                 <div class="card">
-                    <div class="card-header">{{ _('_enter_form_data') }}</div>
+                    <div class="card-header">{{- _('_enter_form_data') -}}</div>
                     <div class="card-body">
                     {%- for key in headers -%}
                         {%- set value = data[key] -%}
                         <div class="input-group mb-3">
-                            <label class="input-group-text">
-                                {{ key }}
+                            <label class="input-group-text" for="{{- key -}}">
+                                {{- key -}}
                                 {%- if key in required_keys -%}
-                                <div class="text-danger">*</div>
+                                    <div class="text-danger">*</div>
                                 {%- endif -%}
                             </label>
                             {%- if key in date_keys -%}
-                                <input type="date" class="form-control" name="{{ key }}" value="{{ '' if pks =='_new' else value }}" {{ 'required' if key in required_keys }}>
+                                <input {{ 'name="' + key + '"' if key not in readonly_keys }} type="date" class="form-control" id="{{- key -}}" 
+                                    value="{{- '' if pks =='_new' else value -}}" 
+                                    {{ 'required' if key in required_keys }}
+                                    {{ 'readonly' if key in readonly_keys }}>
                             {%- elif key in ref_pks_name.keys() -%}
-                                <select class="form-select" name="{{ key }}" {{ 'required' if key in required_keys }}>
+                                <select {{ 'name="' + key + '"' if key not in readonly_keys }} class="form-select" id="{{- key -}}" 
+                                {{- 'required' if key in required_keys -}}
+                                {{- 'readonly' if key in readonly_keys -}}>
                                 {%- for option in ref_pks_name[key] -%}
-                                    <option value="{{ option[0] }}" 
+                                    <option value="{{- option[0] -}}"
                                     {%- if pks and value == option[0]|string -%}
                                         selected
                                     {%- endif -%}>
-                                        {{ option[1] }}
+                                        {{- option[1] -}}
                                     </option>
                                 {%- endfor -%}
                                 </select>
                             {%- elif key in datajson_keys -%}
                                 <div>json place holder</div>
                             {%- elif key in longtext_keys -%}
-                                <textarea name="{{ key }}" class="form-control" rows="{{ 3 if value is none else ((value|length)/40)|round|int + 1 }}">{{ '' if pks == '_new' else value }}</textarea>
+                                <textarea {{ 'name="' + key + '"' if key not in readonly_keys }} id="{{- key -}}" class="form-control"
+                                    rows="{{- 3 if value is none else ((value|length)/40)|round|int + 1 -}}" 
+                                    {{ 'required pattern=".*\S.*"' if key in required_keys }}
+                                    {{ 'readonly' if key in readonly_keys }}>
+                                    {{- '' if pks == '_new' else value -}}
+                                </textarea>
                             {%- else -%}
-                                <input type="text" class="form-control" name="{{ key }}" value="{{ '' if pks == '_new' else value }}" {{ 'required' if key in required_keys }}>
+                                <input {{ 'name="' + key + '"' if key not in readonly_keys }} type="text" class="form-control" id="{{- key -}}" 
+                                    value="{{- '' if pks == '_new' else value -}}" 
+                                    {{ 'required pattern=".*\S.*"' if key in required_keys }}
+                                    {{ 'readonly' if key in readonly_keys }}>
+                                <div class="invalid-feedback">{{- _('Please enter a meaningful string') -}}</div>
                             {%- endif -%}
-                        </div>                    
+                        </div>
                     {%- endfor -%}
                     </div>
                 </div>
                 <div class="d-flex justify-content-end w-100 mt-2">
-                    <a href="{{ url_for('base.crud.view_table', table_name=table_name) }}" class="btn btn-outline-dark mx-2">{{ _('Cancel') }}</a>
-                    <button type="submit" class="btn btn-outline-dark mx-2">{{ _('Save Changes') }}</button>
+                    <a href="{{- url_for('base.crud.view_table', table_name=table_name) -}}" class="btn btn-outline-dark mx-2">{{- _('Cancel') -}}</a>
+                    <button type="submit" class="btn btn-outline-dark mx-2">{{- _('Save Changes') -}}</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 {%- endblock -%}
+{%- block alert -%}
+{{- ModalDBMan(
+    id='modal-alert',
+    type='modal-alert',
+    title=_('Alert'),
+    msgs={
+        'success': [_('Success'), _('Operation Successful')],
+        'error': [_('Error'), _('Operation Error')],
+        'warning_delete': [_('Alert'), _('_warning_delete')]
+    }
+) -}}
+{%- endblock alert -%}
 {%- block scripts -%}{%- endblock -%}

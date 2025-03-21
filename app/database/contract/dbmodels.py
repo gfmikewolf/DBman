@@ -11,9 +11,9 @@ class Contract(Base):
     contract_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     contract_name: Mapped[str]
     contract_fullname: Mapped[str | None]
-    contract_effectivedate: Mapped[date] = mapped_column(Date)
-    contract_expirydate: Mapped[date] = mapped_column(Date)
-    contract_scope: Mapped[str]
+    contract_effectivedate: Mapped[date | None] = mapped_column(Date)
+    contract_expirydate: Mapped[date | None] = mapped_column(Date)
+    contract_scope: Mapped[str | None]
     contract_entities: Mapped[str | None]
     contract_remarks: Mapped[str | None]
     contract_number_huawei: Mapped[str | None]
