@@ -80,7 +80,7 @@ class Clause(Base):
     amendment_id: Mapped[int] = mapped_column(Integer, ForeignKey('amendment.amendment_id'))
     clause_reviewcomments: Mapped[str | None] = mapped_column(String, info = {'longtext': True}) 
     clause_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
-    clause_type: Mapped[ClauseType] = mapped_column(SqlEnum(ClauseType))
+    clause_type: Mapped[ClauseType] = mapped_column(SqlEnum(ClauseType), info={'DataJson_id_for': 'clause_json'})
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
     clause_pos: Mapped[ClausePos] = mapped_column(SqlEnum(ClausePos))
