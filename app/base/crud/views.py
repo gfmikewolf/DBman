@@ -65,8 +65,8 @@ def modify_record(table_name: str, pks: str) -> Any:
         
         # method == GET
         select_options = Model.fetch_col_select_options()
+        datajson_ref_map = Model.fetch_datajson_ref_map()
         pk_keys = Model.get_col_keys('pk')
-        datajson_keys = Model.get_col_keys('DataJson')
         
         data = model.data_dict(serializeable=True)
         headers = [
@@ -82,7 +82,7 @@ def modify_record(table_name: str, pks: str) -> Any:
         pks=pks,
         select_options=select_options,
         date_keys=Model.get_col_keys('date'),
-        datajson_keys=datajson_keys,
+        datajson_keys=datajson_ref_map.keys(),
         required_keys=Model.get_col_keys('required'),
         readonly_keys=Model.get_col_keys('readonly'),
         longtext_keys=Model.get_col_keys('longtext'),
