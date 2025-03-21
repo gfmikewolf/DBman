@@ -174,7 +174,11 @@ class Base(DeclarativeBase):
                         info_cols.add(str_col)
                 cols.update(info_cols)
             else:
-                raise AttributeError(f'Invalid col info {info} for {cls}')
+                info_cols = set()
+                for col in cls.__mapper__.columns:
+                    if col.info.get(info, None) is not None:
+                        info_cols.add(col)
+                cols.update(info_cols)
         return cols
     
     @classmethod
@@ -298,6 +302,9 @@ class Base(DeclarativeBase):
             if hasattr(attr, 'type') and hasattr(attr.type, 'python_type'):
                 converted_value = convert_value_by_python_type(value, attr.type.python_type)
         super().__setattr__(key, converted_value)
+    
+    def _super_setattr(self, key: str, value: Any) -> None:
+        super().__setattr__(key, value)
    
     def data_dict(self, serializeable: bool = False) -> dict[str, Any]:
         data_dict = {'__tablename__': self.__tablename__}
@@ -475,5 +482,21 @@ class Base(DeclarativeBase):
         for col in enum_cols:
             enum_cls = col.type.python_type
             values = [(member.value, member.value) for member in enum_cls] # type: ignore enum_cls is subclass of Enum
-            col_select_options[col.name] = values
+            col_select_options[col.name] = values        
         return col_select_options
+    
+    @classmethod
+    def fetch_datajson_ref_map(cls) -> dict[str, str]:
+        datajson_cols = cls.get_cols('DataJson')
+        datajson_id_cols = cls.get_cols('DataJson_id_for')
+        datajson_ref_map = dict()
+        for dj_col in datajson_cols:
+            found = False
+            for id_col in datajson_id_cols:
+                id = id_col.info.get('DataJson_id_for', None)
+                if id and id == dj_col.name:
+                    datajson_ref_map[dj_col.name] = id_col.name
+                    found = True
+            if found == False:
+                raise AttributeError(f'{cls}.{dj_col.name} is a class derived from DataJson, but its identity col is not found in the same model')
+        return datajson_ref_map
