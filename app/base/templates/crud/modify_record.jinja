@@ -3,7 +3,7 @@
     @params:
         table_name,
         pks: str = comma joined primary keys,
-        ref_pks_name={fk_col_name: ((pks, name)...)}
+        select_options={fk_col_name: ((pks, name)...)}
         date_keys: set(str),
         longtext_keys: set(str),
         datajson_keys: set(str),
@@ -38,11 +38,11 @@
                                     value="{{- '' if pks =='_new' else value -}}" 
                                     {{ 'required' if key in required_keys }}
                                     {{ 'readonly' if key in readonly_keys }}>
-                            {%- elif key in ref_pks_name.keys() -%}
+                            {%- elif key in select_options.keys() -%}
                                 <select {{ 'name="' + key + '"' if key not in readonly_keys }} class="form-select" id="{{- key -}}" 
                                 {{- 'required' if key in required_keys -}}
                                 {{- 'readonly' if key in readonly_keys -}}>
-                                {%- for option in ref_pks_name[key] -%}
+                                {%- for option in select_options[key] -%}
                                     <option value="{{- option[0] -}}"
                                     {%- if pks and value == option[0]|string -%}
                                         selected
