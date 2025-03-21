@@ -1,5 +1,5 @@
 # app/database/contract/dbmodels.py
-from sqlalchemy import ForeignKey, Date,Integer, String
+from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from datetime import date
 from app.database.base import Base
@@ -80,10 +80,10 @@ class Clause(Base):
     amendment_id: Mapped[int] = mapped_column(Integer, ForeignKey('amendment.amendment_id'))
     clause_reviewcomments: Mapped[str | None] = mapped_column(String, info = {'longtext': True}) 
     clause_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
-    clause_type: Mapped[ClauseType] = mapped_column(String)
+    clause_type: Mapped[ClauseType] = mapped_column(SqlEnum(ClauseType))
     clause_effectivedate: Mapped[date | None] = mapped_column(Date)
     clause_expirydate: Mapped[date | None] = mapped_column(Date)
-    clause_pos: Mapped[ClausePos] = mapped_column(String)
+    clause_pos: Mapped[ClausePos] = mapped_column(SqlEnum(ClausePos))
     clause_json: Mapped[DataJson] = mapped_column(DataJsonType)
     
     amendment: Mapped['Amendment'] = relationship(
@@ -94,7 +94,6 @@ class Clause(Base):
     col_key_info = {
         'hidden': { 'clause_id', 'amendment_id' },
         'readonly': { 'clause_id' },
-
         'ref_name_order': {
             'amendment_name': ['contract_id', 'amendment_name']
         }
