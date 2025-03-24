@@ -14,12 +14,26 @@ class FormModifyMJ extends ContainerMJ {
 
   _findElements(container, modalAlert) {
     super._findElements && super._findElements(container, modalAlert);
+    this.datajsonRefMapContainer = this.getValidElement('div.dbman-datajson-refmap');
     this.submitButton = this.getValidElement('button[type="submit"]');
   }
 
+  _initProperties(container, modalAlert) {
+    super._initProperties && super._initProperties(container, modalAlert);
+    this.datajsonRefMap = Array.from(
+      this.datajsonRefMapContainer.querySelectorAll('div.dbman-item')
+    ).reduce(
+      (records, element) => (
+        records[element.dataset.dbmanKey] = element.dataset.dbmanValue, 
+        records
+      ), 
+      {}
+    );
+  }
   _initFunctions(container, modalAlert) {
     super._initFunctions && super._initFunctions(container, modalAlert);
     this.submitButton.addEventListener('click', this._submit.bind(this));
+    this._initDatajson();
   }
 
   _submit(event) {
@@ -77,6 +91,27 @@ class FormModifyMJ extends ContainerMJ {
         buttonTypes: ['acknowledge']
       });
       this.modalAlert.show(2000);
+    });
+  }
+
+  _initDatajson() {
+    Object.entries(this.datajsonRefMap).forEach(([key, value]) => {
+      const idElement = this.getValidElement(`[name="${value}"]`);
+      idElement.addEventListener('change', () => {
+        const cacheKey = idElement.value;
+        const targetElem = this.getValidElement(`[name="${key}"]`);
+        if (this.datajsonCache[cacheKey]) {
+          targetElem.innerHTML = this.datajsonCache[cacheKey].info || '';
+        } else {
+          fetch(`/api/get-datajson?value=${encodeURIComponent(cacheKey)}`)
+            .then(response => response.json())
+            .then(datajson => {
+              this.datajsonCache[cacheKey] = datajson; // 保存缓存
+              targetElem.innerHTML = datajson.info || '';
+            })
+            .catch(error => console.error('Error fetching Datajson:', error));
+        }
+      });
     });
   }
 }
