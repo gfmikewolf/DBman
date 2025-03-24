@@ -487,6 +487,9 @@ class Base(DeclarativeBase):
     
     @classmethod
     def fetch_datajson_ref_map(cls) -> dict[str, str]:
+        """
+        :return: dict {local_col.name: datajson_id_col.name }
+        """
         datajson_cols = cls.get_cols('DataJson')
         datajson_id_cols = cls.get_cols('DataJson_id_for')
         datajson_ref_map = dict()
