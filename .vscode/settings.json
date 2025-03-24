@@ -1,5 +1,6 @@
 {
     "python.analysis.typeCheckingMode": "standard",
-    "python.analysis.autoImportCompletions": true
+    "python.analysis.autoImportCompletions": true,
+    "git.ignoreLimitWarning": true
 
 }

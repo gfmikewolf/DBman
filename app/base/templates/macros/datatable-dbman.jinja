@@ -1,0 +1,195 @@
+{#- app/base/templates/macros/dbman-datatable.jinja -#}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
+{#- depends on Bootstrap 5, Font Awesome 6
+    @param name - table name, default is 'main'
+    @param data - dict of headers, data, pks, headers_json, ref_map, ref_pks, etc.
+    @return - a datatable with functions like search, delete, modify etc.
+
+    selectors:
+    - container: #dbman-datatable-{{ name }}
+    - table: .dbman-datatable-table
+    - modal config: #dbman-datatable-modal-config-{{ name }}
+    - download CSV button: [data-dbman-toggle="download-csv"]
+    
+    - check-all input: [data-dbman-toggle="check-all"]
+    - check-item input: [data-dbman-toggle="check-item"]
+    
+    - table search block: .dbman-datatable-search
+      - search input: [type="search"]
+      - no-filter button: [data-dbman-toggle="no-filter"]
+      - search button: [data-dbman-toggle="search"]
+
+    - batch delete button: [data-dbman-toggle="batch-delete"]
+    - modify button: [data-dbman-toggle="modify-record"] 
+    - delete button: [data-dbman-toggle="delete-record"]
+      - delete url is stored in data-dbman-url attribute
+      - a warning prompt message is requested to confirm deletion
+
+    table construct:
+    - data columns are tagged with data-dbman-sn="index(starting from 1) of header in headers"
+
+    data constrcut:
+    - data['headers'] - list of headers
+    - data['data'] - list of data rows
+    - data['_pks'] - list of primary keys joined by comma
+    - data['headers_json'] - list of headers with normal json data
+    - data['ref_map'] - {header with foreign key: {ref_table, [(ref_pks, ref_name)...]}}
+    - data['ref_pks'] - list of foreign key reference primary keys
+
+-#}
+{%- macro DatatableDBMan(
+      table_name=none,
+      name='main',
+      data=dict()
+    ) 
+-%}
+<div class="container-fluid dbman-datatable" id="dbman-datatable-{{ name }}">
+  <div class="row">
+    <div class="col col-12 d-flex justify-content-between">
+      <div class="btn-group me-1 d-flex" role="group">
+        {#- button to toggle table config modal #}
+        <button class="btn btn-sm btn-outline-dark" 
+          data-bs-toggle="modal"
+          data-bs-target="#dbman-datatable-config-{{ name }}">
+          <i class="fa fa-gear" 
+            data-bs-toggle="tooltip" 
+            data-bs-title="{{ _('_table_config') }}">
+          </i>
+        </button>
+      </div>
+      {#- button group for download, batch delete #}
+      <div class="btn-group me-1 d-flex" role="group">
+        <button class="btn btn-sm btn-outline-dark" data-dbman-toggle="download-csv">
+          <i class="fa fa-download" 
+            data-bs-toggle="tooltip" 
+            data-bs-title="{{ _('Download') }}">
+          </i>
+        </button>
+        <button class="btn btn-sm btn-outline-dark" data-dbman-toggle="batch-delete">
+          <i class="fa fa-trash" 
+            data-bs-toggle="tooltip" 
+            data-bs-title="{{ _('Batch Delete') }}">
+          </i>
+        </button>
+      </div>
+      {#- search input and buttons for no-filter and search #}
+      <div class="input-group input-group-sm cols-auto dbman-datatable-search" role="group">
+        <input name="datatable-search-input" 
+          class="form-control form-control-sm" 
+          type="search" 
+          placeholder="{{ _('Search') }}">
+        <button class="btn btn-sm btn-outline-dark d-none" 
+          data-dbman-toggle="no-filter">
+          <i class="fa-solid fa-filter-circle-xmark" 
+            data-bs-toggle="tooltip"
+            data-bs-title="{{ _('Remove Filter') }}">
+          </i>
+        </button>
+        <button class="btn btn-sm btn-outline-dark" 
+          data-dbman-toggle="search" 
+          data-bs-toggle="tooltip" 
+          data-bs-title="{{ _('Search') }}">
+          <i class="fa fa-search"></i>
+        </button>
+      </div>
+      {#- button for adding a record, at the right top for convenience 
+        - pks='_new' stands for adding a record #}
+      <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks='_new') }}"
+        class="btn btn-sm btn-outline-dark">
+        <i class="fa fa-plus" 
+          data-bs-toggle="tooltip" 
+          data-bs-title="{{ _('Add Record') }}">
+        </i>
+      </a>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col col-12">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm dbman-datatable-table">
+          <thead class="sticky-top">
+            <tr class="align-items-center">
+              <th>
+                <input class="form-check-input" 
+                  data-dbman-toggle="check-all" 
+                  type="checkbox" 
+                  name="check-all">
+              </th>
+              <th>{{ _('_table_action') }}</th>
+              {%- for header in data['headers'] %}
+                <th data-dbman-sn="{{ loop.index }}">
+                  {{- header -}}
+                </th>
+              {%- endfor %}
+            </tr>
+          </thead>
+          <tbody>
+          {%- for row in data['data'] -%}
+            {%- set pks = data['_pks'][loop.index0] %}
+            <tr class="align-items-top">
+              <td>
+                <input class="form-check-imput" 
+                  data-dbman-toggle="check-item" 
+                  type="checkbox" 
+                  value="{{ pks }}" 
+                  name="check-{{ pks }}">
+              </td>
+              <td>
+                <div class="btn-group" role="group">
+                  <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}"
+                    class="btn btn-sm btn-outline-dark">
+                    <i class="fa fa-edit" 
+                      data-bs-toggle="tooltip"
+                      data-bs-title="{{ _('Modify') }}">
+                    </i>
+                  </a>
+                  &nbsp;
+                  <button
+                    class="btn btn-sm btn-outline-dark"
+                    data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, pks=pks) }}"
+                    data-dbman-toggle="delete-record"
+                    data-bs-toggle="tooltip"
+                    data-bs-title="{{ _('Delete') }}">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                </div>
+              </td>
+              {%- set row_number = loop.index0 -%}
+              {%- set headers_fk = data['ref_map']|map(attribute='ref_name')|list -%}
+              {%- set ref_header_start_index = -1 -%}
+              {%- for header in data['headers'] -%}
+                {%- set value = row[loop.index0] %}
+              <td data-dbman-sn="{{ loop.index }}">
+                {%- if header in data['headers_json'] -%}
+                {#- functions to be completed -#}
+                  {%- set value = 'JSON: ' + value -%}  
+                {%- elif header in headers_fk -%}
+                  {%- if ref_header_start_index == -1 -%}
+                    {%- set ref_header_start_index = loop.index0 -%}
+                  {%- endif -%}
+                  {# IMPORTANT: ASSUME all referenced columns are at the last of fetch_datatable_dict() #}
+                  {%- set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] -%}
+                  {%- set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] %}
+                  <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pks) }}">
+                    {{- value if value else '' -}}
+                  </a>
+                {%- else -%}
+                  {{ value if value else '' }}
+                {%- endif %}
+              </td>
+              {%- endfor %}
+              </tr>
+            {%- endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {{- ModalDBMan(
+    name=name,
+    type='dbman-datatable-config',
+    title=_('_table_config'),
+    headers=data['headers']
+  ) }}  
+</div>
+{%- endmacro -%}

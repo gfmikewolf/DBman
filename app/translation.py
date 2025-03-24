@@ -6,53 +6,60 @@ from flask import session, request, redirect, url_for
 LangSet = ['en', 'zh']
 
 def set_lang(lang):
-    # 将选择的语言存储到 session 中
-    if lang in LangSet:
-        session['language'] = lang
-        # 清除缓存的 translations
-    else:
-        print(f"Invalid language parameter: {lang}")  # 调试日志
-    return redirect(request.referrer or url_for('index'))  # 重定向回上一页
+  if lang in LangSet:
+    session['language'] = lang
+  else:
+    print(f"Invalid language parameter: {lang}")
+  return redirect(request.referrer or url_for('index'))
 
 def get_lang():
-    # 获取用户首选语言
-    lang = session.get('language')
-    if not lang:
-        # 使用浏览器的 Accept-Language 头
-        lang = request.accept_languages.best_match(LangSet)
-        print(f"Detected browser language: {lang}")  # 调试日志
-        # 默认使用英文
-        session['language'] = lang or 'en'
-    return session.get('language')
+  lang = session.get('language')
+  if not lang:
+    lang = request.accept_languages.best_match(LangSet)
+    print(f"Detected browser language: {lang}")
+    session['language'] = lang or 'en'
+  return session.get('language')
 
 def get_pagetext(locales):
-    lang = get_lang()
-    if lang in LangSet:
-        BASE_DIR = os.path.join(os.getcwd(), 'app', 'base', 'static', 'pagetext')
-        pagetext = {}
-        if locales and len(locales) > 0:
-            try:
-                for locale in locales:
-                    filepath = os.path.join(BASE_DIR, f'{locale}_{lang}.json')
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        jsonData = json.load(f)
-                    pagetext.update(jsonData)
-                return pagetext
-            except FileNotFoundError:
-                print(f"pagetext file {filepath} not found")  # 调试日志
-            return None
+  lang = get_lang()
+  if lang in LangSet:
+    BASE_DIR = os.path.join(os.getcwd(), 'app', 'base', 'static', 'pagetext')
+    pagetext = {}
+    if locales and len(locales) > 0:
+      try:
+        for locale in locales:
+          filepath = os.path.join(BASE_DIR, f'{locale}_{lang}.json')
+          with open(filepath, 'r', encoding='utf-8') as f:
+            jsonData = json.load(f)
+          pagetext.update(jsonData)
+        return pagetext
+      except FileNotFoundError:
+        print(f"pagetext file {filepath} not found")  # type: ignore
+      return None
+
+import re
 
 def translate_text(input_text, pagetext, lang):
-    # 分割输入文本为单词列表
-    words = input_text.split()
-    
-    # 替换单词为翻译，如果找不到翻译则保留原单词
-    translated_words = [pagetext.get(word.lower(), word) for word in words]
-    
-    # 将翻译后的单词重新组合成字符串
-    if lang == 'en': 
-        char_split = ' '
-    elif lang == 'zh':
-        char_split = ''
-    
-    return char_split.join(translated_words)
+  # 使用正则表达式拆分文本，同时保留非字母分隔符
+  # (\W+) 捕获所有非字母数字下划线的连续字符（包括空格、标点等）
+  tokens = re.split(r'(\W+)', input_text)
+  
+  translated_tokens = []
+  for token in tokens:
+    # 如果 token 全为字母（isalpha 判断排除数字和标点），就翻译单词（忽略大小写）
+    if token.isalpha():
+      translated_tokens.append(pagetext.get(token.lower(), token))
+    else:
+      # 对于连续空格，保留原样，不进行翻译，对于非空格的其他字符，直接翻译
+      if token.isspace():
+        translated_tokens.append(token)
+      else:
+        translated_tokens.append(pagetext.get(token, token))
+  
+  # 如果目标语言为中文，则删除翻译结果中所有仅包含空格的 token，
+  # 这样翻译成中文的句子就不会有英文句内的空格
+  if lang == 'zh':
+    return ''.join(token for token in translated_tokens if not token.isspace())
+  else:
+    return ''.join(translated_tokens)
+

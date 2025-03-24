@@ -1,0 +1,9 @@
+{# app/base/templates/macros/selectpicker-mj.jinja #}
+{%- macro Selectpicker(
+        name='',
+        id='Selectpicker-mj-' + name if name else 'Selectpicker-mj' ,
+        type='card',
+        title=_('Drag Container'),
+        data=[]
+    )
+-%}

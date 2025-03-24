@@ -1,176 +1,65 @@
-{# app/base/templates/crud/view_table.jinja #}
-{# 基模板 base.jinja 需要的参数：
-    prev_page: 返回上一页的链接
-#}
+{#- app/base/templates/crud/view_table.jinja -#}
+{%- from 'macros/datatable-dbman.jinja' import DatatableDBMan -%}
 {%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
 {%- extends "base.jinja" -%}
-{%- block head -%}<meta name="modules" content="modal-alert,datatable">{%- endblock head -%}
+
+{%- block head -%}
+  <meta name="modules" content="modal-alert,datatable">
+{%- endblock head -%}
+
+{#- @param for base.jinja - prev_page: redirect to upper level page -#}
 {%- set prev_page = url_for('base.crud.index') -%}
-{%- block content -%}
-<div class="container-fluid">
-    <!-- 查询表格首行：说明当前功能并生成下拉式查询列表，提供其他表格的查询链接 -->
+
+{%- block content %}
+  <div class="container-fluid">
     <div class="row">
-        <h5 class="mt-3">
-            {{ _('View Records') }}:
-            <div class="dropdown d-inline">
-                <button type="button" data-bs-toggle="dropdown" class="btn btn-sm btn-outline-dark dropdown-toggle">
-                    {{ table_name }}
-                </button>
-                {# 为不是当前查询表格的表格增加访问下拉菜单 #}
-                <ul class="dropdown-menu">
-                    {# 生成菜单的访问链接 #}
-                    {%- for tn in table_names -%}
-                    <li>
-                        {# 如果列表中的表格名与当前查询的表格名一样，显示为活动项，否则为链接 #}
-                        {%- if tn == table_name -%}
-                            {%- set dd_active = 'active' -%}
-                            {%- set dd_url = '#' -%}
-                        {%- else -%}
-                            {%- set dd_active = '' -%}
-                            {%- set dd_url = url_for('base.crud.view_table', table_name=tn) -%}
-                        {%- endif -%}
-                        <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
-                            {{ tn }}
-                        </a>
-                    </li>
-                    {%- endfor -%}
-                </ul>
-            </div>
-        </h5>
-    </div>
-    <!-- 查询表格功能区：包括表头自定义，CSV文件下载，全文前端检索，删除选中的记录等 -->
-    <div class="row">
-        <div class="d-flex justify-content-start align-items-center mb-3 dbman-datatable dbman-datatable-toolbar">
-            <!-- 表格设置功能区，不涉及后端数据处理 -->
-            <div class="btn-group me-1" role="group">
-                <!-- 表头自定义按钮 -->
-                <button class="btn btn-sm btn-outline-dark" data-bs-toggle="modal"
-                    data-bs-target="#datatable-modal-config-main">
-                    <i class="fa fa-gear" data-bs-toggle="tooltip" data-bs-title="{{ _('_table_config') }}"></i>
-                </button>
-            </div>
-            <!-- 表格批量操作功能区，包括当前过滤的表格数据导出为data.csv，批量删除等 -->
-            <div class="btn-group me-1" role="group">
-                <!-- 当前过滤的表格数据导出为data.csv -->
-                <button class="btn btn-sm btn-outline-dark" id="datatable-downloadCSV-main">
-                    <i class="fa fa-download" data-bs-toggle="tooltip" data-bs-title="{{ _('Download') }}"></i>
-                </button>
-                <!-- 批量删除选中的记录 -->
-                <button class="btn btn-sm btn-outline-dark" id="datatable-batch-delete-main">
-                    <i class="fa fa-trash" data-bs-toggle="tooltip" data-bs-title="{{ _('Batch Delete') }}"></i>
-                </button>
-            </div>
-            <!-- 表格全文前端检索功能区，包括全文检索输入框，全文检索按钮，清除全文检索按钮 -->
-            <div id="datatable-search-main" class="input-group input-group-sm justify-content-start" role="group">
-                <input name="datatable-search-input" class="form-control form-control-sm" type="search" placeholder="{{ _('Search') }}">
-                <button class="btn btn-sm btn-outline-dark d-none" data-dbman-toggle="no-filter">
-                    <i class="fa-solid fa-filter-circle-xmark" data-bs-toggle="tooltip"
-                        data-bs-title="{{ _('Remove Filter') }}"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-dark" data-dbman-toggle="search" data-bs-toggle="tooltip" data-bs-title="{{ _('Search') }}">
-                    <i class="fa fa-search"></i>
-                </button>
-            </div>
-            <!-- 添加记录按钮，跳转到添加记录页面，添加记录是最常见操作，从人机工程角度放在右侧 -->
-            {# pks='_new' 表示添加新记录，数据库表中不允许任何表主键设置为_new #}
-            <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks='_new') }}"
-                class="btn btn-sm btn-outline-dark">
-                <i class="fa fa-plus" data-bs-toggle="tooltip" data-bs-title="{{ _('Add Record') }}"></i>
-            </a>
+      <h5 class="mt-3">
+        {{- _('View Records') -}}:
+        <div class="dropdown d-inline">
+          <button type="button"
+            data-bs-toggle="dropdown" 
+            class="btn btn-sm btn-outline-dark dropdown-toggle">
+            {{- table_name -}}
+          </button>
+          {#- 为不是当前查询表格的表格增加访问下拉菜单 -#}
+          <ul class="dropdown-menu">
+            {#- 生成菜单的访问链接 -#}
+            {%- for tn in table_names -%}
+              <li>
+                {#- 如果列表中的表格名与当前查询的表格名一样，显示为活动项，否则为链接 -#}
+                {%- if tn == table_name -%}
+                  {%- set dd_active = 'active' -%}
+                  {%- set dd_url = '#' -%}
+                {%- else -%}
+                  {%- set dd_active = '' -%}
+                  {%- set dd_url = url_for('base.crud.view_table', table_name=tn) -%}
+                {%- endif -%}
+                <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
+                  {{- tn -}}
+                </a>
+              </li>
+            {%- endfor -%}
+          </ul>
         </div>
+      </h5>
     </div>
-    <!-- 查询表格区，表格左侧第1列为选项卡，用于选中当前记录，第2列为单条记录的修改与删除等单记录功能按钮 -->
     <div class="row">
-        <div class="table-responsive dbman-datatable dbman-datatable-body">
-            <table id="datatable-table-main" class="table table-hover table-sm dbman-datatable-table">
-                <thead class="sticky-top">
-                    <!-- 表头第1行，包括全选按钮，操作按钮，表头列名 -->
-                    <tr class="align-items-center">
-                        <th><input class="form-check-input" data-dbman-toggle="check-all" type="checkbox" name="check-all">
-                        </th>
-                        <th>{{ _('_table_action') }}</th>
-                        {%- for header in data['headers'] -%}
-                        {# 移动、显隐数据列时用到行号 loop.index #}
-                        <th data-dbman-sn="{{ loop.index }}">
-                            {{ header }}
-                        </th>
-                        {%- endfor -%}
-                    </tr>
-                </thead>
-                <tbody>
-                    {# 填充数据表格 #}
-                    {%- for row in data['data'] -%}
-                        {# 找到相关行的pks #}
-                        {%- set pks = data['_pks'][loop.index0] -%}
-                    <tr class="align-items-top">
-                        <td>
-                            <input class="form-check-imput" data-dbman-toggle="check-item" type="checkbox" value="{{ pks }}" name="check-{{ pks }}">
-                        </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}"
-                                    class="btn btn-sm btn-outline-dark">
-                                    <i class="fa fa-edit" data-bs-toggle="tooltip"
-                                        data-bs-title="{{ _('Modify') }}"></i>
-                                </a>
-                                &nbsp;
-                                <button
-                                    data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, pks=pks) }}"
-                                    data-dbman-toggle="delete-record"
-                                    class="btn btn-sm btn-outline-dark" data-bs-toggle="tooltip"
-                                    data-bs-title="{{ _('Delete') }}">
-                                    <i class="fa fa-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                        {%- set row_number = loop.index0 -%}
-                        {%- set headers_fk = data['ref_map']|map(attribute='ref_name')|list -%}
-                        {%- set ref_header_start_index = -1 -%}
-                        {%- for header in data['headers'] -%}
-                            {%- set value = row[loop.index0] -%}
-                        <td data-dbman-sn="{{ loop.index }}">
-                            {%- if header in data['headers_json'] -%}
-                                {%- set value = 'JSON: ' + value -%}  
-                            {%- elif header in headers_fk: -%}
-                                {%- if ref_header_start_index == -1 -%}
-                                    {%- set ref_header_start_index = loop.index0 -%}
-                                {%- endif -%}
-                                {# 取巧，fetch_datatable_dict方法引用列都在最后面挨着 #}
-                                {%- set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] -%}
-                                {%- set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] -%}
-                                    <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pks) }}">
-                                        {{ value if value else '' }}
-                                    </a>
-                            {%- else -%}
-                                    {{ value if value else '' }}
-                            {%- endif -%}
-                        </td>
-                        {%- endfor -%}
-                    </tr>
-                    {%- endfor -%}
-                </tbody>
-            </table>
-        </div>
+    {{- DatatableDBMan(table_name=table_name, name='main', data=data) }}
     </div>
-    {# Table Config Modal #}
-    {{ ModalDBMan(
-        id='datatable-modal-config-main',
-        type='datatable-modal-config',
-        title=_('_table_config'),
-        data=data['headers']
-    ) }}  
-</div>
+  </div>
 {%- endblock content -%}
-{%- block alert -%}
-{{ ModalDBMan(
-    id='modal-alert',
-    type='modal-alert',
+
+{%- block alert %}
+  {{ ModalDBMan(
+    name='main',
+    type='dbman-alert',
     title=_('Alert'),
     msgs={
-        'success': [_('Success'), _('Operation Successful')],
-        'error': [_('Error'), _('Operation Error')],
-        'warning_delete': [_('Alert'), _('_warning_delete')]
+      'success': [_('Success'), _('Operation Successful')],
+      'error': [_('Error'), _('Operation Error')],
+      'warning_delete': [_('Alert'), _('_warning_delete')]
     }
-) }}
+  ) }}
 {%- endblock alert -%}
+
 {%- block scripts -%}{%- endblock scripts -%}
