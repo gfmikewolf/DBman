@@ -1,5 +1,5 @@
 from sqlalchemy import select, Select
-from app.database.datajson import DataJson
+from app.database.base import DataJson
 from ..clausetypes import ClauseAction
 from ..dbmodels import Entity
 
@@ -33,17 +33,10 @@ class ClauseEntity(DataJson):
         'data': {'action', 'entity_id', 'old_entity_id'},
         'required': {'action', 'entity_id'},
         'foreign_keys': {
-            'entity_id': {
-                'ref_table': 'Entity', 
-                'ref_pk': 'entity_id',
-                'ref_name': 'entity_name',
-                'order_by': ('entity_name',)
-            },
-            'old_entity_id': {
-                'ref_table': 'Entity', 
-                'ref_pk': 'entity_id',
-                'ref_name': 'entity_name',
-                'order_by': ('entity_name',)
-            }
+            'entity_id': 'Entity',
+            'old_entity_id': 'Entity'
+        },
+        'ref_name_order': {
+            'entity_name': ('entity_name',)
         }
     }

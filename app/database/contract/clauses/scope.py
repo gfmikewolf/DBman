@@ -1,4 +1,4 @@
-from app.database.datajson import DataJson
+from app.database.base import DataJson
 from ..clausetypes import ClauseAction
 
 class ClauseScope(DataJson):

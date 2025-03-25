@@ -2,8 +2,7 @@
 from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from datetime import date
-from app.database.base import Base
-from app.database.datajson import DataJson, DataJsonType
+from app.database.base import Base, DataJson, DataJsonType
 from .clausetypes import ClausePos, ClauseType
 
 class Contract(Base):
@@ -35,7 +34,7 @@ class Contract(Base):
             'contract_entities'
         },
         'ref_name_order': {
-            'contract_name': ['contract_name']
+            'contract_name': ('contract_name',)
         }
     }
 
@@ -68,7 +67,7 @@ class Amendment(Base):
         'hidden': {'amendment_id', 'contract_id'},
         'readonly': {'amendment_id', 'amendment_entities'},
         'ref_name_order': {
-            'contract_name': ['contract_name']
+            'contract_name': ('contract_name',)
         }
     }
 
@@ -95,7 +94,7 @@ class Clause(Base):
         'hidden': { 'clause_id', 'amendment_id' },
         'readonly': { 'clause_id' },
         'ref_name_order': {
-            'amendment_name': ['contract_id', 'amendment_name']
+            'amendment_name': ('contract_id', 'amendment_name')
         }
     }
 

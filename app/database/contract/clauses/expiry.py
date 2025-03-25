@@ -1,6 +1,6 @@
 from enum import Enum, auto
 from datetime import date
-from app.database.datajson import DataJson
+from app.database.base import DataJson
 
 class ExpiryType(Enum):
     Date = auto()

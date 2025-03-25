@@ -29,6 +29,7 @@ class FormModifyMJ extends ContainerMJ {
       ), 
       {}
     );
+    this.datajsonCache = {};
   }
   _initFunctions(container, modalAlert) {
     super._initFunctions && super._initFunctions(container, modalAlert);
