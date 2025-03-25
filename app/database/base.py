@@ -33,7 +33,7 @@ def serialize_value(attr: Any) -> Any:
     else:
         attr_type = type(attr)
     srl_value = None
-    if isinstance(attr, list) or isinstance(attr, tuple) or isinstance(attr, list):
+    if isinstance(attr, set) or isinstance(attr, tuple):
         srl_value = [serialize_value(v) for v in attr]
     elif isinstance(attr, dict):
         srl_value = {k: serialize_value(v) for k,v in attr.items()}
@@ -865,7 +865,7 @@ class DataJson:
             if info in cls.attr_info:
                 keys.update(cls.attr_info[info])
             # 如果没有缓存信息，根据参数获取信息并缓存
-            elif info in {'readonly', 'hidden', 'required', 'data', 'foreignkeys'}:
+            elif info in {'readonly', 'hidden', 'required', 'data', 'foreignkeys', 'longtext'}:
                 info_keys = cls.attr_info.get(info, set())
                 keys.update(info_keys)
             elif info == 'modifiable':
