@@ -1,0 +1,8 @@
+# app/base/api/__init.__py
+
+from flask import Blueprint
+from .datajson import datajson_bp
+
+api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+api_bp.register_blueprint(datajson_bp)
