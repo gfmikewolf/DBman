@@ -111,11 +111,6 @@
             {{- _('Save Changes') -}}
           </button>
         </div>
-        <div class="d-none dbman-datajson-refmap">
-        {%- for datajson_key, datajson_id_key in datajson_ref_map.items() %}
-          <div class="dbman-item" data-dbman-key="{{ datajson_key }}" data-dbman-value="{{ datajson_id_key }}"></div>
-        {%- endfor %}
-        </div>
       </form>
     </div>
   </div>
@@ -134,4 +129,8 @@
   ) -}}
 {%- endblock alert -%}
 {%- block scripts -%}
+<script>
+  var fromTemplate = {}
+  fromTemplate['datajson_ref_map'] = {{ datajson_ref_map }};
+</script>
 {%- endblock scripts -%}
