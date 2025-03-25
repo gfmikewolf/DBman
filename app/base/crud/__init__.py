@@ -1,7 +1,6 @@
 # app/base/crud/__init__.py
 from flask import Blueprint
 from .views import index, view_table, modify_record, delete_record, view_record
-from app.base.api import api_bp
 
 crud_bp = Blueprint('crud', __name__, template_folder='templates', url_prefix='/crud')
 
