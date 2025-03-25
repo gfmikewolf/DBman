@@ -131,5 +131,8 @@ class Entity(Base):
 
     col_key_info = {
         'hidden': { 'entity_id', 'entitygroup_id' },
-        'readonly': { 'entity_id' }
+        'readonly': { 'entity_id' },
+        'ref_name_order': {
+            'entitygroup_id': ('entitygroup_name',)
+        }
     }
