@@ -14,23 +14,18 @@ class FormModifyMJ extends ContainerMJ {
 
   _findElements(container, modalAlert) {
     super._findElements && super._findElements(container, modalAlert);
-    this.datajsonRefMapContainer = this.getValidElement('div.dbman-datajson-refmap');
     this.submitButton = this.getValidElement('button[type="submit"]');
   }
 
   _initProperties(container, modalAlert) {
     super._initProperties && super._initProperties(container, modalAlert);
-    this.datajsonRefMap = Array.from(
-      this.datajsonRefMapContainer.querySelectorAll('div.dbman-item')
-    ).reduce(
-      (records, element) => (
-        records[element.dataset.dbmanKey] = element.dataset.dbmanValue, 
-        records
-      ), 
-      {}
-    );
+    this.datajsonRefMap = fromTemplate['datajson_ref_map'];
+    if (typeof this.datajsonRefMap !== 'object') {
+      throw new TypeError(`${varDatajsonRefMapFromTemplate} is not object.`);
+    }
     this.datajsonCache = {};
   }
+
   _initFunctions(container, modalAlert) {
     super._initFunctions && super._initFunctions(container, modalAlert);
     this.submitButton.addEventListener('click', this._submit.bind(this));
@@ -69,7 +64,7 @@ class FormModifyMJ extends ContainerMJ {
         throw new Error(errData.error || response.statusText);
       }
     })
-    .then(data => {
+    .then(() => {
       this.modalAlert.update({
         msgKey: 'success',
         buttonTypes: ['confirm'],
@@ -102,7 +97,7 @@ class FormModifyMJ extends ContainerMJ {
         const cacheKey = idElement.value;
         const targetElem = this.getValidElement(`[name="${key}"]`);
         if (this.datajsonCache[cacheKey]) {
-          targetElem.innerHTML = this.datajsonCache[cacheKey].info || '';
+          targetElem.innerHTML = this.datajsonCache[cacheKey] || '';
         } else {
           fetch(`/api/get-datajson?value=${encodeURIComponent(cacheKey)}`)
             .then(response => response.json())
