@@ -7,22 +7,38 @@ import { SelectpickerMJ } from './selectpicker-mj.js';
 class DatajsonMJ extends ContainerMJ {
   
   static counter = 0;
-  static structureCache = {}; // all instances share the same structure cache
+  static elementCache = {}; // all instances share the same element structure cache
 
-  constructor (container, djType=null, djData=null) {
-    super(container, djType, djData);
+  constructor (container, targetElement, djType=null, djData=null) {
+    super(container, targetElement, djType, djData);
     DatajsonMJ.counter += 1;
     this.uid = DatajsonMJ.counter;
   }
 
-  _initArgs(container, djType, djData) {
-    super._initArgs(container, djType, djData);
+  _initArgs(container, targetElement, djType, djData) {
+    super._initArgs(container, targetElement, djType, djData);
+    this._load(djType, djData);
+    this.targetElement = targetElement;
+  }
+
+  async _initProperties(container, targetElement, djType, djData) {
+    super._initProperties && super._initProperties(container, targetElement, djType, djData);
+    this.renderStructure = null;
+    if (this.type) {
+      this.renderStructure = await this.getRenderStructure();
+      this.element = this.getOrCreateDOMElement();
+      // each instance has its own data cache indexed by type
+      DatajsonMJ.elementCache[this.type] = this.element; 
+    }
+  }
+  
+  _load(djType, djData) {
     try {
-      if (!djData) {
+      if (!djData || Object.keys(djData).length === 0) {
         this.data = { __datajson_id__: djType };
         this.type = djType;
       } else {
-        dataType = djData['__datajson_id__'];
+        const dataType = djData['__datajson_id__'] || null;
         this.type = dataType;
         if (djType && djType != dataType) {
           throw new TypeError(`DataJson type is inconsistent. djType=${djType} !== dataType=${dataType}`);
@@ -33,27 +49,9 @@ class DatajsonMJ extends ContainerMJ {
     }
   }
 
-  _initProperties(container, djType, djData) {
-    super._initProperties && super._initProperties(container, djType, djData);
-    this.elementCache = {};
-    this.dataCache = {};
-    if (this.type) {
-      this.renderStructure = this.getRenderStructure();
-      this.element = this.getOrCreateDOMElement();
-      // each instance has its own data cache indexed by type
-      this.elementCache[this.type] = this.element; 
-      this.dataCache[this.type] = this.data;
-    }
-  }
-  
   async getRenderStructure() {
     if (!this.type) {
-      this.renderStructure = {};
-      return this.renderStructure;
-    }
-    let structure = DatajsonMJ.structureCache[this.type]
-    if (structure) {
-      return DatajsonMJ.structureCache[this.type];
+      return null;
     }
     const response = await fetch(
       `/api/datajson/structure/${this.type}`, {});
@@ -61,40 +59,34 @@ class DatajsonMJ extends ContainerMJ {
       throw new TypeError('Datajson type is incorrect: ', this.type);
     }
     const responseJSON = await response.json();
-    structure = responseJSON['data'];
+    const structure = responseJSON['data'];
     if (!structure) {
       throw new TypeError('Datajson type is incorrect: ', this.type);
     }
-    DatajsonMJ.structureCache[this.type] = structure;
-    this.renderStructure = structure;
     return structure;
   }
 
-  async update(djType=null, djData=null, kwargs = {}) {
-    if (djType === null && djData === null && Object.keys(kwargs).length === 0) {
+  async update(newType=null, newData=null, kwargs = {}) {
+    if (newType === null && djData === null && Object.keys(kwargs).length === 0) {
       return;
     }
-    if (djType != this.type) {
+    if (!newData) {
+      newData = {};
+    }
+    for (let key in kwargs) {
+      newData[key] = kwargs[key];  
+    }
+    if (newType != this.type) {
       if (this.type) {
-        this.elementCache[this.type] = this.element;
-        this.getDataFromDOM();
-        this.dataCache[this.type] = this.data;
-        this.renderStructure = this.getRenderStructure();
         this.element.style.display = 'none';
+        DatajsonMJ.elementCache[this.type] = this.element;
       }
-      if (djType) {
-        this.type = djType;
-      }
-      if (!djData) {
-        this.data = { __datajson_id__: this.type };
-      } else {
-        this.data = djData;
-      }
-      if (this.type in this.elementCache) {
-        this.element = this.elementCache[this.type];
-        this.element.style.display = 'block';
+      this._load(newType, newData);
+      if(!this.type) {
+        this.renderStructure = null;
       } else {
         this.element = await this.getOrCreateDOMElement();
+        this.element.style.display = 'block';
       }
     }
     this.updateData(this.data, kwargs);
@@ -126,20 +118,23 @@ class DatajsonMJ extends ContainerMJ {
     }
   }
 
-  getDataFromDOM() {
+  getData() {
+    if (!this.renderStructure) {
+      return {};
+    }
     for (let key of this.renderStructure['data']) {
       const keyUid = `${this.type}-${key}-${this.uid}`;
       const input = this.element.querySelector(`#${keyUid}`);
       if (input.value) {
-        this.data[key] = inputElement.value;
+        this.data[key] = input.value;
       }
     }
     return this.data;
   }
 
   async getOrCreateDOMElement() {
-    if (this.elementCache[this.type]) {
-      return this.elementCache[this.type];
+    if (DatajsonMJ.elementCache[this.type]) {
+      return DatajsonMJ.elementCache[this.type];
     }
     const frag = document.createDocumentFragment();
     const card = createElement('div', frag, 'card');
@@ -238,9 +233,13 @@ class DatajsonMJ extends ContainerMJ {
       if (key in structure['required']) {
         inputElement.required = true;
       }
+      inputElement.addEventListener('change', () => {
+        this.targetElement.value = JSON.stringify(this.getData());
+      });
     }
-    this.elementCache[this.type] = card;
+    DatajsonMJ.elementCache[this.type] = card;
     this.container.appendChild(frag);
+    this.renderStructure = structure;
     return card;
   }
 }
