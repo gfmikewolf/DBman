@@ -97,7 +97,8 @@ class FormModifyMJ extends ContainerMJ {
       const targetElement = this.getValidElement(`#${key}`);
       const inputElement = this.getValidElement(`#dbman-datajson-${key}`);
       const djObj = new DatajsonMJ(
-        inputElement, 
+        inputElement,
+        targetElement, 
         idElement.value, 
         targetElement.dataset.dbmanData);
         idElement.addEventListener('change', async () => {
