@@ -77,7 +77,7 @@ class FormModifyMJ extends ContainerMJ {
           prevPage.click();
         }
       });
-      this.modalAlert.show(2000);
+      this.modalAlert.show(3000);
     })
     .catch(error => {
       // 这里可以读取 error.message 获取详细的错误信息
@@ -87,7 +87,7 @@ class FormModifyMJ extends ContainerMJ {
         message: error.message,
         buttonTypes: ['acknowledge']
       });
-      this.modalAlert.show(2000);
+      this.modalAlert.show(3000);
     });
   }
 
@@ -95,12 +95,13 @@ class FormModifyMJ extends ContainerMJ {
     Object.entries(this.datajsonRefMap).forEach(([key, value]) => {
       const idElement = this.getValidElement(`[name="${value}"]`);
       const targetElement = this.getValidElement(`#${key}`);
+      const inputElement = this.getValidElement(`#dbman-datajson-${key}`);
       const djObj = new DatajsonMJ(
-        targetElement, 
+        inputElement, 
         idElement.value, 
         targetElement.dataset.dbmanData);
-      idElement.addEventListener('change', () => {
-        djObj.update(idElement.value);
+        idElement.addEventListener('change', async () => {
+          await djObj.update(idElement.value);
       });
     });
   }
