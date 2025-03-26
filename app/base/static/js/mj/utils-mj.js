@@ -43,7 +43,7 @@ function createElement( tag,
   if (innerText !== '') {
     element.innerText = innerText;
   }
-  if (container instanceof Element) {
+  if (container instanceof Element || container instanceof DocumentFragment) {
     container.appendChild(element);
   }
   return element;
