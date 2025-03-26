@@ -31,12 +31,10 @@ class ClauseExpiry(DataJson):
     attr_info = {
         'data': {'expiry_type', 'expiry_date', 'linked_contract_id'},
         'required': {'expiry_type'},
-        'ref_map': {
-            'linked_contract_id': {
-                'ref_table': 'contract', 
-                'ref_pk': 'contract_id',
-                'ref_name': 'contract_name',
-                'order_by': ['contract_name'] 
-            }
+        'foreign_keys': {
+            'linked_contract_id': 'contract'
+        },
+        'ref_name_order': {
+            'contract_name': ('contract_name',)
         }
     }
