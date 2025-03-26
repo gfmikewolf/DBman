@@ -53,7 +53,7 @@
               {%- set is_long_options = options|length > 5 -%}
               {%- if is_long_options %}
               <div class="mj-selectpicker">
-                <input type="search" class="form-control" placeholder="{{ _('Search') }}" id="{{ key }}-search">
+                <input type="search" class="form-control" placeholder="&#x1F50D;" id="{{ key }}-search">
               {%- endif %}
               <select {{ 'name="' + key + '"' if key not in readonly_keys }}
                       class="form-select"
