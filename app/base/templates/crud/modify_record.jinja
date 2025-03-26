@@ -76,7 +76,7 @@
               </div>
               {%- endif -%}
               {%- elif key in datajson_ref_map.keys() %}
-              <textarea id="{{ key }}" class="form-control" row="3" value="{{ value }}" readonly></textarea>
+              <textarea id="{{ key }}" name="{{ key }}" class="form-control" row="3" value="{{ value }}" readonly></textarea>
               </div><div class="container-fluid">
               <div id="dbman-datajson-{{ key }}" class="dbman-datajson" data-dbman-data="{{ value }}"></div>
               {%- elif key in longtext_keys %}
