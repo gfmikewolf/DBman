@@ -33,8 +33,8 @@ class ClauseEntity(DataJson):
         'data': {'action', 'entity_id', 'old_entity_id'},
         'required': {'action', 'entity_id'},
         'foreign_keys': {
-            'entity_id': 'Entity',
-            'old_entity_id': 'Entity'
+            'entity_id': 'entity',
+            'old_entity_id': 'entity'
         },
         'ref_name_order': {
             'entity_name': ('entity_name',)

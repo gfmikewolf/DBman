@@ -11,11 +11,11 @@ class ClauseAction(Enum):
 
 class ClauseType(Enum):
     """
-    { 'entity', 'scope', 'expiry' }
+    { 'clause_entity', 'clause_scope', 'clause_expiry' }
     """
-    ENTITY = 'entity'
-    SCOPE = 'scope'
-    EXPIRY = 'expiry'
+    ENTITY = 'clause_entity'
+    SCOPE = 'clause_scope'
+    EXPIRY = 'clause_expiry'
 
 class ClausePos(Enum):
     """

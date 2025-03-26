@@ -20,4 +20,33 @@ function getElements(arg, container = document) {
       arg : null;
 }
 
-export { getElement, getElements };
+function createElement( tag, 
+                        container = null, 
+                        classList = '', 
+                        attributes = {}, 
+                        innerText = '') {
+  let root = null;
+  if (container === null || container instanceof Element || container instanceof DocumentFragment) {
+    root = document;
+  } else if (container instanceof Document) {
+    root = container;
+  }
+  const element = root.createElement(tag);
+  if (classList !== '') {
+    classList.split(' ').forEach(className => {
+      element.classList.add(className);
+    });
+  }
+  for (let key in attributes) {
+    element.setAttribute(key, attributes[key]);
+  }
+  if (innerText !== '') {
+    element.innerText = innerText;
+  }
+  if (container instanceof Element) {
+    container.appendChild(element);
+  }
+  return element;
+}
+
+export { getElement, getElements, createElement };

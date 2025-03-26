@@ -75,13 +75,13 @@
               {%- if is_long_options %}
               </div>
               {%- endif -%}
-              {%- elif key in datajson_keys %}
-              <div>json place holder</div>
+              {%- elif key in datajson_ref_map.keys() %}
+              <div id="{{ key }}" class="dbman-datajson" data-dbman-data="{{ value }}"></div>
               {%- elif key in longtext_keys %}
               <textarea {{ 'name="' + key + '"' if key not in readonly_keys }}
                         id="{{- key -}}"
                         class="form-control"
-                        rows="{{- 3 if value is none else ((value|length)/40)|round|int + 1 -}}"
+                        rows="{{- 3 if value is none or value == '' else ((value|length)/40)|round|int + 1 -}}"
                         {{ 'required pattern=".*\S.*"' if key in required_keys }}
                         {{ 'readonly' if key in readonly_keys }}>
                 {{- '' if pks == '_new' else value -}}

@@ -505,7 +505,7 @@ class Base(DeclarativeBase):
         :return: list of tuple[referenced pk value joined by comma, referenced name column value]
         """
         if Base._validate_session() is False:
-            raise DatabaseError('Invalid db_session {cls.db_session}')
+            raise DatabaseError(f'Invalid db_session {cls.db_session}')
         
         query = None
         list_pks_name = []
@@ -571,7 +571,7 @@ class Base(DeclarativeBase):
         enum_cols = cls.get_cols('Enum')
         for col in enum_cols:
             enum_cls = col.type.python_type
-            values = [(member.value, member.value) for member in enum_cls] # type: ignore enum_cls is subclass of Enum
+            values = [(member.value, member.name) for member in enum_cls] # type: ignore enum_cls is subclass of Enum
             col_select_options[col.name] = values        
         return col_select_options
     
@@ -895,7 +895,7 @@ class DataJson:
         options = dict()
         if cls.__datajson_id__ == NotImplemented:
             raise AttributeError('Cannot call fetch_datajson_select_options() on DataJson')
-        foreign_keys = cls.get_keys('foreignkeys')
+        foreign_keys = cls.attr_info.get('foreign_keys')
         if foreign_keys: 
             if not isinstance(foreign_keys, dict):
                 raise AttributeError(f'Invalid foreignkeys {foreign_keys} for {cls}')
@@ -920,12 +920,12 @@ class DataJson:
             raise AttributeError('Cannot call get_structure() on DataJson')
         
         struct['__datajson_id__'] = cls.__datajson_id__
-        struct['data'] = cls.get_keys('data')
+        struct['data'] = [key for key in cls.__dict__ if key in cls.get_keys('data')]
         struct['required'] = cls.get_keys('required')
         struct['readonly'] = cls.get_keys('readonly')
         struct['date'] = cls.get_keys('date')
         struct['Enum'] = cls.get_keys('Enum')
-        struct['foreignkeys'] = cls.get_keys('foreignkeys')
+        struct['foreign_keys'] = cls.get_keys('foreign_keys')
         struct['longtext'] = cls.get_keys('longtext')
         struct['ref_map'] = cls.fetch_datajson_select_options()
 

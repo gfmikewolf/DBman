@@ -1,6 +1,7 @@
 // mj/form-modify-mj.js
 import { ContainerMJ } from './container-mj.js';
 import { ModalAlertMJ } from './modal-alert-mj.js';
+import { DatajsonMJ } from './datajson-mj.js';
 
 class FormModifyMJ extends ContainerMJ {
   constructor(container, modalAlert) {
@@ -93,20 +94,13 @@ class FormModifyMJ extends ContainerMJ {
   _initDatajson() {
     Object.entries(this.datajsonRefMap).forEach(([key, value]) => {
       const idElement = this.getValidElement(`[name="${value}"]`);
+      const targetElement = this.getValidElement(`#${key}`);
+      const djObj = new DatajsonMJ(
+        targetElement, 
+        idElement.value, 
+        targetElement.dataset.dbmanData);
       idElement.addEventListener('change', () => {
-        const cacheKey = idElement.value;
-        const targetElem = this.getValidElement(`[name="${key}"]`);
-        if (this.datajsonCache[cacheKey]) {
-          targetElem.innerHTML = this.datajsonCache[cacheKey] || '';
-        } else {
-          fetch(`/api/get-datajson?value=${encodeURIComponent(cacheKey)}`)
-            .then(response => response.json())
-            .then(datajson => {
-              this.datajsonCache[cacheKey] = datajson; // 保存缓存
-              targetElem.innerHTML = datajson.info || '';
-            })
-            .catch(error => console.error('Error fetching Datajson:', error));
-        }
+        djObj.update(idElement.value);
       });
     });
   }
