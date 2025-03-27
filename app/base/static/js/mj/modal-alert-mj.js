@@ -72,9 +72,6 @@ export class ModalAlertMJ extends ModalMJ {
   }
 
   show(timeout = 0) {
-    this.container.addEventListener('hide.bs.modal', () => {
-      this.btnConfirm.click();
-    }, { once: true });
     super.show(timeout);
   }
 
