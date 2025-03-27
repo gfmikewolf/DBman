@@ -158,24 +158,27 @@
               {%- set headers_fk = data['ref_map']|map(attribute='ref_name')|list -%}
               {%- set ref_header_start_index = -1 -%}
               {%- for header in data['headers'] -%}
-                {%- set value = row[loop.index0] %}
+                {%- set value = row[loop.index0] -%}
+                {%- if header in data['headers_json'] %}
+              {# djlint:ignore H025 -#}<td data-dbman-sn="{{ loop.index }}" data-dbman-data='{{ value }}'> 
+                  {%- set value = 'JSON: ' + value -%}
+                  {{- value -}}
+                {%- else %}
               <td data-dbman-sn="{{ loop.index }}">
-                {%- if header in data['headers_json'] -%}
-                {#- functions to be completed -#}
-                  {%- set value = 'JSON: ' + value -%}  
-                {%- elif header in headers_fk -%}
-                  {%- if ref_header_start_index == -1 -%}
-                    {%- set ref_header_start_index = loop.index0 -%}
-                  {%- endif -%}
-                  {# IMPORTANT: ASSUME all referenced columns are at the last of fetch_datatable_dict() #}
-                  {%- set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] -%}
-                  {%- set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] %}
-                  <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pks) }}">
+                  {%- if header in headers_fk -%}
+                    {%- if ref_header_start_index == -1 -%}
+                      {%- set ref_header_start_index = loop.index0 -%}
+                    {%- endif -%}
+                    {# IMPORTANT: ASSUME all referenced columns are at the last of fetch_datatable_dict() #}
+                    {%- set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] -%}
+                    {%- set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] -%}
+                    <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pks) }}">
+                      {{- value if value else '' -}}
+                    </a>
+                  {%- else -%}
                     {{- value if value else '' -}}
-                  </a>
-                {%- else -%}
-                  {{ value if value else '' }}
-                {%- endif %}
+                  {%- endif -%}
+                {%- endif -%}
               </td>
               {%- endfor %}
               </tr>

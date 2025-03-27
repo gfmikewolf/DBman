@@ -61,6 +61,7 @@ def modify_record(table_name: str, pks: str) -> Any:
                 return jsonify(success=True), 200
             except Exception as e:
                 db_sess.rollback()
+                print(e)
                 return jsonify(success=False, error=str(e)), 500
         
         # request.method == GET

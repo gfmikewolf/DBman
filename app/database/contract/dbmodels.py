@@ -136,3 +136,18 @@ class Entity(Base):
             'entitygroup_id': ('entitygroup_name',)
         }
     }
+
+class Scope(Base):
+    __tablename__ = 'scope'
+    scope_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    scope_name: Mapped[str]
+    
+    name = synonym('scope_name')
+
+    col_key_info = {
+        'hidden': { 'scope_id' },
+        'readonly': { 'scope_id' },
+        'ref_name_order': {
+            'scope_name': ('scope_name',)
+        }
+    }

@@ -3,15 +3,13 @@
 __all__ = ['Base', 'DataJson', 'DataJsonType']
 
 # python
-from copy import deepcopy
-from math import e
 from sqlite3 import DatabaseError
 from typing import Any, Iterable, Optional
 from enum import Enum # 用到eval('Enum')，需要导入
 from datetime import date # 用到eval('date')，需要导入
 import json
 # sqlalchemy
-from sqlalchemy import Column, select, Select
+from sqlalchemy import Column, select
 from sqlalchemy.types import TypeDecorator, JSON
 from sqlalchemy.orm import DeclarativeBase, Session, ColumnProperty
 # app
@@ -42,7 +40,7 @@ def serialize_value(attr: Any) -> Any:
     elif attr_type == date:
         srl_value = attr.isoformat()
     elif issubclass(attr_type, DataJson):
-        srl_value = attr.data_dict(serializeable=True)
+        srl_value = attr.dumps()
     else:
         srl_value = attr
     return srl_value if srl_value is not None else ''
@@ -65,7 +63,7 @@ def convert_value_by_python_type(value: Any, python_type: Any) -> Any:
     if isinstance(value, python_type):
         return value
     elif issubclass(python_type, date) and isinstance(value, str):
-        converted_value = date.fromisoformat(value)
+        converted_value = date.fromisoformat(value) if value else None
     elif issubclass(python_type, int) and isinstance(value, str):
         converted_value = python_type(value)
     elif issubclass(python_type, float) and (isinstance(value, str) or isinstance(value, int)):
@@ -180,6 +178,8 @@ class Base(DeclarativeBase):
             if key in args_dict:
                 value = args_dict[key]
                 if value is not None:
+                    if key in self.get_col_keys('DataJson'):
+                        value = DataJson.get_obj(value)
                     setattr(self, key, value)
        
     @classmethod
@@ -483,6 +483,10 @@ class Base(DeclarativeBase):
                 if key in visible_keys:
                     if value is None:
                         value = ''
+                    if key in json_keys and isinstance(value, DataJson):
+                        value = value.dumps()
+                    if key in cls.get_col_keys('Enum') and isinstance(value, Enum):
+                        value = value.name
                     datarow.append(value)
                 if key in pk_keys:
                     _pks.append(str(value))
@@ -495,6 +499,7 @@ class Base(DeclarativeBase):
                     _ref_pks = row._mapping[ref_dict['ref_pk']]
                     ref_row.append(_ref_pks)
                 datatable['ref_pks'].append(tuple(ref_row))
+                print (datatable)
         return datatable
 
     
@@ -608,7 +613,7 @@ class DataJsonType(TypeDecorator):
     # 将DataJson类通过自有dumps()方法转换为字符串
     def process_bind_param(self, value, dialect):
         if value is not None:
-            return value.dumps()
+            return value.data_dict(serializeable=True)
         return value
 
     # 将DataJson字符串通过自有get_obj()方法转换为类

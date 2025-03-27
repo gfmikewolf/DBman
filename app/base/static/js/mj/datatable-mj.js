@@ -126,6 +126,19 @@ class DatatableMJ extends ContainerMJ {
   }
 
   _initDownloadCSV() {
+    // 实现CSV字段转义，若字段内包含逗号、换行符或双引号，则包装在双引号内，
+    // 并将内部的双引号替换为两个连续的双引号
+    function escapeCSVField(field) {
+      if (field === null || field === undefined) return '';
+      field = String(field);
+      // 如果字段包含逗号、换行或双引号，则需要转义
+      if (field.search(/("|,|\n)/g) !== -1) {
+        field = field.replace(/"/g, '""');
+        field = `"${field}"`;
+      }
+      return field;
+    }
+
     this.btnDownloadCSV.addEventListener('click', () => {
       const headRow = this.table.querySelector('thead tr');
       const dataRows = this.table.querySelectorAll('tbody tr:not(.d-none)');
@@ -133,11 +146,8 @@ class DatatableMJ extends ContainerMJ {
       // Extract header data from the visible table headers
       const headers = [];
       headRow.querySelectorAll('th[data-dbman-sn]:not(.d-none)').forEach(th => {
-        if (th.dataset.dbmanData) {
-          headers.push(th.dataset.dbmanData.trim());
-        } else {
-          headers.push(th.textContent.trim());
-        }
+        let headerText = th.dataset.dbmanData ? th.dataset.dbmanData.trim() : th.textContent.trim();
+        headers.push(escapeCSVField(headerText));
       });
 
       // Extract content from each data row
@@ -145,11 +155,8 @@ class DatatableMJ extends ContainerMJ {
       dataRows.forEach(row => {
         const rowData = [];
         row.querySelectorAll('td[data-dbman-sn]:not(.d-none)').forEach(td => {
-          if (td.dataset.dbmanData) {
-            rowData.push(td.dataset.dbmanData.trim());
-          } else {
-            rowData.push(td.textContent.trim());
-          }
+          let cellText = td.dataset.dbmanData ? td.dataset.dbmanData.trim() : td.textContent.trim();
+          rowData.push(escapeCSVField(cellText));
         });
         rows.push(rowData);
       });

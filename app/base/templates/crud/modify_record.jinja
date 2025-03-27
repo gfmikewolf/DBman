@@ -53,7 +53,7 @@
               {%- set is_long_options = options|length > 5 -%}
               {%- if is_long_options %}
               <div class="mj-selectpicker">
-                <input type="search" class="form-control" placeholder="&#x1F50D;" id="{{ key }}-search">
+                <input type="search" class="form-control" placeholder="🔍" id="{{ key }}-search">
               {%- endif %}
               <select {{ 'name="' + key + '"' if key not in readonly_keys }}
                       class="form-select"
@@ -76,7 +76,8 @@
               </div>
               {%- endif -%}
               {%- elif key in datajson_ref_map.keys() %}
-              <textarea id="{{ key }}" name="{{ key }}" class="form-control" row="3" value="{{ value }}" readonly></textarea>
+              <textarea id="{{ key }}" name="{{ key }}" class="form-control" 
+                row="3" value='{{ value }}' readonly>{{- value -}}</textarea>
               </div><div class="container-fluid">
               <div id="dbman-datajson-{{ key }}" class="dbman-datajson" data-dbman-data="{{ value }}"></div>
               {%- elif key in longtext_keys %}

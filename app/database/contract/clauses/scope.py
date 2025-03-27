@@ -16,7 +16,7 @@ class ClauseScope(DataJson):
         - scope_id is required.
         - old_scope_id is required if action is Novate.
     """
-    __datajson_id__ = 'clause_expiry'
+    __datajson_id__ = 'clause_scope'
     
     action: ClauseAction = ClauseAction.UPDATE
     scope_id: int = 0
@@ -25,18 +25,11 @@ class ClauseScope(DataJson):
     attr_info = {
         'data': ['action', 'scope_id', 'old_scope_id'],
         'required': ['action', 'scope_id'],
-        'ref_map': {
-            'scope_id': {
-                'ref_table': 'scope', 
-                'ref_pk': 'scope_id',
-                'ref_name': 'scope_name',
-                'order_by': ['scope_name'] 
-            },
-            'old_scope_id': {
-                'ref_table': 'scope', 
-                'ref_pk': 'scope_id',
-                'ref_name': 'scope_name',
-                'order_by': ['scope_name'] 
-            }
+        'foreign_keys': {
+            'scope_id': 'scope',
+            'old_scope_id': 'scope'
+        },
+        'ref_name_order': {
+            'scope_name': ('scope_name',)
         }
     }

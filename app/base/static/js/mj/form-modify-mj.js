@@ -24,7 +24,6 @@ class FormModifyMJ extends ContainerMJ {
     if (typeof this.datajsonRefMap !== 'object') {
       throw new TypeError(`${varDatajsonRefMapFromTemplate} is not object.`);
     }
-    this.datajsonCache = {};
   }
 
   _initFunctions(container, modalAlert) {
@@ -100,9 +99,10 @@ class FormModifyMJ extends ContainerMJ {
         inputElement,
         targetElement, 
         idElement.value, 
-        targetElement.dataset.dbmanData);
-        idElement.addEventListener('change', async () => {
-          await djObj.update(idElement.value);
+        targetElement.value
+      );
+      idElement.addEventListener('change', async () => {
+        await djObj.update(idElement.value);
       });
     });
   }

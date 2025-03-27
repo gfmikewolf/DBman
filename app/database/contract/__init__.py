@@ -7,6 +7,7 @@ from .dbmodels import Amendment
 from .dbmodels import Clause
 from .dbmodels import Entity
 from .dbmodels import Entitygroup
+from .dbmodels import Scope
 
 # DataJson models
 from .clauses import ClauseEntity
@@ -21,6 +22,7 @@ Base.model_map = {
     'amendment': Amendment,
     'clause': Clause,
     'entity': Entity,
+    'scope': Scope,
     'entitygroup': Entitygroup
 }
 
