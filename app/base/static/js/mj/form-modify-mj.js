@@ -20,6 +20,7 @@ class FormModifyMJ extends ContainerMJ {
 
   _initProperties(container, modalAlert) {
     super._initProperties && super._initProperties(container, modalAlert);
+    this.initialData = new FormData(this.container);
     this.datajsonRefMap = fromTemplate['datajson_ref_map'];
     if (typeof this.datajsonRefMap !== 'object') {
       throw new TypeError(`${varDatajsonRefMapFromTemplate} is not object.`);
@@ -30,6 +31,18 @@ class FormModifyMJ extends ContainerMJ {
     super._initFunctions && super._initFunctions(container, modalAlert);
     this.submitButton.addEventListener('click', this._submit.bind(this));
     this._initDatajson();
+  }
+
+  _isModified(currentData = null) {
+    if (currentData === null) {
+      currentData = new FormData(this.container);
+    }
+    for (let [key, origValue] of this.initialData.entries()) {
+      if (currentData.get(key) !== origValue) {
+        return true;
+      }
+    }
+    return false;
   }
 
   _submit(event) {
@@ -49,7 +62,21 @@ class FormModifyMJ extends ContainerMJ {
     
     // Create FormData object from the current form.
     const formData = new FormData(this.container);
-
+    if (!this._isModified(formData)) {
+      this.modalAlert.update({
+        msgKey: 'nochange',
+        buttonTypes: ['confirm', 'cancel'],
+        confirmAction: () => {
+          const prevPage = document.querySelector('a[data-dbman-toggle="prev-page"]');
+          if (!prevPage) {
+            throw new Error('No previous page link found.');
+          }
+          prevPage.click();
+        }
+      });
+      this.modalAlert.show();
+      return;
+    }
     // Use the form's action as the URL. It will send the POST to the same page.
     fetch(this.container.action, {
       method: 'POST',
@@ -76,7 +103,7 @@ class FormModifyMJ extends ContainerMJ {
           prevPage.click();
         }
       });
-      this.modalAlert.show(3000);
+      this.modalAlert.show();
     })
     .catch(error => {
       // 这里可以读取 error.message 获取详细的错误信息
