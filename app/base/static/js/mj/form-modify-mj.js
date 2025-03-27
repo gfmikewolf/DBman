@@ -103,7 +103,7 @@ class FormModifyMJ extends ContainerMJ {
           prevPage.click();
         }
       });
-      this.modalAlert.show();
+      this.modalAlert.show(3000);
     })
     .catch(error => {
       // 这里可以读取 error.message 获取详细的错误信息
@@ -113,7 +113,7 @@ class FormModifyMJ extends ContainerMJ {
         message: error.message,
         buttonTypes: ['acknowledge']
       });
-      this.modalAlert.show(3000);
+      this.modalAlert.show();
     });
   }
 
