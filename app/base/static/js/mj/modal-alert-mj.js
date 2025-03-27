@@ -36,39 +36,39 @@ export class ModalAlertMJ extends ModalMJ {
     this.title = this.modalTitle.textContent.trim();
   }
 
-  update({ msgKey = null, message = '', buttonTypes = ['acknowledge'], confirmAction = null }) {
-      if (msgKey) {
-          this.msg = '<div class="container"><div class="row">' +
-              this.predefinedTexts[msgKey][1] + '</div><div class="row">' +
-              message + '</div></div>';
-          this.title = this.predefinedTexts[msgKey][0];
-          this.modalBody.innerHTML = this.msg;
-          this.modalTitle.textContent = this.title;
-      }
+  update({ msgKey = null, message = '', buttonTypes = ['acknowledge'], confirmAction = null }) {     
+    if (msgKey) {
+        this.msg = '<div class="container"><div class="row">' +
+            this.predefinedTexts[msgKey][1] + '</div><div class="row">' +
+            message + '</div></div>';
+        this.title = this.predefinedTexts[msgKey][0];
+        this.modalBody.innerHTML = this.msg;
+        this.modalTitle.textContent = this.title;
+    }
 
-      const validBtnNames = Object.keys(this.validBtns);
-      // Show buttons specified in buttonTypes and hide the others
-      buttonTypes.forEach(btnName => {
-          if (validBtnNames.includes(btnName)) {
-              const btn = this.validBtns[btnName];
-              btn.classList.remove('d-none');
-              const index = validBtnNames.indexOf(btnName);
-              validBtnNames.splice(index, 1);
-          }
-      });
-
-      validBtnNames.forEach(btnName => {
-          const btn = this.validBtns[btnName];
-          btn.classList.add('d-none');
-      });
-      
-      this.removeAllHandlers();
-      if (confirmAction &&
-          typeof confirmAction === 'function' &&
-          buttonTypes.includes('confirm')) {
-          const confirmActionHandler = confirmAction;
-          this._addHandler(confirmActionHandler);
+    const validBtnNames = Object.keys(this.validBtns);
+    // Show buttons specified in buttonTypes and hide the others
+    buttonTypes.forEach(btnName => {
+      if (validBtnNames.includes(btnName)) {
+        const btn = this.validBtns[btnName];
+        btn.classList.remove('d-none');
+        const index = validBtnNames.indexOf(btnName);
+        validBtnNames.splice(index, 1);
       }
+    });
+
+    validBtnNames.forEach(btnName => {
+      const btn = this.validBtns[btnName];
+      btn.classList.add('d-none');
+    });
+    
+    this.removeAllHandlers();
+    if (confirmAction &&
+      typeof confirmAction === 'function' &&
+      buttonTypes.includes('confirm')) {
+      const confirmActionHandler = confirmAction;
+      this._addHandler(confirmActionHandler);
+    }
   }
 
   show(timeout = 0) {
