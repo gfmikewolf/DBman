@@ -36,7 +36,7 @@ class DatajsonMJ extends ContainerMJ {
   _load(djType, djData, kwargs={}) {
     try {
       let dataObj;
-      if (typeof djData === 'string') {
+      if (typeof djData === 'string' && djData !== '') {
         dataObj = JSON.parse(djData);
       } else if (typeof djData === 'object') {
         dataObj = JSON.parse(JSON.stringify(djData));
@@ -194,7 +194,6 @@ class DatajsonMJ extends ContainerMJ {
         if (value === null || value === undefined || value === '') {
           hiddenOption.selected = true;
         }
-        console.log('ref_pks_name:', ref_pks_name);
         for (let pks_name in ref_pks_name) {
           const option = createElement(
             'option', 
