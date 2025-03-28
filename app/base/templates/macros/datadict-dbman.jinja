@@ -1,0 +1,35 @@
+{# app/base/templates/macros/datadict-dbman.jinja #}
+{%- macro DatadictDBMan(
+      name='main',
+      id='dbman-datadict-' + name,
+      data=data,
+      ref_names=ref_names,
+      data_keys=data_keys,
+      datajson_keys=datajson_keys
+    )
+-%}
+  <table class="table" id="{{- id -}}">
+    <tbody>
+    {%- for key in data_keys -%}
+      <tr>
+        <td>{{- key -}}</td>
+        <td>
+        {%- if key in ref_names.keys() -%}
+          <a href={{ url_for(
+            'base.crud.view_record', 
+            table_name=ref_names[key][0], 
+            pks=data[key]) 
+          }}>
+            {{- ref_names[key][1] -}}
+          </a>
+        {%- elif key in datajson_keys -%}
+          {{- data[key] -}}
+        {%- else -%}
+          {{- data[key] -}}
+        {%- endif -%}
+        </td>
+    {%- endfor -%}
+      </tr>
+    </tbody>
+  </table>
+{%- endmacro -%}
