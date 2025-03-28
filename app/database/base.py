@@ -187,6 +187,19 @@ class Base(DeclarativeBase):
         return tuple(col.name for col in cls.__mapper__.columns
                      if col not in cls.get_cols('pk'))
 
+    def get_ref_data(self) -> tuple[dict[str, tuple[str, str]], dict[str, list[Any]]]:
+        ref_lists = dict()
+        ref_names = dict()
+        for rel in self.__mapper__.relationships:   
+            local_col_name = next(iter(rel.local_columns)).name
+            rel_obj = getattr(self, rel.key)
+            if rel.uselist:
+                ref_lists[rel.key] = [obj.data_dict(serializeable=True) for obj in rel_obj]
+            else:
+                if hasattr(rel_obj, 'name'):
+                    ref_names[local_col_name] = (rel.entity.class_.__tablename__, rel_obj.name)
+        return ref_names, ref_lists
+    
     @classmethod
     def get_cols(cls, *args: str) -> set[Column]:
         """
@@ -504,7 +517,6 @@ class Base(DeclarativeBase):
                     _ref_pks = row._mapping[ref_dict['ref_pk']]
                     ref_row.append(_ref_pks)
                 datatable['ref_pks'].append(tuple(ref_row))
-                print (datatable)
         return datatable
 
     
