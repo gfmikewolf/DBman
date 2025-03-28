@@ -25,7 +25,7 @@
       <div class="d-flex align-items-center">
         <div class="button-container d-flex align-items-center">
           {%- if prev_page %}
-          <a href="{{ prev_page }}" data-dbman-toggle="prev-page" class="btn"><i class="fa fa-arrow-left"></i></a>
+          <a href="{{ prev_page }}" data-dbman-toggle="prev-page" class="btn"><i class="fa fa-arrow-up"></i></a>
           <a href="{{ url_for('base.index') }}" class="btn"><i class="fa fa-house"></i></a>
           {%- endif -%}
           {%- if session.get('language') == 'en' %}
