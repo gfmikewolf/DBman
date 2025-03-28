@@ -1,9 +1,12 @@
 # app/base/crud/views.py
 # python
+from sqlite3 import DatabaseError
 from typing import Any
 from webbrowser import get
 # flask
 from flask import render_template, request, jsonify, abort, url_for
+# sqlalchemy
+from sqlalchemy.orm import Session
 # app
 from app import _
 from app.utils.templates import PageNavigation
@@ -96,16 +99,21 @@ def delete_record(table_name: str, pks: str) -> Any:
             return jsonify(success=False, error=str(e)), 500
         
 def view_record(table_name: str, pks: str) -> Any:
-    model = get_model(table_name, pks)
-    basic_info = model.data_dict(serializeable=True)
-
+    with db_session() as db_sess:
+        Base.db_session = db_sess
+        model = get_model(table_name, pks)
+        basic_info = model.data_dict(serializeable=True)
+        headers = model.get_headers()
+        ref_names, ref_lists = model.get_ref_data()
 
     return render_template(
         'crud/view_record.jinja', 
         table_name=table_name, 
         pks=pks,
         basic_info=basic_info,
-        headers=model.get_headers(),
+        headers=headers,
+        ref_names=ref_names,
+        ref_lists=ref_lists,
         navigation=navigation.get_nav({
             'View table': url_for('base.crud.view_table', table_name=table_name),
             'View record': '#'
@@ -116,13 +124,13 @@ def get_model(table_name: str, pks: str) -> Any:
     if table_name not in Base.model_map or pks is None:
         abort(404)
     Model = Base.model_map[table_name]
-    with db_session() as db_sess:
-        Base.db_session = db_sess
-        if pks == '_new':
-            model = Model()
-        else:
-            pk_value_tuple = tuple(pks.split(','))
-            model = db_sess.get(Model, pk_value_tuple)
-        if model is None:
-            abort(404)
+    if pks == '_new':
+        model = Model()
+    else:
+        pk_value_tuple = tuple(pks.split(','))
+        if not Base.db_session:
+            raise DatabaseError(f'Base.db_session not initialized {Base.db_session}')
+        model = Base.db_session.get(Model, pk_value_tuple)
+    if model is None:
+        abort(404)
     return model
