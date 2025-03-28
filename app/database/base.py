@@ -181,7 +181,12 @@ class Base(DeclarativeBase):
                     if key in self.get_col_keys('DataJson'):
                         value = DataJson.get_obj(value)
                     setattr(self, key, value)
-       
+    
+    @classmethod
+    def get_headers(cls) -> tuple[str, ...]:
+        return tuple(col.name for col in cls.__mapper__.columns
+                     if col not in cls.get_cols('pk'))
+
     @classmethod
     def get_cols(cls, *args: str) -> set[Column]:
         """

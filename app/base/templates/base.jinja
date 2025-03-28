@@ -19,7 +19,7 @@
   </title>
 </head>
 <body>
-  <div class="container-fluid">
+  <div class="container-fluid d-flex flex-column">
   {%- block navbar %}
     <div class="row row-cols-auto align-items-center justify-content-between">
       <div class="d-flex align-items-center">
@@ -71,7 +71,7 @@
       </div>
     </div>
   {%- endblock navbar %}
-    <div class="row">
+    <div class="row flex-fill">
     {%- block content %}
     {%- endblock content %}
     </div>

@@ -6,31 +6,22 @@
    固定表列: 1
 */
 
-/* 按钮大小适配 */
-@media (max-width: 768px) {
-    .table-responsive {
-        max-height: 1000px;
-    }
-
-}
-
 /* 滚动容器样式 */
 .table-responsive {
-    max-height: 500px;
+    max-height: calc(100vh - 200px);
     background-color: white; /* 覆盖其下的内容 */
     overflow-x: auto;
     position: relative; /* 确保子元素的定位相对于此元素 */
     border: 1px solid #ddd; /* 可选：添加边框以限制内容范围 */
     box-sizing: border-box ; /* 确保边框和内边距不会影响宽度 */
     padding-left: 0;
-
-    thead.sticky-top {
-        z-index: 2; /* 确保表头在其他内容之上 */
-    }
 }
 
 /* 固定前两列 */
 .dbman-datatable-table {
+    thead.sticky-top {
+        z-index: 2; /* 确保表头在其他内容之上 */
+    }
     th:nth-child(1),
     td:nth-child(1),
     th:nth-child(2),

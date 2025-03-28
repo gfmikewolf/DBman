@@ -1,0 +1,70 @@
+{#- app/base/templates/crud/view_record.jinja -#}
+
+{%- extends 'base.jinja' -%}
+
+{%- block head -%}
+  <meta name="modules" content="modal-alert,datatable">
+{%- endblock head -%}
+
+{#- @param for base.jinja - prev_page: redirect to upper level page -#}
+{%- set prev_page = url_for('base.crud.index') -%}
+
+{%- block content %}
+  <div class="container-fluid d-flex flex-column">
+    <div class="row">
+      <nav id="navbar-view" class="navbar navbar-expand-lg navbar-light bg-light">
+        <ul class="nav">
+          <li class="nav-item dropdown">
+            <button class="btn dropdown-toggle" 
+              data-bs-toggle="dropdown" 
+              role="button" aria-expanded="false">
+              {{- _('Related Objects') -}}
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="#">Object 1</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <button class="btn dropdown-toggle" 
+               data-bs-toggle="dropdown" 
+               href="#" role="button" aria-expanded="false">
+              {{- _('Related Functions') -}}
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="#">Func 1</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+    </div>
+    <div class="row">
+      <div class="col-12 table-responsive p-3">
+        <h4>{{- _('Basic Information') -}}</h4>
+        <div class="container d-flex flex-column">
+          {%- for key, value in basic_info.items() %}
+            <div class="d-flex align-items-center mb-2">
+              <div >{{- key }}:</div>
+              <div >{{- value }}</div>
+            </div>
+          {%- endfor %}
+        </div>
+        <h4>{{- _('Related Objects') -}}</h4>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <p>.......................................................................................</p>
+        <h4>{{- _('Related Functions') -}}</h4>
+        <p>...</p>
+      </div>
+    </div>
+  </div>
+   
+{%- endblock content -%}
