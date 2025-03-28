@@ -1,16 +1,16 @@
 {#- app/base/templates/crud/view_record.jinja -#}
-
+{%- from 'macros/datadict-dbman.jinja' import DatadictDBMan -%}
 {%- extends 'base.jinja' -%}
 
 {%- block head -%}
-  <meta name="modules" content="modal-alert,datatable">
+  <meta name="modules" content="">
 {%- endblock head -%}
 
 {#- @param for base.jinja - prev_page: redirect to upper level page -#}
 {%- set prev_page = url_for('base.crud.index') -%}
 
 {%- block content %}
-  <div class="container-fluid d-flex flex-column">
+  <div class="container-fluid d-flex flex-wrap">
     <div class="row">
       <nav id="navbar-view" class="navbar navbar-expand-lg navbar-light bg-light">
         <ul class="nav">
@@ -38,31 +38,24 @@
       </nav>
     </div>
     <div class="row">
-      <div class="col-12 table-responsive p-3">
-        <h4>{{- _('Basic Information') -}}</h4>
-        <div class="container d-flex flex-column">
-          {%- for key, value in basic_info.items() %}
-            <div class="d-flex align-items-center mb-2">
-              <div >{{- key }}:</div>
-              <div >{{- value }}</div>
-            </div>
-          {%- endfor %}
+      <div class="col-12 d-flex p-3 border fixed-fill">
+        <div class="col-sm-12 col-md-6 mt-2 p-3 border independent-scroll">
+          <h4>{{- _('Basic Information') -}}</h4>
+          {{- DatadictDBMan(
+                name='basic',
+                data=basic_info,
+                ref_names=ref_names,
+                data_keys=headers,
+                datajson_keys={}
+              ) 
+          -}}
         </div>
-        <h4>{{- _('Related Objects') -}}</h4>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <p>.......................................................................................</p>
-        <h4>{{- _('Related Functions') -}}</h4>
-        <p>...</p>
+        <div class="col-sm-12 col-md-6 mt-2 p-3 border independent-scroll">
+          <h4>{{- _('Related Objects') -}}</h4>
+          <p>{{ ref_names }}</p>
+          <h4>{{- _('Related Functions') -}}</h4>
+          <p>{{ ref_lists }}</p>
+        </div>
       </div>
     </div>
   </div>
