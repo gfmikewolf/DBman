@@ -11,10 +11,22 @@
     max-height: calc(100vh - 200px);
     background-color: white; /* 覆盖其下的内容 */
     overflow-x: auto;
+    overflow-y: auto;
     position: relative; /* 确保子元素的定位相对于此元素 */
     border: 1px solid #ddd; /* 可选：添加边框以限制内容范围 */
     box-sizing: border-box ; /* 确保边框和内边距不会影响宽度 */
     padding-left: 0;
+}
+
+.fixed-fill {
+    max-height: calc(100vh - 200px);
+    overflow: hidden;
+}
+
+.independent-scroll {
+    max-height: 100vh;
+    overflow-y: auto;
+    overflow-x: auto;
 }
 
 /* 固定前两列 */
