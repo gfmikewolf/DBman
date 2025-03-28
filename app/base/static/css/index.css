@@ -26,7 +26,8 @@
 .independent-scroll {
     max-height: 100vh;
     overflow-y: auto;
-    overflow-x: auto;
+    overflow-x: hidden;
+    word-wrap: normal;
 }
 
 /* 固定前两列 */
