@@ -65,7 +65,10 @@ def modify_record(table_name: str, pks: str) -> Any:
             abort(404)
 
     # runs to this line only if request.method == 'GET'
-    data = model.data_dict(serializeable=True)
+    if pks == '_new':
+        data = dict()
+    else:
+        data = model.data_dict(serializeable=True)
     headers = model.get_headers()
 
     return render_template(
