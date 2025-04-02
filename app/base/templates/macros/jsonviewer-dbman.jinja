@@ -1,0 +1,33 @@
+{# app/base/templates/macros/jsonviewer-dbman.jinja #}
+{%- macro JSONViewerDBMan(
+      name='main',
+      id='dbman-jsonviewer-' + name,
+      headers=[],
+      data={},
+      ref_names={},
+      dbman_dict_name_list=[]
+    )
+%}
+  <ul id="{{- id -}}">
+  {% for header in headers %}
+    <li>
+      <strong>
+      {% if header in ref_names.keys() %}
+      {% set rel_key = ref_names['rel_key'] %}
+        {{- _(rel_key, dbman_dict_name_list) -}}
+      {% else %}
+        {{- _(header, dbman_dict_name_list) -}}
+      {% endif %}
+      </strong>: 
+      {% if header in ref_names.keys() %}
+      <a href="url_for( 'base.crud.view_record', 
+                        table_name=ref_names['ref_table'], 
+                        pks=data[header])">
+        {{- ref_names[header]['ref_name'] -}}</a>        
+      {% else %}
+        {{- data[header] -}}
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+{%- endmacro -%}
