@@ -9,5 +9,6 @@ def get_datajson_structure(datajson_id: str):
         raise ValueError(f'Invalid datajson_id: {datajson_id}')
     with db_session() as db_sess:
         Base.db_session = db_sess
-        structure = serialize_value(datajson_cls.get_structure())
+        structure = serialize_value(datajson_cls.fetch_structure())
+    
     return jsonify(success=True, data=structure)

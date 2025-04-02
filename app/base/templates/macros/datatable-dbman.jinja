@@ -1,8 +1,8 @@
 {#- app/base/templates/macros/dbman-datatable.jinja -#}
 {%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
 {#- depends on Bootstrap 5, Font Awesome 6
-    @param name - table name, default is 'main'
-    @param data - dict of headers, data, pks, headers_json, ref_map, ref_pks, etc.
+    @param name - string, table name, default is 'main'
+    @param data - dict, keyed by headers, data, pks, fields_datajson, ref_map, ref_pks, etc.
     @return - a datatable with functions like search, delete, modify etc.
 
     selectors:
@@ -28,19 +28,18 @@
     table construct:
     - data columns are tagged with data-dbman-sn="index(starting from 1) of header in headers"
 
-    data constrcut:
+    data construct:
     - data['headers'] - list of headers
     - data['data'] - list of data rows
     - data['_pks'] - list of primary keys joined by comma
-    - data['headers_json'] - list of headers with normal json data
-    - data['ref_map'] - {header with foreign key: {ref_table, [(ref_pks, ref_name)...]}}
-    - data['ref_pks'] - list of foreign key reference primary keys
-
+    - data['fields_datajson'] - list of headers with normal json data
+    - data['ref_map'] - {header with foreign key: (id_col, ref_table)
 -#}
 {%- macro DatatableDBMan(
       table_name=none,
       name='main',
-      data=dict()
+      data=dict(),
+      dbman_dict_name_list=[]
     ) 
 -%}
 <div class="container-fluid dbman-datatable" id="dbman-datatable-{{ name }}">
@@ -113,18 +112,20 @@
                 <input class="form-check-input" 
                   data-dbman-toggle="check-all" 
                   type="checkbox" 
-                  name="check-all">
+                  id="check-all">
               </th>
               <th>{{ _('_table_action') }}</th>
-              {%- for header in data['headers'] %}
+              {%- for header in data['headers'] -%}
                 <th data-dbman-sn="{{ loop.index }}">
-                  {{- header -}}
+                  {#- translate header by specific dictionary -#}
+                  {{- _(header, dbman_dict_name_list) -}}
                 </th>
               {%- endfor %}
             </tr>
           </thead>
           <tbody>
           {%- for row in data['data'] -%}
+            {%- set row_number = loop.index0 -%} {#- for nested loop use -#}
             {%- set pks = data['_pks'][loop.index0] %}
             <tr class="align-items-top">
               <td>
@@ -132,7 +133,7 @@
                   data-dbman-toggle="check-item" 
                   type="checkbox" 
                   value="{{ pks }}" 
-                  name="check-{{ pks }}">
+                  id="check-{{ pks }}">
               </td>
               <td>
                 <div class="btn-group" role="group">
@@ -153,38 +154,36 @@
                   </button>
                   <a href="{{ url_for('base.crud.view_record', table_name=table_name, pks=pks) }}"
                     class="btn btn-sm btn-outline-dark">
-                    <i class="fa-solid fa-circle-info" 
+                    <i class="fa-solid fa-ellipsis" 
                       data-bs-toggle="tooltip"
                       data-bs-title="{{ _('View') }}">
                     </i>
                   </a>
                 </div>
               </td>
-              {%- set row_number = loop.index0 -%}
-              {%- set headers_fk = data['ref_map']|map(attribute='ref_name')|list -%}
-              {%- set ref_header_start_index = -1 -%}
-              {%- for header in data['headers'] -%}
+              {%- set ref_map = data['ref_map'] -%}
+              {%- set ref_pks = data['_ref_pks'] -%}
+              {%- for field_name in data['headers'] -%}
                 {%- set value = row[loop.index0] -%}
-                {%- if header in data['headers_json'] %}
-              {# djlint:ignore H025 -#}<td data-dbman-sn="{{ loop.index }}" data-dbman-data='{{ value }}'> 
+                {%- if field_name in data['fields_datajson'] %}
+              <td data-dbman-sn="{{ loop.index }}" data-dbman-data='{{ value }}'> 
+{#- datajson display to be refined -#}                  
                   {{- value -}}
+              </td>
+                {%- elif field_name in ref_pks.keys() -%}
+                {#- ref_map[rel_key] = (local_col_key, ref_table) -#}
+                  {%- set ref_table = ref_map[field_name][1] -%}
+                  {%- set ref_pk = ref_pks[field_name][row_number] %}
+              <td data-dbman-sn="{{ loop.index }}" data-dbman-data="{{ value }}">  
+                <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pk) }}">
+                  {{- value -}}
+                </a>
+              </td>
                 {%- else %}
               <td data-dbman-sn="{{ loop.index }}">
-                  {%- if header in headers_fk -%}
-                    {%- if ref_header_start_index == -1 -%}
-                      {%- set ref_header_start_index = loop.index0 -%}
-                    {%- endif -%}
-                    {# IMPORTANT: ASSUME all referenced columns are at the last of fetch_datatable_dict() #}
-                    {%- set ref_table = data['ref_map'][loop.index0 - ref_header_start_index]['ref_table'] -%}
-                    {%- set ref_pks = data['ref_pks'][row_number][loop.index0 - ref_header_start_index] -%}
-                    <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pks) }}">
-                      {{- value if value else '' -}}
-                    </a>
-                  {%- else -%}
-                    {{- value if value else '' -}}
-                  {%- endif -%}
-                {%- endif -%}
+                    {{- value -}}
               </td>
+                {%- endif -%}
               {%- endfor %}
               </tr>
             {%- endfor %}

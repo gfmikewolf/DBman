@@ -2,34 +2,42 @@
 {%- macro DatadictDBMan(
       name='main',
       id='dbman-datadict-' + name,
-      data=data,
-      ref_names=ref_names,
-      data_keys=data_keys,
-      datajson_keys=datajson_keys
+      headers=[],
+      data={},
+      ref_names=dict(),
+      datajson_map=dict(),
+      dbman_dict_name_list=[]
     )
--%}
-  <table class="table" id="{{- id -}}">
-    <tbody>
-    {%- for key in data_keys -%}
-      <tr>
-        <td>{{- key -}}</td>
-        <td>
-        {%- if key in ref_names.keys() -%}
-          <a href={{ url_for(
-            'base.crud.view_record', 
-            table_name=ref_names[key][0], 
-            pks=data[key]) 
-          }}>
-            {{- ref_names[key][1] -}}
-          </a>
-        {%- elif key in datajson_keys -%}
-          {{- data[key] -}}
-        {%- else -%}
-          {{- data[key] -}}
+%}
+  <div class="dbman-datadict" id="{{- id -}}">
+  {%- for header in headers %}
+    <div class="dbman-datadict-row">
+      <div class="dbman-datadict-key">
+      {%- if header in ref_names.keys() %}
+        <strong>
+        {{- _(ref_names[header]['rel_key'], dbman_dict_name_list) -}}
+        </strong>:
+      {%- else %}
+        <strong>{{- _(header, dbman_dict_name_list) -}}</strong>:
+      {%- endif %}
+      </div>
+      <div class="dbman-datadict-value">
+      {%- if header in ref_names.keys() %}
+        <a href="{{ url_for(
+              'base.crud.view_record', 
+              table_name=ref_names[header]['ref_table'], 
+              pks=data[header])
+          }}">
+          {{- ref_names[header]['ref_name'] -}}
+        </a>
+      {%- elif header in datajson_map -%}
+      {{ header }}
+      {{- datajson_map -}}
+      {%- else %}
+        {{- data[header] -}}
         {%- endif -%}
-        </td>
-    {%- endfor -%}
-      </tr>
-    </tbody>
-  </table>
+      </div>
+      </div>
+    {%- endfor %}
+  </div>
 {%- endmacro -%}

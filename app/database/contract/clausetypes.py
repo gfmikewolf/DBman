@@ -1,5 +1,6 @@
 # app/database/contract/clausetypes.py
 from enum import Enum
+from re import M
 
 class ClauseAction(Enum):
     """
@@ -9,6 +10,7 @@ class ClauseAction(Enum):
     REMOVE = 'remove'
     UPDATE = 'update'
 
+
 class ClauseType(Enum):
     """
     { 'clause_entity', 'clause_scope', 'clause_expiry' }
@@ -16,6 +18,7 @@ class ClauseType(Enum):
     ENTITY = 'clause_entity'
     SCOPE = 'clause_scope'
     EXPIRY = 'clause_expiry'
+
 
 class ClausePos(Enum):
     """

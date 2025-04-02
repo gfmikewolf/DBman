@@ -137,7 +137,7 @@ class DatajsonMJ extends ContainerMJ {
       return DatajsonMJ.elementCache[this.type];
     }
     const frag = document.createDocumentFragment();
-    const card = createElement('div', frag, 'card');
+    const card = createElement('div', frag, 'card mt-0 mb-3');
     const cardBody = createElement('div', card, 'card-body');
     const structure = await this.getRenderStructure();
     let inputElement;
@@ -148,7 +148,7 @@ class DatajsonMJ extends ContainerMJ {
       if (value === null || value === undefined) {
         value = '';
       }
-      const inputGroup = createElement('div', cardBody, 'input-group mb-3 flex-nowrap');
+      const inputGroup = createElement('div', cardBody, 'input-group mb-1 flex-nowrap');
       const label = createElement(
         'label', 
         inputGroup,
@@ -168,8 +168,8 @@ class DatajsonMJ extends ContainerMJ {
           { type: 'date', id: keyUid, value: value }
         );
         inputElement = input;
-      } else if (key in structure['ref_map']) {
-        const ref_pks_name = structure['ref_map'][key];
+      } else if (key in structure['select_options']) {
+        const ref_pks_name = structure['select_options'][key];
         let selectpicker = null;
         if (ref_pks_name.length > 5) {
           selectpicker = createElement(

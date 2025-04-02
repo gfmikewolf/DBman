@@ -1,0 +1,50 @@
+{
+    "contract_id": "合同ID",
+    "contract_name": "合同名称",
+    "contract_fullname": "合同全称",
+    "contract_effectivedate": "合同生效日期",
+    "contract_expirydate": "合同到期日期",
+    "contract_scope": "合同交付范围",
+    "contract_entities": "合同实体",
+    "contract_remarks": "合同备注",
+    "contract_number_huawei": "华为合同号",
+    
+    "amendment_id": "变更ID",
+    "amendment_name": "变更名称",
+    "amendment_fullname": "变更全称",
+    "amendment_signdate": "签约日期",
+    "amendment_effectivedate": "生效日期",
+    "amendment_entities": "变更实体",
+    "amendment_remarks": "变更备注",
+
+    "contract": "合同",
+    "amendments": "变更列表",
+    "clauses": "条款列表",
+    "clause": "条款",
+
+    "clause_id": "条款ID",
+    "clause_pos": "条款位置",
+    "clause_ref": "条款引用",
+    "clause_type": "条款类型",
+    "clause_action": "条款操作",
+    "entity_id": "实体ID",
+    "scope_id": "范围ID",
+    "clause_extra_data": "额外数据",
+    "clause_text": "条款正文",
+    "clause_reviewcomments": "评审意见",
+    "clause_remarks": "条款备注",
+
+    "amendment": "所属变更",
+    "entity": "实体",
+    "scope": "交付范围",
+
+    "entitygroup_id": "集团实体ID",
+    "entitygroup_name": "集团实体名称",
+    "entities": "实体列表",
+
+    "entity_name": "实体名称",
+    "entity_fullname": "实体全称",
+    "entitygroup": "所属集团实体",
+
+    "scope_name": "交付范围名称"
+}

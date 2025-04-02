@@ -1,7 +1,4 @@
-from sqlalchemy import select, Select
 from app.database.base import DataJson
-from ..clausetypes import ClauseAction
-from ..dbmodels import Entity
 
 class ClauseEntity(DataJson):
     """
@@ -18,25 +15,24 @@ class ClauseEntity(DataJson):
         The unique identifier for the DataJson type, set to 'clause_entity'.
 
     Constraints:
-      - `action` is required.
-      - `entity_id` is required.
-      - `old_entity_id` is required if action is update.
+      - `old_entity_id` is required if action is ClauseAction.UPDATE.
     """
     __datajson_id__ = 'clause_entity'
     
     # Initiate cvars so that we can get the attribute types from class
-    action: ClauseAction = ClauseAction.UPDATE
-    entity_id: int = 0
     old_entity_id: int | None = 0
     
     attr_info = {
-        'data': {'action', 'entity_id', 'old_entity_id'},
-        'required': {'action', 'entity_id'},
-        'foreign_keys': {
-            'entity_id': 'entity',
-            'old_entity_id': 'entity'
+        'data': {'old_entity_id'},
+        'rel_map': {
+            'old_entity': {
+                'ref_table': 'entity',
+                'local_col': 'old_entity_id',
+                'name_col': 'entity_name',
+                'select_order': ('entity_name',)
+            }
         },
-        'ref_name_order': {
-            'entity_name': ('entity_name',)
+        'nicknames': {
+            'old_entity_id': 'Old entity',
         }
     }

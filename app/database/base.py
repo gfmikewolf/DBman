@@ -5,25 +5,22 @@ __all__ = ['Base', 'DataJson', 'DataJsonType']
 # python
 from sqlite3 import DatabaseError
 from typing import Any, Iterable, Optional
-from enum import Enum # 用到eval('Enum')，需要导入
-from datetime import date # 用到eval('date')，需要导入
+from enum import Enum 
+from datetime import date
 import json
+
 # sqlalchemy
-from sqlalchemy import Column, select
+from sqlalchemy import Column, select, Select
 from sqlalchemy.types import TypeDecorator, JSON
-from sqlalchemy.orm import DeclarativeBase, Session, ColumnProperty
+from sqlalchemy.orm import DeclarativeBase, Session, ColumnProperty, RelationshipProperty
+from sqlalchemy.ext.hybrid import hybrid_property
+
 # app
 from app.utils.common import args_to_dict
 
 def serialize_value(attr: Any) -> Any:
     """
-    将变量转换为可序列化为存储为JSON的数据类型。可适配ColumnProperty属性。
-
-    参数:
-    value (Any): 值。
-
-    返回:
-    Any: 序列化后的值。
+    convert the `attr` to a serializable value according to its data type.
     """
     
     if isinstance(attr, ColumnProperty):
@@ -47,17 +44,10 @@ def serialize_value(attr: Any) -> Any:
 
 def convert_value_by_python_type(value: Any, python_type: Any) -> Any:
     """
-    根据python类型转换值。
-
-    参数:
-    value (Any): 值。
-    python_type (Any): Python类型。
-
-    返回:
-    Any: 转换后的值。
+    convert the `value` by the `python_type`.
     """
 
-    if value is None:
+    if value is None or (value == '' and not issubclass(python_type, str)):
         return None
     converted_value = value
     if isinstance(value, python_type):
@@ -92,66 +82,65 @@ def convert_value_by_python_type(value: Any, python_type: Any) -> Any:
 
 class Base(DeclarativeBase):
     """
-    数据模型基类。
+    Base class for all database models in the application.
 
-    映射规则：
-    - 数据模型的属性名必须与数据库列名一致。
-    - 对可以简单引用记录名称的表使用 name = synonym(引用属性名称)
-    - 对于单主键场景，主键属性不为id时，使用id = synonym(主键属性名称)
+    .. attention:: 
+        - `model_map` shall be set before using the class and its subclasses.
+        - `db_session` shall be initialized before using *fetch_* methods.
 
-    属性：
-    - db_session (scoped_session | None): SQLAlchemy 会话对象，用于与数据库进行交互。
-    - model_map (dict[str, type[Base]]): 当前用户可访问的表与数据模型的映射。
-    - col_key_info (dict[str, set[str]]): 数据库列的信息字典{信息字段：数据库列名的集合}。用于缓存已获取的信息。
-    - col_info (dict[str, set[Column]]): 数据库列的信息字典{信息字段：数据库列属性的集合}。用于缓存已获取的信息。
-
-    公共方法：
-    - 实例方法：
-        - replace_data(data: str | dict | None = None, **kwargs: Any) -> None: 更新一个实例的数据。
-        - data_dict(serializeable: bool = False) -> dict[str, Any]: 获取实例的数据字典，可选择转换类型为JSON可用的字典，字典会带有__tablename__标签，方便解析为实例。
-    - 类方法：
-        - validate_dict(data: dict[str, Any]) -> bool: 验证数据字典中的数据是否符合模型的属性要求。
-        - load(data: dict | str | None = None, **kwargs) -> dict[str, Any]: 将JSON字符串或字典转换为字典。
-        - fetch_datatable_dict() -> dict[str, Any]: 获取可用于渲染的数据表。
-        - get_col_keys(*args: str) -> set[str]: 获取包含指定信息的列属性集合。
-        - get_cols(*args: str) -> set[Column]: 获取包含指定信息的列属性集合。
-
-    私有方法：
-    - 类方法：
-        - _load_dict(data: dict) -> dict[str, Any]: 将已验证的字典中对应col_info里'data'类型的数据按_tablename的类属性进行数据类型转换。
+    :cvar model_map: { database table name: Class name of the model }
+    :cvar db_session: SQLAlchemy Session object.
+    :cvar col_key_info: Dictionary and cache of column information valued by keys.
+    :cvar col_info: Dictionary and cache of column information valued by columns.
     """
     model_map: dict[str, type['Base']] = {}
     """
-    当前用户可访问的表与数据模型的映射。
+    a dictionary of model classes, used to identify the class from the __tablename__ key in the data dictionary.
 
-    - 该字典应该在 database/models.py 中初始化。
+    .. attention:: must be defined in the subclass before using its properties or methods.
     """
     
     db_session: Session | None = None
     """
-    SQLAlchemy 会话对象，用于与数据库进行交互。
-
-    - 该对象应该在 database/__init__.py 中初始化。
+    SQLAlchemy `Session`. 
+    
+    .. attention:: Must be set to a valid session before using certain methods of the class.
     """
 
-    col_key_info: dict[str, set[str] | dict[str, tuple[str,...]]] = NotImplemented
+    col_key_info: dict[str, Any] = NotImplemented
     """
-    数据库列的信息字典{信息字段：数据库列名的集合}
+    Information about the columns in the database table.
 
-    - 特别注意数据库列名与类模型属性名必须一致
-    - 注意集合是无序的
+    :key: 
+    string, information type, including:
+        - user-defined types: string, *readonly*, *hidden*, *required*, *rel_map*
+        - data types: string, *str*, *int*, *float*, *bool*, *set*, *list*, *dict*, *DataJson*, *Enum*
+    
+    :value: 
+    a set of string for user-defined types and a dict for data types, or
+    a dict for relationship map type `ref_map`, including the entries below:
+        - `ref_map['ref_name_col']`: referenced name column name, e.g. *contract_name*
+        - `ref_map['select_order']`: order by tuple of column name and order direction (asc or desc)
+
+    .. attention:: - must be defined in the subclass before using its properties or methods.
+                   - the return type of set of string has no order.
     """
+    
     col_info: dict[str, set[Column]] = NotImplemented
     """
-    数据库列的信息字典{信息字段：数据库列属性的集合}
-
-    - 注意集合是无序的
+    Information about the columns in the database table. See `col_key_info` for details.
+    
+    :rtypes: dict[str, set[Column]]
     """
+    
     @classmethod
     def __init_subclass__(cls, **kwargs):
         """
-        每个子类需要定义自己的类属性`col_info`和`col_key_info`，
-        如果未定义，则在子类构建时初始化为空字典。
+        Initialize the class variables such as col_info and col_key_info.
+
+        .. attention::  `col_key_info` and `col_info` are not implemented in the base class
+                        but initialized in this method 
+                        to create independent subclass level variables.
         """
         super().__init_subclass__(**kwargs)
         if cls.col_key_info is NotImplemented:
@@ -161,18 +150,16 @@ class Base(DeclarativeBase):
 
     def replace_data(self, data: str | dict | None = None, **kwargs: Any) -> None:
         """
-        更新一个实例的数据。如果数据字典中的数据不符合模型的属性要求，则抛出异常。
-        如果字典里有多余的数据，但其他数据符合数据格式的要求，会继续执行。
+        replace the data of an instance with `data` and `kwargs`.
 
-        参数:
-        data (str | dict | None): JSON 字符串或字典。
-        kwargs (Any): 其他关键字参数。关键字参数优先级高于 data。
+        :param data: string or dict or none, json string or dict to be converted to DataJson object.
+        :param kwargs: other keyword arguments which override the correspondent entries in parameter `data`.
         """
         args_dict = args_to_dict(data, **kwargs)
         if self.get_cls_from_dict(args_dict) is None:
             raise AttributeError('Invalid data: {data} kwargs:{kwargs} to match {self}')
         mod_col_keys = self.get_col_keys('modifiable')
-        if args_dict.keys() - mod_col_keys: # 检查是否有非法数据
+        if args_dict.keys() - mod_col_keys: # check if there is any keys not modifiable
             raise AttributeError(f'Invalid data: {args_dict} to match {self}')
         for key in mod_col_keys:
             if key in args_dict:
@@ -183,41 +170,35 @@ class Base(DeclarativeBase):
                     setattr(self, key, value)
     
     @classmethod
-    def get_headers(cls) -> tuple[str, ...]:
-        return tuple(col.name for col in cls.__mapper__.columns
-                     if col not in cls.get_cols('pk'))
+    def get_headers(cls) -> list[str]:
+        """
+        :return: a tuple of column keys in the database table 
+        if the column is not an invisible primary key.
+        """
+        return  [
+            col.key for col in cls.__mapper__.columns
+            if col not in (cls.get_cols('pk') - cls.get_cols('visible'))
+        ]
 
-    def get_ref_data(self) -> tuple[dict[str, tuple[str, str]], dict[str, list[Any]]]:
-        ref_lists = dict()
-        ref_names = dict()
-        for rel in self.__mapper__.relationships:   
-            local_col_name = next(iter(rel.local_columns)).name
-            rel_obj = getattr(self, rel.key)
-            if rel.uselist:
-                ref_lists[rel.key] = [obj.data_dict(serializeable=True) for obj in rel_obj]
-            else:
-                if hasattr(rel_obj, 'name'):
-                    ref_names[local_col_name] = (rel.entity.class_.__tablename__, rel_obj.name)
-        return ref_names, ref_lists
-    
+
     @classmethod
     def get_cols(cls, *args: str) -> set[Column]:
         """
-        获取包含指定信息的列属性集合。
-        
-        参数:
-        *args (str): 包含的信息字符串参数。
-        
-        返回:
-        set[]: 包含指定信息的列属性集合。
+        :return: a set of columns in the database table with the specified information.
+        :param args: a list of information strings, including:
+
+            - user-defined types: string, 'readonly', 'hidden', 'required', 'rel_map'
+            - data types: string, 'str', 'int', 'float', 'bool', 'set', 'list', 'dict', 'DataJson', 'Enum'
+            - other args: return the columns with column.info[arg] exists
+        :raise AttributeError: if the information is not valid for this class.
+
+        .. notes:: the information is cached after the first fectch.
         """
         cols = set()
         for info in args:
-            # 如果已经缓存了信息，返回缓存信息
             if info in cls.col_info:
                 cols.update(cls.col_info[info])
-            # 如果没有缓存信息，根据参数获取信息并缓存
-            elif info in {'readonly', 'hidden'}:
+            elif info in {'readonly', 'hidden', 'longtext'}:
                 info_keys = cls.col_key_info.get(info, set())
                 if info_keys:
                     info_cols = {cls.__mapper__.columns[key] for key in info_keys}
@@ -226,13 +207,15 @@ class Base(DeclarativeBase):
             elif info == 'required':
                 info_cols = set()
                 for col in cls.__mapper__.columns:
-                    # 如果该列不允许为空且不是自动增长字段，则认为是必填项
+                    # If the column is not nullable and not autoincrement, it is required.
                     if (not col.nullable) and (col.autoincrement is not True):
                         info_cols.add(col)
                 cls.col_key_info[info] = info_cols
                 cols.update(info_cols)
             elif info == 'data':
                 info_cols = set(cls.__mapper__.columns)
+                if hasattr(cls, '_name'):
+                    info_cols.add(cls._name) # type: ignore
                 cls.col_info[info] = info_cols
                 cols.update(info_cols)
             elif info == 'pk':
@@ -261,12 +244,6 @@ class Base(DeclarativeBase):
                         info_cols.add(col)
                 cls.col_info[info] = info_cols 
                 cols.update(info_cols)   
-            elif info == 'longtext':
-                info_cols = set()
-                for str_col in cls.get_cols('str'):
-                    if str_col.info.get('longtext', None) is not None:
-                        info_cols.add(str_col)
-                cols.update(info_cols)
             else:
                 info_cols = set()
                 for col in cls.__mapper__.columns:
@@ -278,19 +255,21 @@ class Base(DeclarativeBase):
     @classmethod
     def get_col_keys(cls, *args: str) -> set[str]:
         """
-        获取包含指定信息的列属性集合。
+        :return: a set keys of `get_cols(args)`. 
+        :param args: a list of information strings, including:
 
-        参数:
-        *args (str): 包含的信息字符串参数。
+            - user-defined types: string, 'readonly', 'hidden', 'required', 'rel_map'
+            - data types: string, 'str', 'int', 'float', 'bool', 'set', 'list', 'dict', 'DataJson', 'Enum'
+            - other args: return the columns with column.info[arg] exists
+        :raise AttributeError: if the information is not valid for this class.
 
-        返回:
-        set[]: 包含指定信息的列属性集合。
+        .. notes:: the information is cached after the first fectch.
         """
         col_keys = set()
         for info in args:
             info_keys = cls.col_key_info.get(info, set())
             if not info_keys:
-                info_keys = {col.name for col in cls.get_cols(info)}
+                info_keys = {col.key for col in cls.get_cols(info)}
                 cls.col_key_info[info] = info_keys  
             col_keys.update(info_keys)
         return col_keys
@@ -298,13 +277,10 @@ class Base(DeclarativeBase):
     @classmethod
     def get_cls_from_dict(cls, data : dict[str, Any]) -> type['Base'] | None:
         """
-        从数据字典中获取对应的类。调用Base类此方法，数据中必须包含__tablename__键。
+        Check the key validity in the data and
+        return the Base class that match the data if valid.
 
-        参数:
-        data (dict[str, Any]): 数据字典。
-
-        返回:
-        type[Base] | None: 数据字典对应的类。
+        :return: the Base class from the data dictionary.
         """
         if cls.__tablename__ is None:
             tablename = data.get('__tablename__', None)
@@ -316,14 +292,13 @@ class Base(DeclarativeBase):
             model_cls = cls
         
         required_keys = model_cls.get_col_keys('required')
-        # 找到required_keys中不存在于data.keys()的键
+        # find keys that exist in required_keys but not in data
         missing_keys = required_keys - data.keys()
         if missing_keys:
             raise AttributeError(f'Missing required keys: {missing_keys} in {data}')
         
-        # 如果data_keys中有readonly的键，抛出属性异常
+        # raise error if data has readonly keys
         readonly_keys = model_cls.get_col_keys('readonly')
-        # 如果data_keys中有readonly_keys,下面的计算会得到非空集合
         if (readonly_keys - (readonly_keys - data.keys())):
             raise AttributeError(f'Readonly keys: {readonly_keys} in {data}')
         return model_cls
@@ -331,13 +306,9 @@ class Base(DeclarativeBase):
     @classmethod
     def load(cls, data: dict | str | None = None, **kwargs) -> dict[str, Any]:
         """
-        将JSON字符串或字典转换为字典。
+        convert json string or dict with keywords entries to a valid dict of the class.
 
-        参数:
-        data (dict | str | None): JSON字符串或字典。
-
-        返回:
-        dict[str, Any]: 转换后的字典。
+        .. attention:: `kwargs` will override data entries with the same keys.
         """
         args_dict = args_to_dict(data, **kwargs)
         model_cls = cls.get_cls_from_dict(args_dict)
@@ -352,14 +323,13 @@ class Base(DeclarativeBase):
     @classmethod
     def _load_dict(cls, data: dict) -> dict[str, Any]:   
         """
-        将已验证的字典中对应col_info里'data'类型的数据按_tablename的类属性进行数据类型转换。
-        - 忽略'readonly'键的数据
+        :return: a dictionary containing valid data for this class 
+        with data types converted according to the class attribute python types.
 
-        参数:
-        data (dict): 经验证的数据。
-
-        返回:
-        dict[str, Any]: 转换后的字典。
+        :param data: a dictionary with valid key structure to be converted to the class object.
+        
+        .. attention::
+        readonly keys in the data are neglected.
         """
         if cls.__tablename__ is None:
             model_cls = cls.get_cls_from_dict(data)
@@ -376,14 +346,18 @@ class Base(DeclarativeBase):
         data_dict['__tablename__'] = tablename
         
         for mod_col in mod_cols:
-            value = data.get(mod_col.name, None)
+            value = data.get(mod_col.key, None)
             if value is not None:
-                data_dict[mod_col.name] = convert_value_by_python_type(value, mod_col)
+                data_dict[mod_col.key] = convert_value_by_python_type(value, mod_col)
         return data_dict
 
     def __setattr__(self, key: str, value: Any) -> None:
         """
-        设置属性值。如果属性是只读属性，则不进行设置。如果是数据属性，则根据属性类型转换值。
+        set data attribute of the class with the datatypes converted accordingly.
+        if the key is not in `cls.get_col_keys('data')`, it will be set as is.
+        
+        :raise AttributeError: if the key is not valid e.g. readonly for this class or 
+        the value is not valid for the key.
         """
         converted_value = value
         if key in self.get_col_keys('data'):
@@ -398,9 +372,16 @@ class Base(DeclarativeBase):
         super().__setattr__(key, converted_value)
     
     def _super_setattr(self, key: str, value: Any) -> None:
+        """
+        orginal __setattr__ method reserved to modify readonly keys and etc.
+        """
         super().__setattr__(key, value)
    
     def data_dict(self, serializeable: bool = False) -> dict[str, Any]:
+        """
+        :return: a dictionary containing data of the instance.
+        :param serializeable: if True, the data is serialized to allowed types for JSON.
+        """
         data_dict = {'__tablename__': self.__tablename__}
         data_keys = self.get_col_keys('data')
         for data_key in data_keys:
@@ -411,146 +392,174 @@ class Base(DeclarativeBase):
                 data_dict[data_key] = '' if serializeable else None
             else:
                 data_dict[data_key] = serialize_value(attr) if serializeable else attr
+        
         return data_dict
+  
+    @classmethod
+    def _datatable_select_all(cls) -> tuple[Select, dict[str, tuple[str, str]]]:
+        """
+        :return: a select statement for all rows in the table, and a ref_map.
+            
+            - ref_map: keyed by relationship key, and the value is a tuple of
+                (local column key, referenced table key).
 
-    @classmethod
-    def _validate_session(cls) -> bool:
-        if cls.db_session is None:
-            return False
-        try:
-            cls.db_session.scalar(select(1))
-        except DatabaseError as e:
-            return False
-        return True
-    
-    @classmethod
-    def fetch_datatable_dict(cls) -> dict[str, Any]:
-        if cls._validate_session() is False:
-            raise DatabaseError('Invalid db_session {cls.db_session} for {cls}')
+        .. fields:: (id, name, `foreign_key_column.label(relationship.key)` [referenced name column], ...)
+            - only visible columns are selected.
+            - primary key columns are always selected.
+            - foreign key columns are selected with the referenced name column of 
+              the referenced table if it exists. 
+            - The name column or the foreign key column (if name column does not exist)
+              is labeled with the relationship key.
         
+        """
         mapper = cls.__mapper__
-        visible_cols = cls.get_cols('visible')
-        visible_keys = cls.get_col_keys('visible')
-        pk_tuple = mapper.primary_key
-        pk_cols = set(pk_tuple)
-
-        # 基础查询列表包括可见的列和主键列
-        query_cols = [col for col in mapper.columns if col in visible_cols | pk_cols]
         
-        # 连接查询列表
+        # attention: lack relationship names in visible keys
+        visible_keys = cls.get_col_keys('visible') 
+        # primary key columns need to be retrieved always for reference purpose
+
         joins = []
+        ref_map = dict()
+        # get ref_name_col in relationship info
+        rel_map = cls.col_key_info.get('rel_map', dict())
 
-        # 引用表映射 
-        # ref_map = {
-        #   引用列名：{
-        #       'tablename': 引用表名, 
-        #       'pk_names': 引用表主键列名元组
-        #    }
-        # }
-        ref_map = []
-
+        query_cols = []
+        query_cols.extend(list(mapper.primary_key))
+        for col in mapper.columns:
+            if col.key in visible_keys:
+                query_cols.append(col)
         for rel in mapper.relationships:
             if rel.uselist:
                 continue
-            ref_model = rel.entity.class_
-            if hasattr(ref_model, 'name'):
-                # 只处理单主键的引用表
-                ref_pk_attr = ref_model.__mapper__.primary_key[0]
-                ref_name_attr = getattr(ref_model, 'name', None)
-                if not (ref_model is None or ref_name_attr is None):
-                    ref_dict = dict()
-                    ref_dict['ref_name'] = ref_name_attr.name
-                    ref_dict['ref_table'] = ref_model.__tablename__
-                    ref_dict['ref_pk'] = ref_pk_attr.name
-                    ref_map.append(ref_dict)
-                    query_cols.append(ref_name_attr.label(ref_name_attr.name))
-                    query_cols.append(ref_pk_attr)
-                    visible_keys.add(ref_name_attr.name)
-                    joins.append(ref_model)
+            ref_Model = rel.entity.class_
+            local_col = next(iter(rel.local_columns))
+            rel_info = rel_map.get(rel.key, dict()) # type: ignore
+            if rel_info:
+                name_col_name = rel_info.get('ref_name_col', '_name') # type: ignore
+                ref_map[rel.key] = (local_col.key, ref_Model.__tablename__)
+                if hasattr(ref_Model, name_col_name):
+                    name_col = getattr(ref_Model, name_col_name)
+                    query_cols.append(local_col)
+                    query_cols.append(name_col.label(rel.key))
+                    joins.append(ref_Model)                   
+                else:
+                    query_cols.append(local_col.label(rel.key))
         query = select(*query_cols)
         if joins:
-            query = query.join_from(cls, *joins)
+            query = query.select_from(cls)
+            for join_Model in joins:
+                query = query.outerjoin(join_Model)
+        return query, ref_map
+    
+    @classmethod
+    def _convert_value_to_viewer(cls, key:str, value: Any) -> Any:
+        """
+        :return: convert the value to a viewable value in web page.
+
+            - None is converted to empty string.
+            - DataJson is converted to a JSON string.
+            - other types are converted to string.
+        """
+        if value is None:
+            value = ''
+        if key in cls.get_col_keys('DataJson') and isinstance(value, DataJson):
+            value = value.dumps()
+        if key in cls.get_col_keys('Enum') and isinstance(value, Enum):
+            value = value.name
+        return str(value)
+    
+    @classmethod
+    def fetch_datatable_dict(cls) -> dict[str, Any]:
+        """
+        :return: a dict of datatable for the class.
         
+        *example*::
+        ```python
+            datatable = {
+                'headers': ('id', 'name', 'contract_id', 'contract', ),
+                'data': [
+                    (1, 'entity1', 1, 'contract1'),
+                    (2, 'entity2', 2, 'contract2'),
+                ],
+                '_pks': ['1', '2'],
+                'ref_map': {
+                    'contract': (index of 'contract_id', 'table_contract')
+                }
+            }
+        ```
+        """
+        query, ref_map = cls._datatable_select_all()
+        visible_keys = cls.get_col_keys('visible')
+        pk_keys = cls.get_col_keys('pk')
         datatable = dict()
         
-        # 执行查询，在方法开始已经验证过db_session是可用的
         try:
             result = cls.db_session.execute(query) # type: ignore
         except DatabaseError as e:
             raise DatabaseError(f'Invalid query {query} or session {cls.db_session} for {cls}')
-        
-        datatable['headers'] = tuple(key for key in result.keys() if key in visible_keys)
+        datatable['headers'] = [
+            key for key in result.keys() 
+            if key in visible_keys | ref_map.keys() 
+        ]
         datatable['data'] = []
         datatable['_pks'] = []
-        datatable['ref_pks'] = []
+        datatable['_ref_pks'] = []
         datatable['ref_map'] = ref_map
+        
         if not result:
             return datatable  
         
-        pk_keys = set(pk.name for pk in pk_tuple)
-        
-        # json 类型的数据列，只显示可见的列
-        json_keys = cls.get_col_keys('DataJson', 'dict')
-        datatable['headers_json'] = json_keys - (json_keys - visible_keys)
+        ref_pks = dict()
+        for key in ref_map.keys():
+            ref_pks[key] = list()
+        json_keys = cls.get_col_keys('DataJson')
+        visible_json_keys = json_keys - (json_keys - visible_keys)
+        datatable['fields_datajson'] = visible_json_keys
 
         for row in result:
             datarow = []
             _pks = []
-            for key in result.keys():
+            for key in result.keys(): 
                 value = row._mapping[key]
-                if key in visible_keys:
-                    if value is None:
-                        value = ''
-                    if key in json_keys and isinstance(value, DataJson):
-                        value = value.dumps()
-                    if key in cls.get_col_keys('Enum') and isinstance(value, Enum):
-                        value = value.name
-                    datarow.append(value)
                 if key in pk_keys:
                     _pks.append(str(value))
+                for rel_key, ref_tuple in ref_map.items():
+                    if key == ref_tuple[0]: # ref_tuple[0] is the local column key
+                        ref_pks[rel_key].append(str(value))
+                if key in visible_keys | ref_map.keys():
+                    value = cls._convert_value_to_viewer(key, value)
+                    datarow.append(value)
             datatable['data'].append(datarow)
             datatable['_pks'].append(','.join(_pks))
-            if ref_map:
-                ref_row = []
-                _ref_pks = []
-                for ref_dict in ref_map:
-                    _ref_pks = row._mapping[ref_dict['ref_pk']]
-                    ref_row.append(_ref_pks)
-                datatable['ref_pks'].append(tuple(ref_row))
+        datatable['_ref_pks'] = ref_pks
         return datatable
-
-    
     
     @classmethod
-    def get_ref_list(cls, ref_name_order: dict[str, tuple[str, ...]]) -> list[tuple[str, str]]:
+    def fetch_ref_list(cls, col_name: str, order_by: tuple[str, ...] | None = None) -> list[tuple[str, str]]:
         """
         :return: list of tuple[referenced pk value joined by comma, referenced name column value]
+        :param col_name: referenced name column name
+        :param order_by: order by tuple of column name and order direction (asc or desc)
         """
-        if Base._validate_session() is False:
-            raise DatabaseError(f'Invalid db_session {cls.db_session}')
         
-        query = None
         list_pks_name = []
-        ref_model_pks = cls.__mapper__.primary_key
-        if not hasattr(cls, 'name'):
+        pks = cls.__mapper__.primary_key
+        if not hasattr(cls, col_name):
             return list_pks_name
-        
-        query = select(*ref_model_pks, cls.name) # type: ignore
-        if ref_name_order is not None and isinstance(ref_name_order, dict):
-            order_by_str_tuple = ref_name_order.get(cls.name.name, None) # type: ignore
-        if order_by_str_tuple is not None and isinstance(order_by_str_tuple, Iterable):
-            for rno_str in order_by_str_tuple:   
-                if isinstance(rno_str, str):
-                    rno_strs = rno_str.split('.')
-                    if hasattr(cls, rno_strs[0]):
-                        len_rno = len(rno_strs)
-                        if len_rno == 1 or (len_rno == 2 and rno_strs[1].lower() == 'asc'):
-                            query = query.order_by(getattr(cls, rno_strs[0]))
-                        elif len_rno == 2 and rno_strs[1].lower() == 'desc':
-                            query = query.order_by(getattr(cls, rno_strs[0]).desc())
-        if query is not None and cls.db_session is not None:
+        col = getattr(cls, col_name)
+        query = select(*pks, col)
+        if order_by is not None and isinstance(order_by, Iterable):
+            for rno_str in order_by:   
+                rno_strs = rno_str.split('.')
+                if hasattr(cls, rno_strs[0]):
+                    len_rno = len(rno_strs)
+                    if len_rno == 1 or (len_rno == 2 and rno_strs[1].lower() == 'asc'):
+                        query = query.order_by(getattr(cls, rno_strs[0]))
+                    elif len_rno == 2 and rno_strs[1].lower() == 'desc':
+                        query = query.order_by(getattr(cls, rno_strs[0]).desc())
+        if query is not None and Base.db_session is not None:
             try:
-                result = cls.db_session.execute(query)
+                result = Base.db_session.execute(query)
             except DatabaseError as e:
                 raise DatabaseError(f'Invalid query {query}'
                     f'or session {cls.db_session}') 
@@ -563,44 +572,185 @@ class Base(DeclarativeBase):
         return list_pks_name
     
     @classmethod
-    def fetch_col_select_options(cls) -> dict[str, tuple[Any]]:
+    def fetch_select_options(cls) -> dict[str, tuple[Any]]:
         """
-        :return:
-        - key = local column name 
-        - value = [tuple[referenced pk value, referenced column value]]
-        - values are ordered according to col_key_info['ref_name_order']
-        - orderby = { 'entity_name': tuple['entity_id', 'entity_frequency.desc']}
-        """
-        if Base._validate_session() is False:
-            raise DatabaseError('Invalid db_session {cls.db_session}')
+        :return: a dict of select options for each relationship and enum type column
+
+            - key: local column name 
+            - value: [tuple[referenced pk value, referenced column value]]. Values are ordered according to col_key_info['rel_map'][local_col]['select_order']*
         
-        col_select_options = dict()
+        *example*::
+            orderby = { 'entity_name': tuple['entity_id', 'entity_frequency.desc'] }
+        """
+        
+        select_options = dict()
         # Extract foreign key col and referenced pks and name tuple for each relationship
         mapper = cls.__mapper__
         for rel in mapper.relationships:
+            list_pks_name = []
             if rel.uselist:
                 continue
-            ref_model = rel.entity.class_
-            if not issubclass(ref_model, Base):
-                raise AttributeError(f'Invalid ref_model {ref_model} for {cls}')
-            ref_name_order = cls.col_key_info.get('ref_name_order', set())
-            if not isinstance(ref_name_order, dict):
-                raise AttributeError(f'Invalid ref_name_order {ref_name_order} for {cls}')
-            list_pks_name = ref_model.get_ref_list(ref_name_order)
-            col_select_options[next(iter(rel.local_columns)).name] = list_pks_name
+            ref_Model = rel.entity.class_
+            local_col_key = next(iter(rel.local_columns)).key
+            rel_map = cls.col_key_info.get('rel_map', {})
+            rel_info = rel_map.get(rel.key, None) # type: ignore
+            order_by = None
+            order_by = rel_info.get('select_order', None) # type: ignore
+            ref_name_col = rel_info.get('ref_name_col', '_name') # type: ignore
+            list_pks_name = ref_Model.fetch_ref_list(ref_name_col, order_by=order_by) 
+            select_options[local_col_key] = list_pks_name
         
         # Extract Enum types and get options from Enum definition
         enum_cols = cls.get_cols('Enum')
         for col in enum_cols:
             enum_cls = col.type.python_type
-            values = [(member.value, member.name) for member in enum_cls] # type: ignore enum_cls is subclass of Enum
-            col_select_options[col.name] = values        
-        return col_select_options
-    
+            if not issubclass(enum_cls, Enum):
+                raise AttributeError(f'Invalid enum_cls {enum_cls} for {cls}')
+            values = [(member.value, member.name) for member in enum_cls]
+            select_options[col.key] = values        
+        return select_options
+
+    def fetch_rel_data(self, with_data: bool=False, with_lists: bool=False) -> dict[str, Any]:
+        """
+        :return: a dictionary containing the relationship data of the instance.
+        :param with_data: if True, the data of the referenced objects are included.
+        :param with_lists: if True, the data of the referenced lists are included.
+
+        *example*::
+        ```python
+            rel_data = {
+                'ref_names': {
+                    'entity_id': {
+                        'field_name': 'entity_id',
+                        'tablename': 'table_entity',
+                        'ref_name': 'entity1',
+                        'headers': ('id', 'name', ...),
+                        'data_dict': {'id': 1, 'name': 'entity1', ...},
+                        'ref_names': {...}
+                    },
+                    ...
+                },
+                'ref_lists': {
+                    'contract': (
+                        [
+                            {'id': 1, ...},
+                            {'id': 2, ...},
+                            ...
+                        ],
+                        data_struct = {
+                            'tablename': 'table_contract',
+                            'name_col': 'contract_name',
+                            'pk_list': ('id',),
+                            'headers': ('id', entity_id, ...)
+                        },
+                        ref_names = {
+                            'entity_id': {
+                                'field_name': 'entity_id',
+                                'tablename': 'table_entity',
+                                'ref_name': 'entity1',
+                                'headers': ('id', 'name', ...),
+                                'data_dict': {'id': 1, 'name': 'entity1', ...},
+                                'ref_names': {...}
+                            },
+                        }
+                    ),
+                    ...
+                },
+                'datajson_map': {
+                    ...
+                }
+            }
+        ```
+        """
+        # list objects in self.relationships
+        rel_data = dict()
+        rel_data['ref_names'] = dict()
+        rel_data['ref_lists'] = dict()
+        rel_data['datajson_map'] = dict()
+        for rel in self.__mapper__.relationships:   
+            local_col_key = next(iter(rel.local_columns)).key
+            # get the referenced object(s)
+            rel_obj = getattr(self, rel.key)
+            # manytoone or manytomany relationship
+            if rel.uselist:
+                if not with_lists:
+                    continue
+                if len(rel_obj) == 0: # no object in the list
+                    continue
+                sample_obj = rel_obj[0] # all objects share the same class type
+                data_struct = dict()
+                sample_Model = sample_obj.__class__
+                sample_mapper = sample_Model.__mapper__
+                data_struct['ref_table'] = sample_Model.__tablename__
+                name_col = getattr(sample_Model, '_name', None)
+                if name_col:
+                    # name_col can be of synonym or hybrid property type
+                    # if name_col is a synonym property, get the name of the mapped column
+                    # if name_col is a hybrid property, use ref_Model.name in the query
+                    data_struct['name_col'] = getattr(name_col, '_name', '_name')
+                data_struct['pk_list'] = [
+                    col.key for col in sample_mapper.primary_key
+                ]
+                data_struct['headers'] = sample_Model.get_headers()
+                ref_names = sample_obj.fetch_rel_data(
+                    with_data=False, with_lists=False)['ref_names']
+                rel_data['ref_lists'][rel.key] = (
+                    [obj.data_dict(serializeable=True) for obj in rel_obj],
+                    data_struct, # table name and pk list
+                    # only show references to each object in the list
+                    # user will need to click to see the details
+                    # also avoid circular references by `with_lists=False`
+                    ref_names
+                )
+            # onetoone or manytoone relationship
+            else:
+                if rel_obj is None:
+                    continue
+                ref_Model = rel.entity.class_
+                rel_map = self.col_key_info.get('rel_map', dict())
+                ref_col_name = '_name'
+                # RelationshipProperty has provided PK, FK and referenced table info
+                # rel_map of Base usually provides ref_name_col and select_order
+                # which is optional but in most cases ref_name_col is defined
+                if isinstance(rel_map, dict) and rel.key in rel_map.keys():
+                    rel_info = rel_map.get(rel.key)
+                    if rel_info and isinstance(rel_info, dict):
+                        # if ref_name_col is omitted, use '_name' to 
+                        # get the name column of the referenced table
+                        # name column is usually a synonym property
+                        ref_col_name = rel_info.get('ref_name_col', '_name') 
+                # find the name column value, else use the primary key value as
+                # the reference value `ref_col_value`
+                if isinstance(ref_col_name, str) and hasattr(ref_Model, ref_col_name):
+                    ref_col_value = getattr(rel_obj, ref_col_name)
+                else:
+                    pk = rel_obj.__mapper__.primary_key[0]
+                    ref_col_value = f'{pk.key}: {getattr(rel_obj, pk.key)}'
+                
+                ref_data = dict()
+                ref_data['rel_key'] = rel.key             
+                ref_data['ref_table'] = ref_Model.__tablename__
+                ref_data['ref_name'] = ref_col_value
+                if with_data:
+                    ref_data['headers'] = rel_obj.get_headers()
+                    ref_data['data_dict'] = rel_obj.data_dict(serializeable=True)
+                    ref_data['ref_names'] = rel_obj.fetch_rel_data(
+                        with_data=False, with_lists=False
+                    )['ref_names']
+                rel_data['ref_names'][local_col_key] = ref_data
+        for key in self.get_col_keys('DataJson'):
+            attr = getattr(self, key, None)
+            if attr is None:
+                continue
+            if not isinstance(attr, DataJson):
+                raise ValueError(f'attr {key} is not DataJson')
+            rel_data['datajson_map'][key] = attr.fetch_rel_data(with_data=False)
+        return rel_data
+
     @classmethod
     def fetch_datajson_ref_map(cls) -> dict[str, str]:
         """
-        :return: dict {local_col.name: datajson_id_col.name }
+        :return: dict {local_col.key: datajson_id_col.key }
         """
         datajson_cols = cls.get_cols('DataJson')
         datajson_id_cols = cls.get_cols('DataJson_id_for')
@@ -609,16 +759,16 @@ class Base(DeclarativeBase):
             found = False
             for id_col in datajson_id_cols:
                 id = id_col.info.get('DataJson_id_for', None)
-                if id and id == dj_col.name:
-                    datajson_ref_map[dj_col.name] = id_col.name
+                if id and id == dj_col.key:
+                    datajson_ref_map[dj_col.key] = id_col.key
                     found = True
             if found == False:
-                raise AttributeError(f'{cls}.{dj_col.name} is a class derived from DataJson, but its identity col is not found in the same model')
+                raise AttributeError(f'{cls}.{dj_col.key} is a class derived from DataJson, but its identity col is not found in the same model')
         return datajson_ref_map
-
+    
 class DataJsonType(TypeDecorator):
     """
-    JsonBase类修饰器，转换类实例与Json字符串
+    DataJson type decorator for SQLAlchemy.
     """
     impl = JSON
     cache_ok = True
@@ -627,13 +777,11 @@ class DataJsonType(TypeDecorator):
     def python_type(self):
         return DataJson
 
-    # 将DataJson类通过自有dumps()方法转换为字符串
     def process_bind_param(self, value, dialect):
         if value is not None:
             return value.data_dict(serializeable=True)
         return value
 
-    # 将DataJson字符串通过自有get_obj()方法转换为类
     def process_result_value(self, value, dialect):
         if value is not None:
             return DataJson.get_obj(value)
@@ -641,75 +789,73 @@ class DataJsonType(TypeDecorator):
 
 class DataJson:
     """
-    JSON数据模型基类，用于定义JSON数据模型的基本属性和方法。
-    - 类属性:
-        - __datajson_id__ (str): 模型类的类型id，子类必须实例化这个属性。
-        - class_map (dict[str, type['DataJson']]): 模型类的映射。
-        - attr_info (dict[str, Any]): 模型类的属性信息。
-    
-    公共方法：
-        - 类方法:
-            - load(data: dict | str | None = None, **kwargs) -> dict[str, Any]: 将JSON字符串或字典转换为字典。
-            - get_cls_from_dict(data: dict[str, Any]) -> type['DataJson'] | None: 根据字典获取模型类。
-            - convert_value_by_attr_type(value: Any, attr_key: str) -> Any: 根据属性类型转换值。
-            - get_keys(*args: str) -> set[str]: 获取包含指定信息的属性的键集合。
-            - get_obj(data: str | dict, **kwargs: Any) -> Optional['DataJson']: 获取JSON数据的DataJson类实例。
-        - 实例方法:
-            - __init__(self, data: str | dict | None = None, **kwargs): 初始化模型实例。
-            - dumps(self) -> str: 将模型实例转换为JSON字符串。
-            - data_dict(self, serializeable: bool = False) -> dict[str, Any]:
-    
-    私有方法：
-        - 类方法:
-            - _load_dict(cls, data: dict) -> dict[str, Any]: 将字典中对应attr_info里'data'类型的数据按类属性进行数据类型转换。
+    Base class for data of json type.
     """
     __datajson_id__ = NotImplemented
     """
-    模型类的类型，str类型
-    
-    类型示例:
-    - 'data_json'：基本父类
-    - 'clause_entity'：合同实体条款
-    - 'clause_scope'：合同范围条款
-    - 'clause_expiry': 合同到期条款
+    Unique identifier for the DataJson class. It is used to identify the class in the class_map.
+    note: this variable must be defined in the subclass.
     """
 
     class_map: dict[str, type['DataJson']] = {}
     """
-    模型类的映射，dict类型，建议在DataJson类使用前定义该变量
+    Subclass map for DataJson classes. It is used to identify the subclass from the UID (__datajson_id__).
+    
+    **Should be defined before using the sub class.**
 
-    映射示例:
-    - {
-        'base': DataJson,
-        'entity': ClauseEntity,
-        'scope': ClauseScope,
-        'expiry': ClauseExpiry
+    :example: 
+
+    class_map = {
+        'entity': `ClauseEntity`,
+        'scope': `ClauseScope`,
+        'expiry': `ClauseExpiry`
     }
     """
 
     attr_info: dict[str, Any] = NotImplemented
     """
-    模型类的属性信息，dict类型，建议在DataJson类使用前定义该变量
+    A dict of information regarding attributes of the class, including user-defined types and data types.
 
-    必需的属性信息:
-    - data: 需要存储的数据属性: str
+    .. attention::
+    - Should be **defined in the subclass** before using its properties or methods.
+    - **a set has no order.**
+    
+    :key: string, infomation type, including:
+    - user-defined types: string, 'data', 'readonly', 'hidden', 'required', 'rel_map'
+    - data types: string, 'str', 'int', 'float', 'bool', 'set', 'list', 'dict', 'DataJson', 'Enum'
+    
+    :value: a dict for fk_map and a set of string for other types.
 
-    可选的属性信息
-    - required: 必需赋值的属性: str
-    - readonly: 只读属性: str
-    - hidden: 不需要显示给用户的属性: str
-    - foreignkeys: 外键信息: dict
-        - ref_table: 引用的数据表名称: str, 如 'contract'
-        - ref_pk: 引用的数据库模型键: tuple[str,...] 如 ('contract_id',)
-        - ref_name: 引用的数据库模型表征名称: str, 如 'contract_name'
-        - order_by: 作为列表框供用户选择时选项的排序要求: tuple[str, ...] 如 ('contract_name', 'contract_fullname.desc')
+    *example*::
+    ```python
+        attr_info = { 
+            'data': { 'old_entity_id' },
+            'rel_map': {
+                'old_entity': {
+                    'local_col': 'old_entity_id',
+                    'ref_table': 'entity', # must be single pk table
+                    'ref_name_col': 'entity_name', # if not exist, use relationship name
+                    'select_order': ('entity_name',)
+                }
+            }
+        }
+    ```
     """
     def __init__(self, data: str | dict | None = None, **kwargs):
+        """
+        :param data: string or dict or none, json string or dict to be converted to DataJson object.
+        :param kwargs: other keyword arguments which override the correspondent entries in parameter `data`.
+        """
         data_dict = self.load(data, **kwargs)
         self.__dict__.update(data_dict)
 
     @classmethod
     def __init_subclass__(cls, **kwargs):
+        """
+        Main purpose of this method is to initialize attr_info of the sub class as an empty dict to avoid errors.
+
+        :param kwargs: kwargs are not used in this method but in superclass method.
+        """
         super().__init_subclass__(**kwargs)
         if cls.attr_info is NotImplemented:
             cls.attr_info = dict()
@@ -717,13 +863,10 @@ class DataJson:
     @classmethod
     def load(cls, data: dict | str | None = None, **kwargs) -> dict[str, Any]:
         """
-        将JSON字符串或字典转换为字典。
-
-        参数:
-        data (dict | str | None): JSON字符串或字典。
-
-        返回:
-        dict[str, Any]: 转换后的字典。
+        :return: a dictionary containing valid data for this class
+        :param data: string or dict or none, json string or dict to be converted to DataJson object.
+        :param kwargs: other keyword arguments which override the correspondent entries in parameter `data`.
+        :raise AttributeError: if the data is not valid for this class.
         """
         from app.utils import args_to_dict
         args_dict = args_to_dict(data, **kwargs)
@@ -739,33 +882,37 @@ class DataJson:
     
     def dumps(self) -> str:
         """
-        将模型实例转换为JSON字符串。
-
-        返回:
-        str: 转换后的JSON字符串。
+        :return: json string of the data dictionary.
+        :raise AttributeError: if the data is not valid for this class.
         """
         return json.dumps(self.data_dict(serializeable=True))
     
     @classmethod
-    def get_cls_from_dict(cls, data: dict[str, Any]) -> type['DataJson'] | None:
+    def get_cls_from_dict(cls, data: dict[str, Any]) -> type['DataJson']:
+        """
+        If called by Base class, read the class id from `data`.
+        Otherwise, return the class calling this method if the data is valid.
+
+        :return: a class of DataJson.
+        :param data: a dictionary containing data to be converted to DataJson object.
+        :raise AttributeError: if the data is not valid for DataJson.
+        """
         if cls.__datajson_id__ is NotImplemented:
             datajson_id = data.get('__datajson_id__', None)
+            if datajson_id is None or not isinstance(datajson_id, str):
+                raise AttributeError(f'Invalid datajson_id {datajson_id} in {data}')
             data_json_cls = cls.class_map.get(datajson_id, None)
             if data_json_cls is None:
                 raise AttributeError(f'Invalid {datajson_id} in class_map {cls.class_map}')
         else:
-            datajson_id = 'data_json'
             data_json_cls = cls
         
         required_keys = data_json_cls.get_keys('required')
-        # 找到required_keys中不存在于data.keys()的键
         missing_keys = required_keys - data.keys()
         if missing_keys:
             raise AttributeError(f'Missing required keys: {missing_keys} in {data}')
         
-        # 如果data_keys中有readonly的键，抛出属性异常
         readonly_keys = data_json_cls.get_keys('readonly')
-        # 如果data_keys中有readonly_keys,下面的计算会得到非空集合
         if (readonly_keys - (readonly_keys - data.keys())):
             raise AttributeError(f'Readonly keys: {readonly_keys} in {data}')
         return data_json_cls
@@ -773,20 +920,18 @@ class DataJson:
     @classmethod
     def _load_dict(cls, data: dict) -> dict[str, Any]:   
         """
-        将字典中对应attr_info里'data'类型的数据按类属性进行数据类型转换。
-        - 字典必须经过get_cls_from_dict()方法处理后才能调用该方法。
+        convert the `data` into a valid data dictionary for the class.
+        .. attention::
+        - only modifiable entries are converted.
+        - readonly entries are ignored.
 
-        参数:
-        data (dict): 原始数据。
-
-        返回:
-        dict[str, Any]: 转换后的字典，其中包含模型实例的数据。
+        :param data: a dictionary containing data to be converted to DataJson object.
+        :return: a dictionary containing valid data for this class.
+        :raise AttributeError: if the data is not valid for this class.
         """
         data_json_cls = cls
         if cls.__datajson_id__ == NotImplemented:
             data_json_cls = cls.get_cls_from_dict(data)
-            if data_json_cls is None:
-                raise AttributeError(f'Invalid data: {data} to match {data_json_cls}')
         data_dict = {}
         data_dict['__datajson_id__'] = data_json_cls.__datajson_id__
         mod_keys = data_json_cls.get_keys('modifiable')
@@ -800,14 +945,11 @@ class DataJson:
     @classmethod
     def convert_value_by_attr_type(cls, value: Any, attr_key: str) -> Any:
         """
-        根据属性类型转换值。如果value不在data_keys中，不进行转换。
+        convert the value to the type of the attribute if the class.
 
-        参数:
-        attr_key (str): 属性键。
-        value (Any): 属性值。
-
-        返回:
-        Any: 转换后的属性值。
+        :param value: the value to be converted.
+        :param attr_key: the key of the attribute.
+        :raise AttributeError: if the attribute is not found in the class.
         """
 
         attr = getattr(cls, attr_key, None)
@@ -817,15 +959,82 @@ class DataJson:
         converted_value = convert_value_by_python_type(value, attr_type)    
         return converted_value
     
+    def fetch_rel_data(self, with_data: bool=False, with_lists: bool=False) -> dict[str, Any]:
+        """
+        Get the relationship data of the current object.
+        
+        .. attention::
+        - Base.db_session must be active before calling this method.
+
+        :param with_data: If True, include the data of the related objects.
+        
+        :return: A dictionary containing the relationship data.
+        
+        *example* ::
+
+            rel_data = {
+                'ref_names': {
+                    'local_col_key': {
+                        'rel_key': 'relationship key' 
+                        'ref_table': 'referenced table name',
+                        'ref_name': 'referenced name column value',
+                        'headers': ('field1', 'field2', ...), # if with_data=True
+                        'data_dict': {'field1': 'value1', ...}, # if with_data=True
+                        'ref_names': 
+                            fetch_rel_data(
+                                data object, 
+                                with_data=False
+                            )['ref_names'] # if with_data=True
+                    }
+                },
+                'ref_lists': {},
+            }  
+        """
+        # list objects in self.relationships
+        rel_data = dict()
+        rel_data['ref_names'] = dict()
+        rel_data['ref_lists'] = dict() # reserved for future use
+        rel_data['datajson_map'] = dict()
+        for rel_key, rel_info in self.attr_info.get('rel_map', dict()).items():  
+            ref_table = rel_info.get('ref_table') 
+            ref_name_col_key = rel_info.get('name_col', '_name')
+            local_col_key = rel_info.get('local_col')
+            ref_names = dict()
+            ref_Model = Base.model_map.get(ref_table)
+            if ref_Model is None:
+                raise AttributeError(f'Invalid tablename {ref_table} in attr_info for {self.__class__}')
+            ref_name_col = getattr(ref_Model, ref_name_col_key) 
+            local_col_value = getattr(self, local_col_key) 
+            if ref_name_col is None:
+                raise AttributeError(f'Invalid ref_name_col {ref_name_col}')
+            if not local_col_value: # skip false local FK values
+                continue
+
+            if Base.db_session:
+                if with_data:
+                    ref_instance = Base.db_session.get(ref_Model, local_col_value)
+                    ref_names['headers'] = ref_Model.get_headers()
+                    if ref_instance is None:
+                        ref_names['ref_name'] = ''
+                        ref_names['data_dict'] = {}
+                    else:
+                        ref_names['ref_name'] = getattr(ref_instance, ref_name_col_key, None)
+                        ref_names['data_dict'] = ref_instance.data_dict(serializeable=True)
+                        ref_names['ref_names'] = ref_instance.fetch_rel_data(with_data=False)['ref_names'] 
+                else:
+                    ref_names['ref_name'] = Base.db_session.scalar(select(ref_name_col).filter_by(ref_name_col=local_col_value)) or ''
+                ref_names['ref_name'] = getattr(ref_Model, ref_name_col_key, None)
+            
+            ref_names[rel_key] = rel_key
+            ref_names['ref_table'] = ref_table
+            if local_col_key and ref_names:
+                rel_data['ref_names'][local_col_key] = ref_names
+        return rel_data
+    
     def data_dict(self, serializeable: bool = False) -> dict[str, Any]:
         """
-        将模型实例转换为字典。
-
-        参数:
-        serializeable (bool): 是否将值序列化以便存储为JSON。
-
-        返回:
-        dict[str, Any]: 包含模型实例数据的字典。
+        :return: a dictionary containing the data of the object.
+        :param serializeable: If True, serialize the values in the dictionary.
         """
 
         data_keys = self.get_keys('data')
@@ -844,16 +1053,11 @@ class DataJson:
     @classmethod
     def get_obj(cls, data: str | dict, **kwargs: Any) -> Optional['DataJson']:
         """
-        获取JSON数据的DataJson类实例。
-
-        参数:
-        data (str | dict): JSON数据，可以是字符串或字典。
-        default (Any): 默认值。
-
-        返回:
-        DataJson: 任何继承了DataJson的类实例。
+        :return: DataJson object or None
+        :param data: string or dict of the initial data
+        :param **kwargs: keyword arguments that will override the entry with same key in the data
         """
-        from app.utils import args_to_dict
+
         data_dict = args_to_dict(data, **kwargs)
         if not data_dict:
             return None
@@ -873,58 +1077,92 @@ class DataJson:
     @classmethod
     def get_keys(cls, *args: str) -> set[str]:
         """
-        获取包含指定信息的属性的键集合。
-        
-        参数:
-        *args (str): 包含的信息字符串参数。
-        
-        返回:
-        set[str]: 包含指定信息的键集合。
+        Retrieve a set of keys based on the specified type information.
+
+        The allowed type information strings are:
+          - Data types: "date", "json", "int", "float", "bool", "set", "list", "dict", "str", "DataJson", "Enum"
+          - User-defined types in attr_info: "readonly", "hidden", "required", "data", "longtext"
+          - Calculated types: "modifiable", "visible"
+
+        :param args: One or more type information strings indicating which keys to retrieve.
+                     For example, passing "data" will return all keys defined as data fields.
+        :return: A set of keys (as strings) corresponding to the specified type information.
+        :raises AttributeError: If an invalid type information string is provided or if a key cannot be found.
         """
         keys = set()
         for info in args:
-            # 如果已经缓存了信息，返回缓存信息
+            # Return cached info if available
             if info in cls.attr_info:
                 keys.update(cls.attr_info[info])
-            # 如果没有缓存信息，根据参数获取信息并缓存
-            elif info in {'readonly', 'hidden', 'required', 'data', 'foreignkeys', 'longtext'}:
+            elif info in {'readonly', 'hidden', 'required', 'data', 'longtext'}:
                 info_keys = cls.attr_info.get(info, set())
                 keys.update(info_keys)
             elif info == 'modifiable':
                 info_keys = cls.get_keys('data') - cls.get_keys('readonly')
-                cls.attr_info[info] = info_keys
+                cls.attr_info[info] = info_keys  # cache the result
                 keys.update(info_keys)
             elif info == 'visible':
                 info_keys = cls.get_keys('data') - cls.get_keys('hidden')
-                cls.attr_info[info] = info_keys
+                cls.attr_info[info] = info_keys  # cache the result
                 keys.update(info_keys)
             elif info in {'date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'DataJson', 'Enum'}:
                 info_keys = set()
                 for data_key in cls.get_keys('data'):
-                    attr = getattr(cls, data_key, None) # type: ignore
+                    attr = getattr(cls, data_key, None)  # type: ignore
                     if attr is None:
                         raise AttributeError(f'Attribute {data_key} not found in {cls}')
                     if isinstance(attr, eval(info)):
                         info_keys.add(data_key)
-                cls.attr_info[info] = info_keys
-                keys.update(info_keys)  
+                cls.attr_info[info] = info_keys  # cache the result
+                keys.update(info_keys)
             else:
                 raise AttributeError(f'Invalid key info {info} for {cls}')
         return keys
 
     @classmethod
-    def fetch_datajson_select_options(cls) -> dict[str, tuple[str, str]]:
+    def fetch_select_options(cls) -> dict[str, list[tuple[str, str]]]:
+        """
+        :return: dict of select options of the Model.
+        - keys: local column name
+        - values: a list of tuples comprised of 2 elements
+            - element[0]: referenced pk value
+            - element[1]: referenced name column value
+            - the list is ordered according to the col_key_info['ref_name_order']
+        
+        .. requirements::
+            Base.db_session must be an active session() before calling this method.
+        """
         options = dict()
         if cls.__datajson_id__ == NotImplemented:
-            raise AttributeError('Cannot call fetch_datajson_select_options() on DataJson')
-        foreign_keys = cls.attr_info.get('foreign_keys')
-        if foreign_keys: 
-            if not isinstance(foreign_keys, dict):
-                raise AttributeError(f'Invalid foreignkeys {foreign_keys} for {cls}')
-            for fk, ref_table in foreign_keys.items():
-                Model = Base.model_map[ref_table]
-                ref_list = Model.get_ref_list(cls.attr_info.get('ref_name_order', None))
-                options[fk] = ref_list
+            raise AttributeError('Cannot call fetch_select_options() on DataJson.')
+        rel_map = cls.attr_info.get('rel_map', dict())
+        cached = dict()
+        for rel, rel_info in rel_map.items():
+            if not isinstance(rel_info, dict):
+                raise AttributeError(f'Invalid foreignkeys {rel_info} for {cls}')
+            tablename = rel_info.get('ref_table', None)
+            if tablename is None:
+                raise AttributeError(f'Invalid ref_table {tablename} for {cls}')
+            local_col_key = rel_info.get('local_col', None)
+            if local_col_key is None:
+                raise AttributeError(f'Invalid local_col {local_col_key} for {cls}')
+            
+            Model = Base.model_map[tablename]
+            if Model is None:
+                raise AttributeError(f'Invalid Model {Model} for {cls}')
+            
+            ref_name_col_name = rel_info.get('ref_name_col', None)
+            ref_name_col = getattr(Model, ref_name_col_name, None)
+            if ref_name_col is None:
+                raise AttributeError(f'Invalid ref_name_col {ref_name_col} for {cls}')
+            
+            if ref_name_col in cached.keys():
+                options[local_col_key] = cached[ref_name_col]
+            else:
+                list_pks_name = Model.fetch_ref_list(ref_name_col_name, rel_info.get('select_order', None))
+                options[local_col_key] = list_pks_name
+                cached[ref_name_col] = list_pks_name
+
         for enum_key in cls.get_keys('Enum'):
             enum_attr = getattr(cls, enum_key, None)
             if enum_attr is None:
@@ -932,24 +1170,26 @@ class DataJson:
             enum_cls = type(enum_attr)
             if not issubclass(enum_cls, Enum):
                 raise AttributeError(f'Invalid Enum {enum_cls} for {cls}')
-            options[enum_key] = [(member.value, member.value) for member in enum_cls]
+            options[enum_key] = [(member.value, member.name) for member in enum_cls]
         return options
-
+    
     @classmethod
-    def get_structure(cls) -> dict[str, Any]:
+    def fetch_structure(cls) -> dict[str, Any]:
+        """
+        :return: dict of structure of the DataJson class
+        - keys: data, required, readonly, date, Enum, foreign_keys, longtext
+        - values: list of keys in the class
+        """
         struct = dict()
         if cls == DataJson:
-            raise AttributeError('Cannot call get_structure() on DataJson')
+            raise AttributeError('Cannot call fetch_structure() on DataJson')
         
         struct['__datajson_id__'] = cls.__datajson_id__
         struct['data'] = [key for key in cls.__dict__ if key in cls.get_keys('data')]
         struct['required'] = cls.get_keys('required')
         struct['readonly'] = cls.get_keys('readonly')
         struct['date'] = cls.get_keys('date')
-        struct['Enum'] = cls.get_keys('Enum')
-        struct['foreign_keys'] = cls.get_keys('foreign_keys')
         struct['longtext'] = cls.get_keys('longtext')
-        struct['ref_map'] = cls.fetch_datajson_select_options()
-
+        struct['select_options'] = cls.fetch_select_options()
         return struct
-  
+

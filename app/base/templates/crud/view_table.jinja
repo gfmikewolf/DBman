@@ -14,19 +14,16 @@
   <div class="container-fluid">
     <div class="row">
       <h5 class="mt-3">
-        {{- _('View Records') -}}:
+        {{- _('Table') -}}:
         <div class="dropdown d-inline">
           <button type="button"
             data-bs-toggle="dropdown" 
             class="btn btn-sm btn-outline-dark dropdown-toggle">
             {{- table_name -}}
           </button>
-          {#- 为不是当前查询表格的表格增加访问下拉菜单 -#}
           <ul class="dropdown-menu">
-            {#- 生成菜单的访问链接 -#}
             {%- for tn in table_names -%}
               <li>
-                {#- 如果列表中的表格名与当前查询的表格名一样，显示为活动项，否则为链接 -#}
                 {%- if tn == table_name -%}
                   {%- set dd_active = 'active' -%}
                   {%- set dd_url = '#' -%}
@@ -44,7 +41,12 @@
       </h5>
     </div>
     <div class="row">
-    {{- DatatableDBMan(table_name=table_name, name='main', data=data) }}
+    {{- DatatableDBMan(
+      table_name=table_name, 
+      name='main', 
+      data=data, 
+      dbman_dict_name_list=dbman_dict_name_list) 
+    }}
     </div>
   </div>
 {%- endblock content -%}
