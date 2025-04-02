@@ -5,7 +5,7 @@ __all__ = ['Base', 'DataJson', 'DataJsonType']
 # python
 from sqlite3 import DatabaseError
 from typing import Any, Iterable, Optional
-from enum import Enum 
+from enum import Enum, auto 
 from datetime import date
 import json
 
@@ -1185,6 +1185,6 @@ class DataJson:
         struct['readonly'] = cls.get_keys('readonly')
         struct['date'] = cls.get_keys('date')
         struct['longtext'] = cls.get_keys('longtext')
+        struct['constraints'] = cls.attr_info.get('constraints',dict())
         struct['select_options'] = cls.fetch_select_options()
         return struct
-
