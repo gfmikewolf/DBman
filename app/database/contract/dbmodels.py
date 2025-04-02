@@ -127,7 +127,7 @@ class Clause(Base):
     )
 
     @hybrid_property
-    def _name(self): # type: ignore[override]
+    def _name(self) -> str: # type: ignore[override]
         return f"{self.clause_action.value}:{self.clause_type.value}:{self.clause_id}"
     
     @_name.expression
