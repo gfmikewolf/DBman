@@ -1,13 +1,12 @@
 # app/base/crud/views.py
 # python
-import select
+
 from sqlite3 import DatabaseError
 from typing import Any
-from webbrowser import get
 # flask
 from flask import render_template, request, jsonify, abort, url_for
 # sqlalchemy
-from sqlalchemy.orm import Session
+
 # app
 from config import Config
 from app import _
@@ -111,7 +110,6 @@ def view_record(table_name: str, pks: str) -> str:
 
     headers = model.get_headers()
     basic_info = model.data_dict(serializeable=True)
-    print(rel_data)
     return render_template(
         'crud/view_record.jinja', 
         table_name=table_name,
