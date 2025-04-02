@@ -12,8 +12,7 @@ import json
 # sqlalchemy
 from sqlalchemy import Column, select, Select
 from sqlalchemy.types import TypeDecorator, JSON
-from sqlalchemy.orm import DeclarativeBase, Session, ColumnProperty, RelationshipProperty
-from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import DeclarativeBase, Session, ColumnProperty
 
 # app
 from app.utils.common import args_to_dict
@@ -656,7 +655,7 @@ class Base(DeclarativeBase):
                     ),
                     ...
                 },
-                'datajson_map': {
+                'datajson_ref_names': {
                     ...
                 }
             }
@@ -666,7 +665,8 @@ class Base(DeclarativeBase):
         rel_data = dict()
         rel_data['ref_names'] = dict()
         rel_data['ref_lists'] = dict()
-        rel_data['datajson_map'] = dict()
+        rel_data['datajson_ref_names'] = dict()
+
         for rel in self.__mapper__.relationships:   
             local_col_key = next(iter(rel.local_columns)).key
             # get the referenced object(s)
@@ -678,30 +678,39 @@ class Base(DeclarativeBase):
                 if len(rel_obj) == 0: # no object in the list
                     continue
                 sample_obj = rel_obj[0] # all objects share the same class type
-                data_struct = dict()
                 sample_Model = sample_obj.__class__
                 sample_mapper = sample_Model.__mapper__
+
+                # data structure dict
+                data_struct = dict()
                 data_struct['ref_table'] = sample_Model.__tablename__
+                data_struct['pk_list'] = [
+                    col.key for col in sample_mapper.primary_key
+                ]
+                data_struct['datajson_ref_names'] = dict()
+                # get rel_data from Datajson classes
+                for datajson_key in self.get_col_keys('DataJson'):
+                    datajson_obj = getattr(self, datajson_key)
+                    data_struct['datajson_ref_names'][datajson_key] = datajson_obj.fetch_ref_names()
+
                 name_col = getattr(sample_Model, '_name', None)
                 if name_col:
                     # name_col can be of synonym or hybrid property type
                     # if name_col is a synonym property, get the name of the mapped column
                     # if name_col is a hybrid property, use ref_Model.name in the query
                     data_struct['name_col'] = getattr(name_col, '_name', '_name')
-                data_struct['pk_list'] = [
-                    col.key for col in sample_mapper.primary_key
-                ]
+                # if name_col is false value, need to handle it by other methods
+
                 data_struct['headers'] = sample_Model.get_headers()
                 ref_names = sample_obj.fetch_rel_data(
                     with_data=False, with_lists=False)['ref_names']
-                rel_data['ref_lists'][rel.key] = (
-                    [obj.data_dict(serializeable=True) for obj in rel_obj],
-                    data_struct, # table name and pk list
-                    # only show references to each object in the list
-                    # user will need to click to see the details
-                    # also avoid circular references by `with_lists=False`
-                    ref_names
-                )
+                ref_list = dict()
+                ref_list['data_struct'] = data_struct
+                ref_list['ref_names'] = ref_names
+                ref_list['data_list'] = [obj.data_dict(serializeable=True) for obj in rel_obj]
+
+                rel_data['ref_lists'][rel.key] = ref_list
+            
             # onetoone or manytoone relationship
             else:
                 if rel_obj is None:
@@ -725,7 +734,7 @@ class Base(DeclarativeBase):
                     ref_col_value = getattr(rel_obj, ref_col_name)
                 else:
                     pk = rel_obj.__mapper__.primary_key[0]
-                    ref_col_value = f'{pk.key}: {getattr(rel_obj, pk.key)}'
+                    ref_col_value = f'# {getattr(rel_obj, pk.key)}'
                 
                 ref_data = dict()
                 ref_data['rel_key'] = rel.key             
@@ -734,17 +743,19 @@ class Base(DeclarativeBase):
                 if with_data:
                     ref_data['headers'] = rel_obj.get_headers()
                     ref_data['data_dict'] = rel_obj.data_dict(serializeable=True)
-                    ref_data['ref_names'] = rel_obj.fetch_rel_data(
+                    ref_rel_data = rel_obj.fetch_rel_data(
                         with_data=False, with_lists=False
-                    )['ref_names']
+                    )
+                    ref_data['ref_names'] = ref_rel_data['ref_names']
+                    ref_data['datajson_ref_names'] = ref_rel_data['datajson_ref_names']
                 rel_data['ref_names'][local_col_key] = ref_data
         for key in self.get_col_keys('DataJson'):
-            attr = getattr(self, key, None)
-            if attr is None:
+            datajson_obj = getattr(self, key, None)
+            if datajson_obj is None:
                 continue
-            if not isinstance(attr, DataJson):
+            if not isinstance(datajson_obj, DataJson):
                 raise ValueError(f'attr {key} is not DataJson')
-            rel_data['datajson_map'][key] = attr.fetch_rel_data(with_data=False)
+            rel_data['datajson_ref_names'][key] = datajson_obj.fetch_ref_names()
         return rel_data
 
     @classmethod
@@ -959,77 +970,61 @@ class DataJson:
         converted_value = convert_value_by_python_type(value, attr_type)    
         return converted_value
     
-    def fetch_rel_data(self, with_data: bool=False, with_lists: bool=False) -> dict[str, Any]:
+    def fetch_ref_names(self) -> dict[str, Any]:
         """
         Get the relationship data of the current object.
         
         .. attention::
         - Base.db_session must be active before calling this method.
-
-        :param with_data: If True, include the data of the related objects.
         
         :return: A dictionary containing the relationship data.
         
         *example* ::
-
-            rel_data = {
-                'ref_names': {
-                    'local_col_key': {
-                        'rel_key': 'relationship key' 
-                        'ref_table': 'referenced table name',
-                        'ref_name': 'referenced name column value',
-                        'headers': ('field1', 'field2', ...), # if with_data=True
-                        'data_dict': {'field1': 'value1', ...}, # if with_data=True
-                        'ref_names': 
-                            fetch_rel_data(
-                                data object, 
-                                with_data=False
-                            )['ref_names'] # if with_data=True
-                    }
-                },
-                'ref_lists': {},
-            }  
+        ```python
+            ref_names = {
+                local_col_key : {
+                    'rel_key': 'relationship key' 
+                    'ref_table': 'referenced table name',
+                    'ref_name': 'referenced name column value'
+                }
+            }
+        },
+        ```  
         """
         # list objects in self.relationships
-        rel_data = dict()
-        rel_data['ref_names'] = dict()
-        rel_data['ref_lists'] = dict() # reserved for future use
-        rel_data['datajson_map'] = dict()
+        ref_names = dict()
         for rel_key, rel_info in self.attr_info.get('rel_map', dict()).items():  
-            ref_table = rel_info.get('ref_table') 
+            ref_table = rel_info.get('ref_table')
             ref_name_col_key = rel_info.get('name_col', '_name')
             local_col_key = rel_info.get('local_col')
-            ref_names = dict()
+            rel_info = dict()
             ref_Model = Base.model_map.get(ref_table)
             if ref_Model is None:
                 raise AttributeError(f'Invalid tablename {ref_table} in attr_info for {self.__class__}')
-            ref_name_col = getattr(ref_Model, ref_name_col_key) 
-            local_col_value = getattr(self, local_col_key) 
-            if ref_name_col is None:
-                raise AttributeError(f'Invalid ref_name_col {ref_name_col}')
+            ref_name_col = getattr(ref_Model, ref_name_col_key, None)
+            local_col_value = getattr(self, local_col_key)
             if not local_col_value: # skip false local FK values
                 continue
-
-            if Base.db_session:
-                if with_data:
-                    ref_instance = Base.db_session.get(ref_Model, local_col_value)
-                    ref_names['headers'] = ref_Model.get_headers()
-                    if ref_instance is None:
-                        ref_names['ref_name'] = ''
-                        ref_names['data_dict'] = {}
-                    else:
-                        ref_names['ref_name'] = getattr(ref_instance, ref_name_col_key, None)
-                        ref_names['data_dict'] = ref_instance.data_dict(serializeable=True)
-                        ref_names['ref_names'] = ref_instance.fetch_rel_data(with_data=False)['ref_names'] 
-                else:
-                    ref_names['ref_name'] = Base.db_session.scalar(select(ref_name_col).filter_by(ref_name_col=local_col_value)) or ''
-                ref_names['ref_name'] = getattr(ref_Model, ref_name_col_key, None)
+            # fill ref_names with reference entries
+            rel_info['headers'] = self.get_keys('data')
+            rel_info['rel_key'] = rel_key
+            rel_info['ref_table'] = ref_table
             
-            ref_names[rel_key] = rel_key
-            ref_names['ref_table'] = ref_table
-            if local_col_key and ref_names:
-                rel_data['ref_names'][local_col_key] = ref_names
-        return rel_data
+            if Base.db_session:
+                ref_instance = Base.db_session.get(ref_Model, local_col_value)
+                
+                if ref_instance is None:
+                    rel_info['ref_name'] = ''
+                else:
+                    if ref_name_col:
+                        rel_info['ref_name'] = getattr(ref_instance, ref_name_col_key, None)
+                    else:
+                        pk = ref_Model.__mapper__.primary_key[0]
+                        rel_info['ref_name'] = f'# {getattr(ref_instance, pk.key)}'
+
+            if local_col_key and rel_info:
+                ref_names[local_col_key] = rel_info
+        return ref_names
     
     def data_dict(self, serializeable: bool = False) -> dict[str, Any]:
         """
@@ -1049,7 +1044,7 @@ class DataJson:
                 if attr is not None:
                     data_dict.update({key: serialize_value(value) if serializeable else value})
         return data_dict
-    
+
     @classmethod
     def get_obj(cls, data: str | dict, **kwargs: Any) -> Optional['DataJson']:
         """
