@@ -5,9 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import date
 from app.database.base import Base, DataJson, DataJsonType
-from app.database.contract.clauses import scope
-from test import ClauseAction
-from .clausetypes import ClausePos, ClauseType
+from .clausetypes import ClausePos, ClauseType, ClauseAction
 
 class Contract(Base):
     __tablename__ = 'contract'
