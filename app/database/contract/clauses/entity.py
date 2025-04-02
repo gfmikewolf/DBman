@@ -1,4 +1,5 @@
-from app.database.base import DataJson
+from app.database.base import DataJson, DataJsonConstraint
+from test import ClauseAction
 
 class ClauseEntity(DataJson):
     """
@@ -32,7 +33,7 @@ class ClauseEntity(DataJson):
                 'select_order': ('entity_name',)
             }
         },
-        'nicknames': {
-            'old_entity_id': 'Old entity',
+        'contraints': {
+            'old_entity_id': { 'type': DataJsonConstraint.EQUALTO, 'clause_action': ClauseAction.UPDATE }
         }
     }
