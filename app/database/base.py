@@ -1142,19 +1142,19 @@ class DataJson:
             if local_col_key is None:
                 raise AttributeError(f'Invalid local_col {local_col_key} for {cls}')
             
-            Model = Base.model_map[tablename]
-            if Model is None:
-                raise AttributeError(f'Invalid Model {Model} for {cls}')
+            ref_Model = Base.model_map[tablename]
+            if ref_Model is None:
+                raise AttributeError(f'Invalid Model {ref_Model} for {cls}')
             
-            ref_name_col_name = rel_info.get('ref_name_col', None)
-            ref_name_col = getattr(Model, ref_name_col_name, None)
+            ref_name_col_name = rel_info.get('name_col', None)
+            ref_name_col = getattr(ref_Model, ref_name_col_name, None)
             if ref_name_col is None:
                 raise AttributeError(f'Invalid ref_name_col {ref_name_col} for {cls}')
             
             if ref_name_col in cached.keys():
                 options[local_col_key] = cached[ref_name_col]
             else:
-                list_pks_name = Model.fetch_ref_list(ref_name_col_name, rel_info.get('select_order', None))
+                list_pks_name = ref_Model.fetch_ref_list(ref_name_col_name, rel_info.get('select_order', None))
                 options[local_col_key] = list_pks_name
                 cached[ref_name_col] = list_pks_name
 
