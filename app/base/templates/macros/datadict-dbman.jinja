@@ -1,11 +1,12 @@
 {# app/base/templates/macros/datadict-dbman.jinja #}
+{%- from 'macros/jsonviewer-dbman.jinja' import JSONViewerDBMan -%}
 {%- macro DatadictDBMan(
       name='main',
       id='dbman-datadict-' + name,
       headers=[],
       data={},
       ref_names=dict(),
-      datajson_map=dict(),
+      datajson_ref_names=dict(),
       dbman_dict_name_list=[]
     )
 %}
@@ -30,9 +31,13 @@
           }}">
           {{- ref_names[header]['ref_name'] -}}
         </a>
-      {%- elif header in datajson_map -%}
-      {{ header }}
-      {{- datajson_map -}}
+      {%- elif header in datajson_ref_names.keys() -%}
+        {{- JSONViewerDBMan(
+          data = data[header],
+          headers = datajson_ref_names[header]['headers'],
+          ref_names = datajson_ref_names,
+          dbman_dict_name_list = dbman_dict_name_list )
+        -}}
       {%- else %}
         {{- data[header] -}}
         {%- endif -%}
