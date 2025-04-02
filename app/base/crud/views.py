@@ -111,7 +111,7 @@ def view_record(table_name: str, pks: str) -> str:
 
     headers = model.get_headers()
     basic_info = model.data_dict(serializeable=True)
-
+    print(rel_data)
     return render_template(
         'crud/view_record.jinja', 
         table_name=table_name,
