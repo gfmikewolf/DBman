@@ -33,16 +33,18 @@ class FormModifyMJ extends ContainerMJ {
     this._initDatajson();
   }
 
-  _isModified(currentData = null) {
+  _dataModified(currentData = null) {
     if (currentData === null) {
       currentData = new FormData(this.container);
     }
+    const dataModified = {}
     for (let [key, origValue] of this.initialData.entries()) {
-      if (currentData.get(key) !== origValue) {
-        return true;
+      const currentValue = currentData.get(key)
+      if ( currentValue !== origValue) {
+        dataModified[key] = currentValue
       }
     }
-    return false;
+    return dataModified;
   }
 
   _submit(event) {
@@ -61,10 +63,9 @@ class FormModifyMJ extends ContainerMJ {
     if (!this.container.checkValidity()) {
         return;            
     }
-    
-    // Create FormData object from the current form.
-    const formData = new FormData(this.container);
-    if (!this._isModified(formData)) {
+  
+    const dataModified = this._dataModified();
+    if (Object.keys(dataModified).length === 0) {
       this.modalAlert.update({
         msgKey: 'nochange',
         buttonTypes: ['cancel']
@@ -76,7 +77,10 @@ class FormModifyMJ extends ContainerMJ {
     // Use the form's action as the URL. It will send the POST to the same page.
     fetch(this.container.action, {
       method: 'POST',
-      body: formData
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(dataModified)
     })
     .then(async response => {
       if (response.ok) {
