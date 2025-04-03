@@ -15,7 +15,8 @@ class FormModifyMJ extends ContainerMJ {
 
   _findElements(container, modalAlert) {
     super._findElements && super._findElements(container, modalAlert);
-    this.submitButton = this.getValidElement('button[type="submit"]');
+    this.deleteButtons = this.getValidElements('button[data-dbman-toggle="delete-record"]')
+    this.submitButtons = this.getValidElements('button[type="submit"]');
   }
 
   _initProperties(container, modalAlert) {
@@ -29,7 +30,12 @@ class FormModifyMJ extends ContainerMJ {
 
   _initFunctions(container, modalAlert) {
     super._initFunctions && super._initFunctions(container, modalAlert);
-    this.submitButton.addEventListener('click', this._submit.bind(this));
+    this.submitButtons.forEach(btn => {
+      btn.addEventListener('click', this._submit.bind(this));
+    });
+    this.deleteButtons.forEach(btn => {
+      btn.addEventListener('click', this._delete.bind(this));
+    });
     this._initDatajson();
   }
 
@@ -45,6 +51,51 @@ class FormModifyMJ extends ContainerMJ {
       }
     }
     return dataModified;
+  }
+
+  _delete(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const deleteButton = event.currentTarget;
+    if (deleteButton.dataset.dbmanUrl) {
+      this.modalAlert.update({
+        msgKey: 'warning_delete',
+        buttonTypes: ['confirm', 'cancel'],
+        confirmAction: this._deleteRecord.bind(this, deleteButton.dataset.dbmanUrl)
+      });
+      this.modalAlert.show();
+    }
+  }
+
+  _deleteRecord(deleteUrl) {
+    fetch(deleteUrl, {
+      method: 'DELETE'
+    })
+    .then(response => {
+      if (response.ok) {
+        // On successful deletion, update the alert modal and refresh the page when confirmed.
+        this.modalAlert.update({
+          msgKey: 'success',
+          buttonTypes: ['confirm'],
+          confirmAction: () => {
+            document.querySelector('a[data-dbman-toggle="prev-page"]').click();
+          }
+        });
+      } else {
+        // On failure, update the alert modal with an error message.
+        this.modalAlert.update({
+          msgKey: 'error',
+          buttonTypes: ['acknowledge']
+        });
+      }
+    })
+    .catch(() => {
+      // On network error, update the alert modal with an error message.
+      this.modalAlert.update({
+        msgKey: 'error',
+        buttonTypes: ['acknowledge']
+      });
+    });
   }
 
   _submit(event) {
@@ -68,7 +119,7 @@ class FormModifyMJ extends ContainerMJ {
     if (Object.keys(dataModified).length === 0) {
       this.modalAlert.update({
         msgKey: 'nochange',
-        buttonTypes: ['cancel']
+        buttonTypes: ['acknowledge']
       });
       this.modalAlert.show();
       return;
