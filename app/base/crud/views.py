@@ -48,7 +48,8 @@ def modify_record(table_name: str, pks: str) -> Any:
     with db_session() as db_sess:
         Base.db_session = db_sess
         model = fetch_model(table_name, pks)
-        if request.method == 'GET': 
+        if request.method == 'GET':
+            col_rel_map = model.get_col_rel_map()
             select_options = model.fetch_select_options()
             datajson_ref_map = model.fetch_datajson_ref_map()
         elif request.method == 'POST':
@@ -70,17 +71,19 @@ def modify_record(table_name: str, pks: str) -> Any:
 
     return render_template(
         'crud/modify_record.jinja',
-        navigation=navigation.get_nav({'Modify record': '#'}), 
-        table_name=table_name, 
-        pks=pks,
-        select_options=select_options, # type: ignore
-        date_keys=model.get_col_keys('date'),
-        datajson_ref_map=datajson_ref_map, # type: ignore
-        required_keys=model.get_col_keys('required'),
-        readonly_keys=model.get_col_keys('readonly'),
-        longtext_keys=model.get_col_keys('longtext'),
-        headers=headers,
-        data=data
+        navigation = navigation.get_nav({'Modify record': '#'}), 
+        table_name = table_name, 
+        pks = pks,
+        select_options = select_options, # type: ignore
+        col_rel_map = col_rel_map,
+        date_keys = model.get_col_keys('date'),
+        datajson_ref_map = datajson_ref_map, # type: ignore
+        required_keys = model.get_col_keys('required'),
+        readonly_keys = model.get_col_keys('readonly'),
+        longtext_keys = model.get_col_keys('longtext'),
+        headers = headers,
+        data = data,
+        db_dict = Config.DATABASE_NAMES.split(',') if Config.DATABASE_NAMES else None
     )
 
 def delete_record(table_name: str, pks: str) -> Any:
