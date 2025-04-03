@@ -48,6 +48,8 @@ class FormModifyMJ extends ContainerMJ {
   _submit(event) {
     event.preventDefault();
     event.stopPropagation();
+    // back to previous page when the form is submitted successfully
+
 
     this.container.querySelectorAll('select[required]').forEach(select => {
       if (select.value === '') {
@@ -65,18 +67,12 @@ class FormModifyMJ extends ContainerMJ {
     if (!this._isModified(formData)) {
       this.modalAlert.update({
         msgKey: 'nochange',
-        buttonTypes: ['confirm', 'cancel'],
-        confirmAction: () => {
-          const prevPage = document.querySelector('a[data-dbman-toggle="prev-page"]');
-          if (!prevPage) {
-            throw new Error('No previous page link found.');
-          }
-          prevPage.click();
-        }
+        buttonTypes: ['cancel']
       });
       this.modalAlert.show();
       return;
     }
+    
     // Use the form's action as the URL. It will send the POST to the same page.
     fetch(this.container.action, {
       method: 'POST',
@@ -86,7 +82,6 @@ class FormModifyMJ extends ContainerMJ {
       if (response.ok) {
         return response.json();
       } else {
-        // 解析返回的错误信息，再抛出
         const errData = await response.json();
         throw new Error(errData.error || response.statusText);
       }
@@ -96,17 +91,15 @@ class FormModifyMJ extends ContainerMJ {
         msgKey: 'success',
         buttonTypes: ['confirm'],
         confirmAction: () => {
-          const prevPage = document.querySelector('a[data-dbman-toggle="prev-page"]');
-          if (!prevPage) {
-            throw new Error('No previous page link found.');
-          }
-          prevPage.click();
+          document.querySelector('a[data-dbman-toggle="prev-page"]').click();
         }
       });
+      this.modalAlert.container.addEventListener('hidden.bs.modal', () => {
+        document.querySelector('a[data-dbman-toggle="prev-page"]').click();
+      }, { once: true });
       this.modalAlert.show(3000);
     })
     .catch(error => {
-      // 这里可以读取 error.message 获取详细的错误信息
       console.error('Error submitting form:', error);
       this.modalAlert.update({
         msgKey: 'error',
