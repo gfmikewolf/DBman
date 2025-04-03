@@ -244,6 +244,7 @@ class DatajsonMJ extends ContainerMJ {
     DatajsonMJ.elementCache[this.type] = card;
     this.container.appendChild(frag);
     this.renderStructure = structure;
+    console.log(card);
     return card;
   }
 }
