@@ -206,7 +206,6 @@ class DatatableMJ extends ContainerMJ {
         message += '</div>';
 
         // If a delete URL is provided, update the alert modal and show it
-        console.log(this.modalAlert);
         if (deleteBtn.dataset.dbmanUrl) {
           this.modalAlert.update({
             msgKey: 'warning_delete',
