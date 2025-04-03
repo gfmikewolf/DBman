@@ -5,12 +5,12 @@ __all__ = ['Base', 'DataJson', 'DataJsonType']
 # python
 from sqlite3 import DatabaseError
 from typing import Any, Iterable, Optional
-from enum import Enum, auto 
+from enum import Enum
 from datetime import date
 import json
 
 # sqlalchemy
-from sqlalchemy import Column, select, Select
+from sqlalchemy import Column, inspect, select, Select
 from sqlalchemy.types import TypeDecorator, JSON
 from sqlalchemy.orm import DeclarativeBase, Session, ColumnProperty
 
@@ -131,7 +131,22 @@ class Base(DeclarativeBase):
     
     :rtypes: dict[str, set[Column]]
     """
-    
+    def __init__(self, **kwargs):
+        """
+        set default values for all new instances
+        """
+        super().__init__(**kwargs)
+        data_keys = self.get_col_keys('data')
+        for key in data_keys:
+            if key not in kwargs:
+                cls = self.__class__
+                prop = cls.__mapper__.columns.get(key)
+                if prop is not None:
+                    default = prop.default
+                    if default:
+                        if default and hasattr(default, 'arg'):
+                            setattr(self, key, default.arg) # type: ignore
+
     @classmethod
     def __init_subclass__(cls, **kwargs):
         """
@@ -147,27 +162,26 @@ class Base(DeclarativeBase):
         if cls.col_info is NotImplemented:
             cls.col_info = dict()
 
-    def replace_data(self, data: str | dict | None = None, **kwargs: Any) -> None:
+    def update_data(self, data: str | dict | None = None, **kwargs: Any) -> None:
         """
-        replace the data of an instance with `data` and `kwargs`.
+        Update the data of an instance with `data` and `kwargs`.
+        if the instance is new, entries not specified will be filled with default values.
+        if the instance exists in database, only entries in parameters will be updated.
+        .. attention:: This method will not update the data in database.
 
         :param data: string or dict or none, json string or dict to be converted to DataJson object.
         :param kwargs: other keyword arguments which override the correspondent entries in parameter `data`.
         """
         args_dict = args_to_dict(data, **kwargs)
-        if self.get_cls_from_dict(args_dict) is None:
-            raise AttributeError('Invalid data: {data} kwargs:{kwargs} to match {self}')
-        mod_col_keys = self.get_col_keys('modifiable')
-        if args_dict.keys() - mod_col_keys: # check if there is any keys not modifiable
-            raise AttributeError(f'Invalid data: {args_dict} to match {self}')
-        for key in mod_col_keys:
-            if key in args_dict:
-                value = args_dict[key]
-                if value is not None:
-                    if key in self.get_col_keys('DataJson'):
-                        value = DataJson.get_obj(value)
-                    setattr(self, key, value)
-    
+        mod_keys = self.get_col_keys('modifiable')
+        json_keys = self.get_col_keys('DataJson')
+        if args_dict.keys() - mod_keys: # check if there is any keys not modifiable
+            raise KeyError(f'Invalid keys: {args_dict.keys() - mod_keys}')
+        for key, value in args_dict.items():
+            if key in json_keys:
+                value = DataJson.get_obj(value)
+            setattr(self, key, value)
+
     @classmethod
     def get_headers(cls) -> list[str]:
         """
@@ -382,16 +396,15 @@ class Base(DeclarativeBase):
         :param serializeable: if True, the data is serialized to allowed types for JSON.
         """
         data_dict = {'__tablename__': self.__tablename__}
-        data_keys = self.get_col_keys('data')
-        for data_key in data_keys:
-            if not hasattr(self, data_key):
-                raise AttributeError(f'Invalid attribute {data_key} for {self}')
-            attr = getattr(self, data_key)
-            if attr is None:
-                data_dict[data_key] = '' if serializeable else None
-            else:
-                data_dict[data_key] = serialize_value(attr) if serializeable else attr
-        
+        for data_key in self.get_col_keys('data'):
+            if hasattr(self, data_key):
+                value = getattr(self, data_key)
+                if value is None and serializeable:
+                    data_dict[data_key] = ''
+                elif serializeable:
+                    data_dict[data_key] = serialize_value(value)
+                else:
+                    data_dict[data_key] = value
         return data_dict
   
     @classmethod
