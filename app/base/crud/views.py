@@ -83,6 +83,7 @@ def modify_record(table_name: str, pks: str) -> Any:
         longtext_keys = model.get_col_keys('longtext'),
         headers = headers,
         data = data,
+        db_dict_names=Config.DATABASE_NAMES,
         db_dict = Config.DATABASE_NAMES.split(',') if Config.DATABASE_NAMES else None
     )
 
