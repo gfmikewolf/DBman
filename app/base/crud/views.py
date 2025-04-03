@@ -53,7 +53,7 @@ def modify_record(table_name: str, pks: str) -> Any:
             datajson_ref_map = model.fetch_datajson_ref_map()
         elif request.method == 'POST':
             try:
-                model.replace_data(request.form.to_dict())
+                model.update_data(request.get_json())
                 if pks == '_new':
                     db_sess.add(model)
                 db_sess.commit()
@@ -64,11 +64,8 @@ def modify_record(table_name: str, pks: str) -> Any:
         else:
             abort(404)
 
-    # runs to this line only if request.method == 'GET'
-    if pks == '_new':
-        data = dict()
-    else:
-        data = model.data_dict(serializeable=True)
+    # if request.method == 'GET'
+    data = model.data_dict(serializeable=True)
     headers = model.get_headers()
 
     return render_template(
