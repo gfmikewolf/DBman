@@ -94,35 +94,24 @@ class Clause(Base):
     amendment_id: Mapped[int] = mapped_column(
         Integer, 
         ForeignKey('amendment.amendment_id'))
-    clause_pos: Mapped[ClausePos] = mapped_column(SqlEnum(ClausePos))
+    clause_pos: Mapped[ClausePos] = mapped_column(
+        SqlEnum(ClausePos), 
+        default=ClausePos.MAINBODY)
     clause_ref: Mapped[str | None]
     clause_type: Mapped[ClauseType] = mapped_column(
         SqlEnum(ClauseType), 
         info={'DataJson_id_for': 
-              'clause_extra_data'})
+              'clause_json'})
     clause_action: Mapped[ClauseAction] = mapped_column(
-        SqlEnum(ClauseAction))
-    entity_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey('entity.entity_id'))
-    scope_id: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey('scope.scope_id'))
-    clause_extra_data: Mapped[DataJson | None] = mapped_column(DataJsonType)
+        SqlEnum(ClauseAction),
+        default=ClauseAction.ADD)
+    clause_json: Mapped[DataJson | None] = mapped_column(DataJsonType)
     clause_text: Mapped[str | None]
     clause_reviewcomments: Mapped[str | None]
     clause_remarks: Mapped[str | None]
     
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
-        lazy='selectin'
-    )
-
-    entity: Mapped['Entity'] = relationship(
-        lazy='selectin'
-    )
-
-    scope: Mapped['Scope'] = relationship(
         lazy='selectin'
     )
 
@@ -137,18 +126,12 @@ class Clause(Base):
                ).cast(String)
     
     col_key_info = {
-        'hidden': { 'clause_id', 'amendment_id', 'entity_id', 'scope_id' },
+        'hidden': { 'clause_id', 'amendment_id' },
         'readonly': { 'clause_id' },
         'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
         'rel_map': {
             'amendment': {
                 'select_order': ('contract_id', 'amendment_name')
-            },
-            'entity': {
-                'select_order': ('entitygroup_id', 'entity_name')
-            },
-            'scope': {
-                'select_order': ('scope_name',)
             }
         }
     }
