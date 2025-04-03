@@ -29,7 +29,7 @@
     "clause_action": "条款操作",
     "entity_id": "实体ID",
     "scope_id": "范围ID",
-    "clause_extra_data": "额外数据",
+    "clause_json": "条款结构化数据",
     "clause_text": "条款正文",
     "clause_reviewcomments": "评审意见",
     "clause_remarks": "条款备注",
