@@ -3,9 +3,9 @@ from datetime import date
 from app.database.base import DataJson
 
 class ExpiryType(Enum):
-    Date = auto()
-    linked_to_Contract = auto()
-    later_of_last_COA_or_Date = auto()
+    Date = 'D'
+    linked_to_Contract = 'LTC'
+    later_of_last_COA_or_Date = 'LOLCOD'
 
 class ClauseExpiry(DataJson):
     """
@@ -31,10 +31,12 @@ class ClauseExpiry(DataJson):
     attr_info = {
         'data': {'expiry_type', 'expiry_date', 'linked_contract_id'},
         'required': {'expiry_type'},
-        'foreign_keys': {
-            'linked_contract_id': 'contract'
-        },
-        'ref_name_order': {
-            'contract_name': ('contract_name',)
+        'rel_map': {
+            'linked contract': {
+                'ref_table': 'contract',
+                'local_col': 'linked_contract_id',
+                'name_col': 'contract_name',
+                'select_order': ('contract_name',)
+            }
         }
     }
