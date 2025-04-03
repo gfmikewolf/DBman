@@ -1,3 +1,4 @@
+# clauses/entity.py
 from app.database.base import DataJson
 
 class ClauseEntity(DataJson):
@@ -20,11 +21,19 @@ class ClauseEntity(DataJson):
     __datajson_id__ = 'clause_entity'
     
     # Initiate cvars so that we can get the attribute types from class
+    entity_id: int = 0
     old_entity_id: int | None = 0
     
     attr_info = {
-        'data': {'old_entity_id'},
+        'data': {'entity_id', 'old_entity_id'},
+        'required': {'entity_id'},
         'rel_map': {
+            'entity': {
+                'ref_table': 'entity',
+                'local_col': 'entity_id',
+                'name_col': 'entity_name',
+                'select_order': ('entity_name',)
+            },
             'old_entity': {
                 'ref_table': 'entity',
                 'local_col': 'old_entity_id',
