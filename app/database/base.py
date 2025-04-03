@@ -194,7 +194,17 @@ class Base(DeclarativeBase):
             if col not in (cls.get_cols('pk') - cls.get_cols('visible'))
         ]
 
-
+    @classmethod
+    def get_col_rel_map(cls) -> dict[str, str]:
+        """
+        Get the {FK_col Key: Relationship Key} for MANY/ONE TO ONE Relationships
+        """
+        col_rel_map = dict()
+        for rel in cls.__mapper__.relationships:
+            if not rel.uselist:
+                col_rel_map[next(iter(rel.local_columns)).key] = rel.key
+        return col_rel_map
+    
     @classmethod
     def get_cols(cls, *args: str) -> set[Column]:
         """
