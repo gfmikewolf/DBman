@@ -8,26 +8,26 @@
       dbman_dict_name_list=[]
     )
 %}
-  <ul id="{{- id -}}">
-  {% for header in headers %}
-    <li>
+  <ul class="list-group mt-1" id="{{- id -}}">
+  {%- for header in headers %}
+    {%- if header in data %}
+    <li class="list-group-item">
       <strong>
-      {% if header in ref_names.keys() %}
-      {% set rel_key = ref_names['rel_key'] %}
+      {%- if header in ref_names %}
+        {%- set rel_key = ref_names[header]['rel_key'] %}
         {{- _(rel_key, dbman_dict_name_list) -}}
-      {% else %}
+      {%- else %}
         {{- _(header, dbman_dict_name_list) -}}
-      {% endif %}
+      {%- endif -%}
       </strong>: 
-      {% if header in ref_names.keys() %}
-      <a href="url_for( 'base.crud.view_record', 
-                        table_name=ref_names['ref_table'], 
-                        pks=data[header])">
+      {%- if header in ref_names %}
+      <a href="{{ url_for( 'base.crud.view_record', table_name=ref_names[header]['ref_table'], pks=data[header]) }}">
         {{- ref_names[header]['ref_name'] -}}</a>        
-      {% else %}
+      {%- else %}
         {{- data[header] -}}
-      {% endif %}
+      {%- endif %}
     </li>
-  {% endfor %}
+    {%- endif %}
+  {%- endfor %}
   </ul>
 {%- endmacro -%}
