@@ -13,129 +13,68 @@
 {%- set datajson_ref_names = rel_data['datajson_ref_names'] -%}
 {%- block content %}
   <div class="container-fluid">
-    <div class="row">
-      <div class="col-12 d-md-flex p-3 dbman-fixed-fill">
-        <div class="col-sm-12 col-md-5 mt-2 p-3 border dbman-independent-scroll">
-          <h4>{{- _('Basic Information') -}}</h4>
-          <div>
-          {{- DatadictDBMan(
-                name='basic',
-                data=basic_info,
-                headers=headers,
-                ref_names=ref_names,
-                datajson_ref_names=datajson_ref_names,
-                dbman_dict_name_list=dbman_dict_name_list,
-              ) 
-          -}}
-          </div>
+    <div class="row p-3 dbman-fixed-fill mx-auto">
+      <div class="col-md-2 p-3 d-none d-md-block dbman-independent-scroll text-center">
+        <h5>{{- _('Related Functions') -}}</h5>
+      </div>
+      <div class="col-sm-12 col-md-6 p-3 border dbman-independent-scroll">
+        <h5>{{- _('Basic Information') -}}</h5>
+        <div>
+        {{- DatadictDBMan(
+              name='basic',
+              data=basic_info,
+              headers=headers,
+              ref_names=ref_names,
+              datajson_ref_names=datajson_ref_names,
+              dbman_dict_name_list=dbman_dict_name_list,
+            ) 
+        -}}
         </div>
-        <div class="col-md-7 mt-2 mx-3 d-none d-md-block dbman-fixed-fill">
-          <div class="row">
-            <div class="col-8 p-3 mx-3 border dbman-independent-scroll">
-              <h4>{{- _('Related Objects') -}}</h4>
-              <div class="list-group list-group-flush">
-              {%- for local_col_key, obj_data in ref_names.items() %}
-                {%- set ref_name = obj_data['ref_name'] -%}
-                {%- set ref_table = obj_data['ref_table'] -%}
-                {%- set data_dict = obj_data['data_dict'] -%}
-                {%- set rel_key = obj_data['rel_key'] %}
-                <div class="list-group-item d-flex justify-content-between">
+      </div>
+      <div class="col-md-4 p-3 d-none d-md-block dbman-independent-scroll">
+        <h5>{{- _('Related Objects') -}}</h5>
+        <div class="list-group list-group-flush">
+        {%- for local_col_key, obj_data in ref_names.items() %}
+          {%- set ref_table = obj_data['ref_table'] -%}
+          {%- set ref_pks_name = obj_data['ref_pks_name'] -%}
+          {%- set rel_key = obj_data['rel_key'] %}
+          <div class="list-group-item">
+            <span>{{- _(ref_table, dbman_dict_name_list) }} :</span>
+            <a href="{{- url_for('base.crud.view_record',
+              table_name=ref_table,
+              pks=ref_pks_name[0])
+              -}}">
+                {{- ref_pks_name[1] -}}
+            </a>
+          </div>
+        {%- endfor %}
+        </div>
+        <div class="list-group list-group-flush mt-3">
+        {%- for rel_key, obj_data in rel_data['ref_lists'].items() -%}
+          {%- set ref_pks_names = obj_data['ref_pks_names'] -%}
+          <a class="list-group-item list-group-item-action"
+            href="#collapse-{{- rel_key -}}"
+            data-bs-toggle="collapse">
+          {{- _(rel_key, dbman_dict_name_list) -}}
+          </a>
+          <div class="collapse" id="collapse-{{- rel_key -}}">
+            <div class="list-group list-group-flush mt-3">
+            {%- set ref_table = obj_data['ref_table'] -%}
+            {%- for ref_pks_name in ref_pks_names %}
+              <div class="list-group-item d-flex justify-content-between">
                 <div>
-                  <span>{{- _(ref_table, dbman_dict_name_list) }} :</span>
+                  <span>{{- _(ref_table, dbman_dict_name_list) -}}:</span>
                     <a href="{{- url_for('base.crud.view_record',
                       table_name=ref_table,
-                      pks=data_dict[local_col_key])
-                      -}}">
-                       {{- ref_name -}}
-                   </a>
+                      pks=ref_pks_name[0]) -}}">
+                      {{- ref_pks_name[1] -}}
+                    </a>
                 </div>
-                <button class="btn btn-sm btn-outline-dark"
-                  type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#collapse-{{- local_col_key -}}">
-                  <i class="fa-solid fa-ellipsis"></i>
-                </button>
-                </div>             
-                <div class="collapse" id="collapse-{{- local_col_key -}}">
-                  <div class="card card-body mt-2">
-                  {{- DatadictDBMan(
-                        name=local_col_key,
-                        headers=obj_data['headers'],
-                        data=data_dict,
-                        ref_names=obj_data['ref_names'],
-                        datajson_ref_names=obj_data['datajson_ref_names'],
-                        dbman_dict_name_list=dbman_dict_name_list
-                      ) 
-                  -}}
-                  </div>  
-                </div>
-              {%- endfor %}
               </div>
-              <div class="list-group list-group-flush mt-3">
-              {%- for rel_key, obj_list in rel_data['ref_lists'].items() -%}
-                {%- set data_list = obj_list['data_list'] -%}
-                {%- set data_struct = obj_list['data_struct'] -%}
-                {%- set ref_names = obj_list['ref_names'] -%}
-                {%- set ref_name = ref_names['ref_name'] -%}
-                <a class="list-group-item list-group-item-action"
-                  href="#collapse-{{- rel_key -}}"
-                  data-bs-toggle="collapse">
-                {{- _(rel_key, dbman_dict_name_list) -}}
-                </a>
-                <div class="collapse" id="collapse-{{- rel_key -}}">
-                  <div class="list-group list-group-flush mt-3">
-                  {%- set ref_table = data_struct['ref_table'] -%}
-                  {%- set name_col = data_struct['name_col'] -%}
-                  {%- for data in data_list -%}
-                    {#- In multi-pk scenario, join pk values with comma -#}
-                    {%- set ns = namespace(pk_value_list = []) -%}
-                    {%- for pk in data_struct['pk_list'] -%}
-                      {%- set ns.pk_value_list = ns.pk_value_list + ["%s" % data[pk]] -%}
-                    {%- endfor -%}
-                    {%- set pks = ','.join(ns.pk_value_list) %}
-                    <div class="list-group-item d-flex justify-content-between">
-                      <div>
-                        <span>{{- _(ref_table, dbman_dict_name_list) -}}:</span>
-                          <a href="{{- url_for('base.crud.view_record',
-                            table_name=ref_table,
-                            pks=pks) -}}">
-                          {%- if name_col -%}
-                            {{- data[name_col] -}}
-                          {%- else -%}
-                            {{- pks -}}
-                          {%- endif %}
-                          </a>
-                      </div>
-                      <button class="btn btn-sm btn-outline-dark"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#collapse-{{- rel_key -}}-{{- pks -}}">
-                        <i class="fa-solid fa-ellipsis"></i>
-                      </button>
-                    </div>
-                    <div class="collapse" id="collapse-{{- rel_key -}}-{{- pks -}}">
-                      <div class="card card-body mt-2">
-                      {{- DatadictDBMan(
-                            name=rel_key + '-' + pks,
-                            headers=data_struct['headers'],
-                            data=data,
-                            ref_names=ref_names,
-                            datajson_ref_names=data_struct['datajson_ref_names'],
-                            dbman_dict_name_list=dbman_dict_name_list
-                          ) 
-                      -}}
-                      </div>
-                    </div>
-                  {%- endfor -%}
-                  </div>
-                </div>
-              {%- endfor %}
-              </div>
-            </div>
-            <div class="col-3 p-3 border dbman-independent-scroll">
-              <h4>{{- _('Related Functions') -}}</h4>
+            {%- endfor -%}
             </div>
           </div>
+        {%- endfor %}
         </div>
       </div>
     </div>
@@ -151,23 +90,21 @@
             </button>
             <ul class="dropdown-menu" id="ref-list-group">
             {%- for local_col_key, obj_data in rel_data['ref_names'].items() -%}
-              {%- set ref_name = obj_data['ref_name'] -%}
+              {%- set ref_pks_name = obj_data['ref_pks_name'] -%}
               {%- set ref_table = obj_data['ref_table'] -%}
-              {%- set data_dict = obj_data['data_dict'] %}
               <li>
                 <a class="dropdown-item" 
                   href="{{- url_for('base.crud.view_record', 
                     table_name=ref_table, 
-                    pks=data_dict[local_col_key]) 
+                    pks=ref_pks_name[0]) 
                   -}}">
-                  {{- _(ref_table, dbman_dict_name_list) -}} : {{- ref_name -}}
+                  {{- _(ref_table, dbman_dict_name_list) -}} : {{- ref_pks_name[1] -}}
                 </a>
               </li>
             {%- endfor %}
-            {%- for rel_key, obj_list in rel_data['ref_lists'].items() -%}
-              {%- set data_list = obj_list[0] -%}
-              {%- set data_struct = obj_list[1] -%}
-              {%- set ref_names = obj_list[2] -%}
+            {%- for rel_key, obj_data in rel_data['ref_lists'].items() -%}
+              {%- set ref_pks_names = obj_data['ref_pks_names'] -%}
+              {%- set ref_table = obj_data['ref_table'] %}
               <li class="dropdown-item">
                 <div class="dropstart">
                   <button type="button" class="btn dropdown-toggle" 
@@ -176,23 +113,13 @@
                   {{- _(rel_key, dbman_dict_name_list) -}}
                   </button>
                   {#- ignore H021: -#}<ul class="dropdown-menu card-body" style="min-height:20vh; overflow-y:auto">
-                  {%- for data in data_list -%}
-                    {#- In multi-pk scenario, join pk values with comma -#}
-                    {%- set ns = namespace(pk_value_list = []) -%}
-                    {%- for pk in data_struct['pk_list'] -%}
-                      {%- set ns.pk_value_list = ns.pk_value_list + ["%s" % data[pk]] -%}
-                    {%- endfor -%}
-                    {%- set pks = ','.join(ns.pk_value_list) %}
+                  {%- for ref_pks_name in ref_pks_names -%}
                     <li>
                       <a class="dropdown-item" 
                         href="{{- url_for('base.crud.view_record',
-                          table_name=data_struct['ref_table'],
-                          pks=pks) -}}">
-                      {%- if data_struct['name_col'] -%}
-                        {{- data[data_struct['name_col']] -}}
-                      {%- else -%}
-                        {{- _(rel_key, dbman_dict_name_list) }} : id={{ pks -}}
-                      {%- endif -%}
+                          table_name=ref_table,
+                          pks=ref_pks_name[0]) -}}">
+                       {{- ref_pks_name[1] -}}
                       </a>
                     </li>
                   {%- endfor %}
