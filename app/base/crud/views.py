@@ -69,12 +69,23 @@ def modify_record(table_name: str, pks: str) -> Any:
     data = model.data_dict(serializeable=True)
     headers = model.get_headers()
 
+    # translate option names
+    db_dict = Config.DATABASE_NAMES.split(',') if Config.DATABASE_NAMES else None
+    trans_select_options = dict()
+    for key, options in select_options.items():
+        trans_options = options
+        if key in model.get_col_keys('Enum'):
+            trans_options = []
+            for item_tuple in options:
+                trans_options.append((item_tuple[0], _(item_tuple[1], db_dict)))
+        trans_select_options[key] = trans_options
+        
     return render_template(
         'crud/modify_record.jinja',
         navigation = navigation.get_nav({'Modify record': '#'}), 
         table_name = table_name, 
         pks = pks,
-        select_options = select_options, # type: ignore
+        select_options = trans_select_options, # type: ignore
         col_rel_map = col_rel_map,
         date_keys = model.get_col_keys('date'),
         datajson_ref_map = datajson_ref_map, # type: ignore
@@ -84,7 +95,7 @@ def modify_record(table_name: str, pks: str) -> Any:
         headers = headers,
         data = data,
         db_dict_names=Config.DATABASE_NAMES,
-        db_dict = Config.DATABASE_NAMES.split(',') if Config.DATABASE_NAMES else None
+        db_dict = db_dict
     )
 
 def delete_record(table_name: str, pks: str) -> Any:
