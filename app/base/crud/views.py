@@ -121,10 +121,15 @@ def view_record(table_name: str, pks: str) -> str:
     with db_session() as db_sess:
         Base.db_session = db_sess
         model = fetch_model(table_name, pks)
-        rel_data = model.fetch_rel_data(with_lists=True, with_data=True)
+        rel_data = model.fetch_rel_data(with_lists=True)
 
     headers = model.get_headers()
+    db_dict = Config.DATABASE_NAMES.split(',') if Config.DATABASE_NAMES else None
     basic_info = model.data_dict(serializeable=True)
+    for key in basic_info:
+        if key in model.get_col_keys('Enum'):
+            basic_info[key] = _(getattr(model, key).name, db_dict)
+
     return render_template(
         'crud/view_record.jinja', 
         table_name=table_name,
@@ -132,7 +137,7 @@ def view_record(table_name: str, pks: str) -> str:
         basic_info=basic_info,
         headers=headers,
         rel_data=rel_data,
-        dbman_dict_name_list=Config.DATABASE_NAMES.split(',') if Config.DATABASE_NAMES else None,
+        dbman_dict_name_list=db_dict,
         navigation=navigation.get_nav({
             'View table': url_for('base.crud.view_table', table_name=table_name),
             'View record': '#'
