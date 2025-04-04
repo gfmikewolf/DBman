@@ -48,5 +48,15 @@
     "entity_fullname": "实体全称",
     "entitygroup": "所属集团实体",
 
-    "scope_name": "交付范围名称"
+    "scope_name": "交付范围名称",
+    "mainbody": "合同主文本",
+    "annex": "合同附件",
+    "appendix": "合同附件的附件",
+    "expiry": "合同到期",
+    "add": "添加",
+    "update": "更新",
+    "remove": "删除",
+    "expiry_type": "到期类型",
+    "expiry_date": "到期日期",
+    "linked_contract": "关联合同"
 }
