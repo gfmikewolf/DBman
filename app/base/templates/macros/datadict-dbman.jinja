@@ -14,7 +14,8 @@
   {%- for header in headers %}
     <div class="dbman-datadict-row">
       <div class="dbman-datadict-key">
-      {%- if header in ref_names.keys() %}
+      {%- if header in ref_names -%}
+      {%- set ref_pks_name = ref_names[header]['ref_pks_name'] %}
         <strong>
         {{- _(ref_names[header]['rel_key'], dbman_dict_name_list) -}}
         </strong>:
@@ -23,19 +24,20 @@
       {%- endif %}
       </div>
       <div class="dbman-datadict-value">
-      {%- if header in ref_names.keys() %}
+      {%- if header in ref_names %}
         <a href="{{ url_for(
               'base.crud.view_record', 
               table_name=ref_names[header]['ref_table'], 
-              pks=data[header])
+              pks=ref_pks_name[0])
           }}">
-          {{- ref_names[header]['ref_name'] -}}
+          {{- ref_pks_name[1] -}}
         </a>
-      {%- elif header in datajson_ref_names.keys() -%}
+      {%- elif header in datajson_ref_names -%}
         {{- JSONViewerDBMan(
+          name = 'basic-info-' + header,
           data = data[header],
           headers = datajson_ref_names[header]['headers'],
-          ref_names = datajson_ref_names,
+          ref_names = datajson_ref_names[header],
           dbman_dict_name_list = dbman_dict_name_list )
         -}}
       {%- else %}
