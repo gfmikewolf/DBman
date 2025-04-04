@@ -136,6 +136,13 @@ class DatajsonMJ extends ContainerMJ {
       this.renderStructure = DatajsonMJ.structCache[this.type];
       return DatajsonMJ.elementCache[this.type];
     }
+    // 在 container 中添加加载中 spinner
+    const spinner = createElement(
+      'div', 
+      this.container, 
+      'spinner-border text-dark d-block mx-auto mt-2 mb-2', 
+      { role: 'status' }
+    );
     const frag = document.createDocumentFragment();
     const card = createElement('div', frag, 'card mt-0 mb-3');
     const cardBody = createElement('div', card, 'card-body');
@@ -252,6 +259,7 @@ class DatajsonMJ extends ContainerMJ {
       });
     }
     DatajsonMJ.elementCache[this.type] = card;
+    spinner.remove();
     this.container.appendChild(frag);
     this.renderStructure = structure;
     return card;
