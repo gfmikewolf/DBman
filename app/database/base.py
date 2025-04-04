@@ -595,7 +595,7 @@ class Base(DeclarativeBase):
         return list_pks_name
     
     @classmethod
-    def fetch_select_options(cls) -> dict[str, tuple[Any]]:
+    def fetch_select_options(cls) -> dict[str, list[tuple[Any, str]]]:
         """
         :return: a dict of select options for each relationship and enum type column
 
