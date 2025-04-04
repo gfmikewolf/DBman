@@ -36,7 +36,9 @@
 
     "amendment": "所属变更",
     "entity": "实体",
+    "old_entity": "原实体",
     "scope": "交付范围",
+    "old_scope": "原交付范围",
 
     "entitygroup_id": "集团实体ID",
     "entitygroup_name": "集团实体名称",

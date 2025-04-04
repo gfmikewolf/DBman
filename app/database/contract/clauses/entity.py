@@ -27,6 +27,7 @@ class ClauseEntity(DataJson):
     attr_info = {
         'data': {'entity_id', 'old_entity_id'},
         'required': {'entity_id'},
+        'hidden': {'entity_id', 'old_entity_id'},
         'rel_map': {
             'entity': {
                 'ref_table': 'entity',

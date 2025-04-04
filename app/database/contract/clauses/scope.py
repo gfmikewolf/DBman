@@ -18,18 +18,24 @@ class ClauseScope(DataJson):
     """
     __datajson_id__ = 'clause_scope'
     
-    action: ClauseAction = ClauseAction.UPDATE
     scope_id: int = 0
     old_scope_id: int | None = 0
     
     attr_info = {
-        'data': ['action', 'scope_id', 'old_scope_id'],
-        'required': ['action', 'scope_id'],
-        'foreign_keys': {
-            'scope_id': 'scope',
-            'old_scope_id': 'scope'
-        },
-        'ref_name_order': {
-            'scope_name': ('scope_name',)
+        'data': {'scope_id', 'old_scope_id'},
+        'required': {'scope_id'},
+        'rel_map': {
+            'scope': {
+                'ref_table': 'scope',
+                'local_col': 'scope_id',
+                'name_col': 'scope_name',
+                'select_order': ('scope_name',)
+            },
+            'old_scope': {
+                'ref_table': 'scope',
+                'local_col': 'old_scope_id',
+                'name_col': 'scope_name',
+                'select_order': ('scope_name',)
+            }
         }
     }

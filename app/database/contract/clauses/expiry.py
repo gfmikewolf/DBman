@@ -32,7 +32,7 @@ class ClauseExpiry(DataJson):
         'data': {'expiry_type', 'expiry_date', 'linked_contract_id'},
         'required': {'expiry_type'},
         'rel_map': {
-            'linked contract': {
+            'linked_contract': {
                 'ref_table': 'contract',
                 'local_col': 'linked_contract_id',
                 'name_col': 'contract_name',

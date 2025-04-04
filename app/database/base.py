@@ -308,7 +308,7 @@ class Base(DeclarativeBase):
         """
         if cls.__tablename__ is None:
             tablename = data.get('__tablename__', None)
-            model_cls = cls.model_map.get(tablename, None)
+            model_cls = cls.model_map.get(tablename, None) # type: ignore
             if model_cls is None:
                 raise AttributeError(f'Invalid {tablename} in class_map {cls.model_map}')
         else:
@@ -1068,7 +1068,24 @@ class DataJson:
                 if attr is not None:
                     data_dict.update({key: serialize_value(value) if serializeable else value})
         return data_dict
-
+    
+    @classmethod
+    def get_col_rel_map(cls) -> dict[str, str]:
+        """
+        :return: a dict of the relationship map for the class.
+        """
+        rel_map = cls.attr_info.get('rel_map', dict())
+        col_rel_map = dict()
+        if rel_map:
+            for rel_key, rel_info in rel_map.items():
+                if not isinstance(rel_info, dict):
+                    raise AttributeError(f'Invalid foreignkeys {rel_info} for {cls}')
+                local_col_key = rel_info.get('local_col', None)
+                if local_col_key is None:
+                    raise AttributeError(f'Invalid local_col {local_col_key} for {cls}')
+                col_rel_map[local_col_key] = rel_key    
+        return col_rel_map
+    
     @classmethod
     def get_obj(cls, data: str | dict, **kwargs: Any) -> Optional['DataJson']:
         """
@@ -1171,14 +1188,15 @@ class DataJson:
                 raise AttributeError(f'Invalid Model {ref_Model} for {cls}')
             
             ref_name_col_name = rel_info.get('name_col', None)
-            ref_name_col = getattr(ref_Model, ref_name_col_name, None)
+            ref_name_col = getattr(ref_Model, ref_name_col_name, None) # type: ignore
             if ref_name_col is None:
                 raise AttributeError(f'Invalid ref_name_col {ref_name_col} for {cls}')
             
             if ref_name_col in cached.keys():
                 options[local_col_key] = cached[ref_name_col]
             else:
-                list_pks_name = ref_Model.fetch_ref_list(ref_name_col_name, rel_info.get('select_order', None))
+                list_pks_name = ref_Model.fetch_ref_list(
+                    ref_name_col_name, rel_info.get('select_order', None)) # type: ignore
                 options[local_col_key] = list_pks_name
                 cached[ref_name_col] = list_pks_name
 
@@ -1211,4 +1229,5 @@ class DataJson:
         struct['longtext'] = cls.get_keys('longtext')
         struct['constraints'] = cls.attr_info.get('constraints',dict())
         struct['select_options'] = cls.fetch_select_options()
+        struct['col_rel_map'] = cls.get_col_rel_map()
         return struct

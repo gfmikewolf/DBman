@@ -149,17 +149,15 @@ class DatajsonMJ extends ContainerMJ {
         value = '';
       }
       const inputGroup = createElement('div', cardBody, 'input-group mb-1 flex-nowrap');
-      const response = await fetch(
-        `/api/datajson/structure/${this.type}`, {});
-      if (!response.ok) {
-        throw new TypeError('Datajson type is incorrect: ', this.type);
+      let showKey = key;
+      if (key in structure['col_rel_map']) {
+        showKey = structure['col_rel_map'][key];
       }
-      const translateResponse = (await fetch(`/api/translation/${fromTemplate["db_dict_names"]}/${key}`));
-      let showKey;
+      const translateResponse = (
+        await fetch(`/api/translate/spec/${fromTemplate["db_dict_names"]}/${showKey}`)
+      );
       if (translateResponse.ok) {
-        showKey = await response.text();
-      } else {
-        throw new Error('Cannot translate text');
+        showKey = await translateResponse.text();
       }
       const label = createElement(
         'label', 
