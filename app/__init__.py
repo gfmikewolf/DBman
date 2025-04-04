@@ -1,10 +1,8 @@
 # app/__init__.py
-from webbrowser import get
 from flask import Flask, abort, session, render_template
 from app.translation import get_dbman_dict, get_lang, translate_text
-import logging
 
-def _(input_text: str, dbman_dict_name_list: list[str] = []) -> str:
+def _(input_text: str, dbman_dict_name_list: list[str] | None = []) -> str:
     dbman_dict = dict()
     lang = get_lang()
     if not dbman_dict_name_list:
