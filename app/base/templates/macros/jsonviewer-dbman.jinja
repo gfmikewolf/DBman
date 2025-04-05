@@ -15,14 +15,23 @@
       <strong>
       {%- if header in ref_names %}
         {%- set rel_key = ref_names[header]['rel_key'] %}
-        {{- _(rel_key, dbman_dict_name_list) -}}
+        {%- if rel_key %}
+          {{- _(rel_key, dbman_dict_name_list) -}}
+        {%- else %}
+          {{- _(header, dbman_dict_name_list) -}}
+        {%- endif -%}
       {%- else %}
         {{- _(header, dbman_dict_name_list) -}}
       {%- endif -%}
       </strong>: 
       {%- if header in ref_names %}
+        {%- set rel_key = ref_names[header]['rel_key'] %}
+        {%- if rel_key %}
       <a href="{{ url_for( 'base.crud.view_record', table_name=ref_names[header]['ref_table'], pks=data[header]) }}">
-        {{- ref_names[header]['ref_name'] -}}</a>        
+        {{- ref_names[header]['ref_name'] -}}</a>
+        {%- else %}
+          {{- data[header] -}}
+        {%- endif -%}   
       {%- else %}
         {{- data[header] -}}
       {%- endif %}
