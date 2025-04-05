@@ -36,7 +36,7 @@ def serialize_value(attr: Any) -> Any:
     elif attr_type == date:
         srl_value = attr.isoformat()
     elif issubclass(attr_type, DataJson):
-        srl_value = json.loads(attr.dumps())
+        srl_value = attr.dumps()
     else:
         srl_value = attr
     return srl_value if srl_value is not None else ''
