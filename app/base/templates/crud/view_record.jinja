@@ -12,7 +12,21 @@
   <div class="container-fluid">
     <div class="row p-3 dbman-fixed-fill mx-auto">
       <div class="col-md-2 p-3 d-none d-md-block dbman-independent-scroll text-center">
-        <h5>{{- _('Related Functions') -}}</h5>
+        <div class="card">
+          <div class="card-header text-center">
+            {{- _('Related Actions') -}}
+          </div>
+          <div class="list-group text-center">
+            <a  class="list-group-item list-group-item-action"
+                href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}">
+              {{- _('Modify the record') -}}
+            </a>
+            <a  href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
+                class="list-group-item list-group-item-action">
+              {{- _('View table') -}}
+            </a>
+          </div>
+        </div>
       </div>
       <div class="col-sm-12 col-md-6 p-3 border dbman-independent-scroll">
         <h5>{{- _('Basic Information') -}}</h5>
