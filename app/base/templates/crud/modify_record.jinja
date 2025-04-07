@@ -28,19 +28,23 @@
             {{- _('Related Actions') -}}
           </div>
           <div class="list-group text-center">
-            <a href="{{- url_for('base.crud.view_table', table_name=table_name) -}}"
-              class="list-group-item list-group-item-action">
-              {{- _('Cancel') -}}
-            </a>
+            <button type="submit" class="list-group-item list-group-item-action">
+              {{- _('Save Changes') -}}
+            </button>
             <button
               class="list-group-item list-group-item-action"
               data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, pks=pks) }}"
               data-dbman-toggle="delete-record">
-              {{ _('Delete') }}
+              <span class="text-danger">{{ _('Delete') }}</span>
             </button>
-            <button type="submit" class="list-group-item list-group-item-action">
-              {{- _('Save Changes') -}}
-            </button>
+            <a  href="{{ url_for('base.crud.view_record', table_name=table_name, pks=pks) }}"
+                class="list-group-item list-group-item-action">
+              {{- _('View Details') -}}
+            </a>
+            <a  href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
+                class="list-group-item list-group-item-action">
+              {{- _('Cancel') -}}
+            </a>
           </div>
         </div>
       </div>
@@ -95,7 +99,7 @@
                 {{- tnvr_o[2] -}}
               </textarea>
               <div id="dbman-datajson-{{ key }}" class="dbman-datajson" data-dbman-data="{{ tnvr_o[2] }}"></div>
-              {%- elif tnvr_o[0] == 'teaxarea' %}
+              {%- elif tnvr_o[0] == 'textarea' %}
               <textarea name="{{ key }}"
                         id="{{- key -}}"
                         class="form-control"
