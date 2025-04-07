@@ -4,9 +4,9 @@ from app.database.base import DataJson
 from app.database.contract.dbmodels import Contract
 
 class ExpiryType(Enum):
-    Date = 'date'
-    linked_to_Contract = 'linked to contract'
-    later_of_last_COA_or_Date = 'last COA or Date'
+    FIXED_EXPIRY_DATE = 'FD'
+    LINKED_TO_CONTRACT = 'LC'
+    LAST_CHILD_EXPIRY_DATE_OR_FIXED_DATE = 'LLOF'
 
 class ClauseExpiry(DataJson):
     """
@@ -26,7 +26,7 @@ class ClauseExpiry(DataJson):
     """
     __datajson_id__ = 'clause_expiry'
     
-    expiry_type: ExpiryType = ExpiryType.Date
+    expiry_type: ExpiryType = ExpiryType.FIXED_EXPIRY_DATE
     expiry_date: date | None = date(1981, 12, 5)
     linked_contract_id: int | None = 0
     key_info = {
