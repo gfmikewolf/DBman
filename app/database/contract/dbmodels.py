@@ -1,6 +1,5 @@
 # app/database/contract/dbmodels.py
 from datetime import date
-from turtle import back
 from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum
 from sqlalchemy.sql import literal_column
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
@@ -10,9 +9,12 @@ from app.database.base import Base, DataJson, DataJsonType
 from .clausetypes import ClausePos, ClauseType, ClauseAction
 
 class TypeSetInt(TypeDecorator):
-    # 使用字符串类型作为底层实现
     impl = String
 
+    @property
+    def python_type(self) -> type:
+        return set
+    
     def process_bind_param(self, value: set[int] | None, dialect):
         if value is None:
             return None
@@ -28,15 +30,17 @@ class Contract(Base):
     __tablename__ = 'contract'
     contract_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     contract_name: Mapped[str]
-    contract_fullname: Mapped[str | None]
+    contract_fullname: Mapped[str | None] = mapped_column(String, info={'longtext': True})
     contract_effectivedate: Mapped[date | None] = mapped_column(Date)
     contract_expirydate: Mapped[date | None] = mapped_column(Date)
     contract_scope: Mapped[str | None]
     contract_entities: Mapped[str | None]
-    contract_remarks: Mapped[str | None]
+    contract_remarks: Mapped[str | None] = mapped_column(String, info={'longtext': True})
     contract_number_huawei: Mapped[str | None]
-    parent_contract_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('contract.contract_id'))
-    legal_parent_contract_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('contract.contract_id'))
+    parent_contract_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey('contract.contract_id'))
+    legal_parent_contract_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey('contract.contract_id'))
     _name = synonym('contract_name')
 
     amendments: Mapped[list['Amendment']] = relationship(
