@@ -2,7 +2,6 @@
 
 # python
 from typing import Any
-from weakref import ref
 # flask
 from flask import Response, render_template, request, jsonify, abort, url_for
 # app
@@ -108,6 +107,7 @@ def view_record(table_name: str, pks: str) -> str:
     return render_template(
         'crud/view_record.jinja', 
         table_name=table_name,
+        pks=pks,
         basic_info=basic_info,
         ref_objects=ref_objects,
         navigation=navigation.get_nav({
