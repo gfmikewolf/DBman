@@ -124,8 +124,10 @@ class DatajsonMJ extends ContainerMJ {
     for (let key of this.renderStructure['data']) {
       const keyUid = `${this.type}-${key}-${this.uid}`;
       const input = this.element.querySelector(`#${keyUid}`);
-      if (input.value === '' && key in this.data) {
-        delete this.data[key];
+      if (input.value === '') {
+        if (key in this.data) {
+          delete this.data[key];
+        }
       } else { 
         this.data[key] = input.value; 
       }
