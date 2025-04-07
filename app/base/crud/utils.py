@@ -164,6 +164,8 @@ def fetch_tablename_url_name(instance: Base, table_name: str) -> tuple[str, str,
     """
     :return: an url linking to the instance and string representation of the instance name.
     """
+    if instance is None:
+        return('', '#', '')
     pks = ','.join([str(i) for i in inspect(instance).identity]) # type: ignore
     name = instance._name # type: ignore
     url = url_for(
@@ -184,13 +186,18 @@ def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]
     for rel in instance.__class__.__mapper__.relationships:
         if rel.uselist:
             instance_list = getattr(instance, rel.key)
+            if len(instance_list) == 0:
+                continue
             table_name = instance_list[0].__class__.__tablename__
             rm[_(rel.key, dbman_dict_name_list)] = [
                 fetch_tablename_url_name(ref_instance, table_name)
                 for ref_instance in instance_list ]
         else:
+            rel_prop = getattr(instance, rel.key)
+            if rel_prop is None:
+                continue
             rs[_(rel.key, dbman_dict_name_list)] = fetch_tablename_url_name(
-                    getattr(instance, rel.key), rel.entity.class_.__tablename__
+                    rel_prop, rel.entity.class_.__tablename__
             )
             
     return related_objects
