@@ -1,12 +1,29 @@
 # app/database/contract/dbmodels.py
+from datetime import date
+from turtle import back
 from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum
 from sqlalchemy.sql import literal_column
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.ext.hybrid import hybrid_property
-from datetime import date
+from sqlalchemy.types import TypeDecorator
 from app.database.base import Base, DataJson, DataJsonType
 from .clausetypes import ClausePos, ClauseType, ClauseAction
 
+class TypeSetInt(TypeDecorator):
+    # 使用字符串类型作为底层实现
+    impl = String
+
+    def process_bind_param(self, value: set[int] | None, dialect):
+        if value is None:
+            return None
+        return ",".join(str(x) for x in value)
+
+    def process_result_value(self, value: str | None, dialect):
+        # 当从数据库读取时，将字符串转换回set
+        if value is None or value == "":
+            return set()
+        return {int(x.strip()) for x in value.split(",") if x.strip()}
+    
 class Contract(Base):
     __tablename__ = 'contract'
     contract_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -18,18 +35,54 @@ class Contract(Base):
     contract_entities: Mapped[str | None]
     contract_remarks: Mapped[str | None]
     contract_number_huawei: Mapped[str | None]
-
+    parent_contract_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('contract.contract_id'))
+    legal_parent_contract_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('contract.contract_id'))
     _name = synonym('contract_name')
 
     amendments: Mapped[list['Amendment']] = relationship(
         back_populates='contract', 
-        lazy='select', 
+        lazy='select',
+        order_by=lambda: Amendment.amendment_name
+    )
+    parent_contract: Mapped['Contract'] = relationship(
+        back_populates='children_contracts', 
+        foreign_keys=[parent_contract_id],
+        remote_side=[contract_id],
+        lazy='selectin'
+    )
+    children_contracts: Mapped[list['Contract']] = relationship(
+        back_populates='parent_contract',
+        foreign_keys=[parent_contract_id],
+        lazy='select'
+    )
+    legal_parent_contract: Mapped['Contract'] = relationship(
+        back_populates='legal_children_contracts', 
+        foreign_keys=[legal_parent_contract_id],
+        remote_side=[contract_id],
+        lazy='selectin'
+    )
+    legal_children_contracts: Mapped[list['Contract']] = relationship(
+        back_populates='legal_parent_contract',
+        foreign_keys=[legal_parent_contract_id],
+        lazy='select'
+    )
+    clauses: Mapped[list['Clause']] = relationship(
+        lazy='select',
+        secondary=lambda: Amendment.__table__,
+        primaryjoin=lambda: Contract.contract_id == Amendment.contract_id,
+        secondaryjoin=lambda: Clause.amendment_id == Amendment.amendment_id,
+        viewonly=True,
+        order_by=lambda: Clause.clause_type
     )
 
     key_info = {
         'data': (
             'contract_id', 
-            'contract_name', 
+            'contract_name',
+            'parent_contract',
+            'parent_contract_id',
+            'legal_parent_contract',
+            'legal_parent_contract_id',
             'contract_fullname',
             'contract_effectivedate', 
             'contract_expirydate',
@@ -38,13 +91,19 @@ class Contract(Base):
             'contract_remarks',
             'contract_number_huawei'
         ),
-        'hidden': {'contract_id'},
+        'hidden': {
+            'contract_id',
+            'parent_contract_id',
+            'legal_parent_contract_id'
+        },
         'readonly': {
             'contract_id', 
             'contract_effectivedate', 
             'contract_expirydate',
             'contract_scope',
-            'contract_entities'
+            'contract_entities',
+            'parent_contract',
+            'legal_parent_contract'
         }
     }
 
@@ -55,7 +114,7 @@ class Amendment(Base):
     amendment_fullname: Mapped[str | None]
     amendment_signdate: Mapped[date] = mapped_column(Date)
     amendment_effectivedate: Mapped[date] = mapped_column(Date)
-    amendment_entities: Mapped[str | None]
+    amendment_entities: Mapped[set[int] | None] = mapped_column(TypeSetInt)
     amendment_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
     contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'))
     
@@ -89,6 +148,23 @@ class Amendment(Base):
         'hidden': {'amendment_id', 'contract_id'},
         'readonly': {'amendment_id', 'amendment_entities', 'contract'},
     }
+
+    def update_entities(self):
+        entity_ids = set()
+        removed_ids = set()
+        for clause in self.clauses:
+            if clause.clause_type == ClauseType.ENTITY:
+                entity_id = clause.clause_json.entity_id # type: ignore
+                if clause.clause_action == ClauseAction.ADD:
+                    entity_ids.add(entity_id)
+                elif clause.clause_action == ClauseAction.REMOVE:
+                    removed_ids.add(removed_ids)
+                elif clause.clause_action == ClauseAction.UPDATE:
+                    entity_ids.add(entity_id)
+                    removed_ids.add(clause.clause_json.old_entity_id) # type: ignore
+        self.amendment_entities = entity_ids - removed_ids
+
+    
 
 class Clause(Base):
     __tablename__ = 'clause'
