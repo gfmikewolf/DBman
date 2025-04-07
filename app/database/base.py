@@ -3,12 +3,10 @@
 __all__ = ['Base', 'DataJson', 'DataJsonType']
 
 # python
-from calendar import c
 from typing import Any, Iterable, Optional
 from enum import Enum
 from datetime import date
 import json
-from weakref import ref
 
 # sqlalchemy
 from sqlalchemy.types import TypeDecorator, JSON
@@ -545,7 +543,7 @@ class DataJson:
             for r_k, r_i in rel_info.items():
                 if not isinstance(r_i, dict):
                     raise AttributeError(f'Invalid foreignkeys {r_i} for {cls}')
-                local_col_key = rel_info.get('local_col', None)
+                local_col_key = r_i.get('local_col', None)
                 if local_col_key is None:
                     raise AttributeError(f'Invalid local_col {local_col_key} for {cls}')
                 col_rel_map[local_col_key] = r_k    
@@ -610,7 +608,7 @@ class DataJson:
                 keys.update(info_keys)
             elif info in {'date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'DataJson', 'Enum'}:
                 info_keys = set()
-                for data_key in cls.get_keys('data'):
+                for data_key in cls.get_keys('data') - cls.get_keys('single_rel'):
                     attr = getattr(cls, data_key, None)  # type: ignore
                     if attr is None:
                         raise AttributeError(f'Attribute {data_key} not found in {cls}')
