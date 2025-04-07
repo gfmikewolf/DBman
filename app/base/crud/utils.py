@@ -89,6 +89,8 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     property = getattr(instance, key)
     if property is None:
         value = ''
+    elif isinstance(property, set):
+        value = ','.join(map(str, property))
     elif isinstance(property, Enum):
         value = _(property.name, dbman_dict_name_list)
     elif isinstance(property, Base):
@@ -285,7 +287,6 @@ def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[
     struct['constraints'] = Model.key_info.get('constraints', dict())
     struct['select_options'] = fetch_select_options(Model, db_session=db_session)
     struct['col_rel_map'] = Model.get_col_rel_map()
-    print(struct['select_options'])
     return struct
 
 def fetch_modify_form_viewer(
@@ -312,6 +313,7 @@ def fetch_modify_form_viewer(
     col_rel_map = instance.get_col_rel_map()
     mod_keys = instance.get_keys('modifiable')
     required_keys = instance.get_keys('required')
+    enum_keys = instance.get_keys('Enum')
     json_keys = instance.get_keys('DataJson')
     longtext_keys = instance.get_keys('longtext')
     select_options = fetch_select_options(instance.__class__, db_session=db_session)
@@ -326,15 +328,16 @@ def fetch_modify_form_viewer(
             data[key] = (tag, name, str(value), is_required, options)
         else:
             name = _(key, dbman_dict_name_list)
-            if isinstance(value, Enum):
+            if key in instance.get_keys('Enum'):
                 tag = 'select'
-                value = value.value
+                if value:
+                    value = value.value # type: ignore
                 options = select_options[key]
                 data[key] = (tag, name, value, is_required, options)
             else:
-                if isinstance(value, date):
+                if key in instance.get_keys('date'):
                     tag = 'date'
-                    value = value.isoformat()
+                    value = value.isoformat() # type: ignore
                 elif key in longtext_keys:
                     tag = 'textarea'
                 elif key in json_keys:
