@@ -98,7 +98,9 @@
                         row="3" value='{{ tnvr_o[2] }}' readonly>
                 {{- tnvr_o[2] -}}
               </textarea>
-              <div id="dbman-datajson-{{ key }}" class="dbman-datajson" data-dbman-data="{{ tnvr_o[2] }}"></div>
+            </div>
+            <div>
+              <div id="dbman-datajson-{{ key }}" class="dbman-datajson"></div>
               {%- elif tnvr_o[0] == 'textarea' %}
               <textarea name="{{ key }}"
                         id="{{- key -}}"
