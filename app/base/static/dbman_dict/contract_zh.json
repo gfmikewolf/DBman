@@ -60,6 +60,9 @@
     "add": "添加",
     "update": "更新",
     "remove": "删除",
+    "fixed_expiry_date": "固定到期日",
+    "linked_to_contract": "到期日关联其他合同",
+    "last_child_expiry_date_or_fixed_date": "子合同最晚到期日与固定到期日取孰晚",
     "expiry_type": "到期类型",
     "expiry_date": "到期日期",
     "linked_contract": "关联合同"
