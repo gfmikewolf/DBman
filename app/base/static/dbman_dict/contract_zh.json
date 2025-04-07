@@ -8,6 +8,10 @@
     "contract_entities": "合同实体",
     "contract_remarks": "合同备注",
     "contract_number_huawei": "华为合同号",
+    "parent_contract": "上层合同(业务关系)",
+    "legal_parent_contract": "上层合同(法律关系)",
+    "children_contracts": "下层合同(业务关系)",
+    "legal_children_contracts": "下层合同(法律关系)",
     
     "amendment_id": "变更ID",
     "amendment_name": "变更名称",
