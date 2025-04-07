@@ -43,7 +43,7 @@ def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
 
 def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
     """
-    :return: a select statement for all rows in the table, and a ref_map.
+    :return: a select statement for all rows in the table.
 
     .. example::
     ```python
@@ -241,11 +241,11 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) 
             value_name_list = [(member.value, _(member.name, dbman_dict_name_list)) for member in enum_Model]
             select_options[key] = value_name_list       
     elif issubclass(Model, DataJson):
-        for rel_key, rel_info in Model.key_info.get('rel_map', dict()).items(): # type: ignore
+        for rel_key, rel_info in Model.rel_info.items(): # type: ignore
             ref_Model = rel_info.get('ref_table')
             local_col_key = rel_info.get('local_col')
             select_order = rel_info.get('select_order', None)
-            pks_name_list = fetch_select_list(ref_Model, db_session, order_by=select_order) 
+            pks_name_list = fetch_select_list(ref_Model, db_session, order_by=select_order) # type: ignore
             select_options[local_col_key] = pks_name_list
         # Extract Enum types and get options from Enum definition
         enum_keys = Model.get_keys('Enum')
@@ -278,6 +278,7 @@ def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[
     struct['constraints'] = Model.key_info.get('constraints', dict())
     struct['select_options'] = fetch_select_options(Model, db_session=db_session)
     struct['col_rel_map'] = Model.get_col_rel_map()
+    print(struct['select_options'])
     return struct
 
 def fetch_modify_form_viewer(
