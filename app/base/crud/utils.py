@@ -3,7 +3,7 @@ from datetime import date
 from typing import Any
 from enum import Enum
 from flask import abort, url_for
-from sqlalchemy import select, inspect, table
+from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
 from config import Config
 from app.extensions import Base, DataJson
