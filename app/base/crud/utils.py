@@ -323,7 +323,7 @@ def fetch_modify_form_viewer(
             name = _(col_rel_map[key], dbman_dict_name_list)
             tag = 'select'
             options = select_options[key]
-            data[key] = (tag, name, value, is_required, options)
+            data[key] = (tag, name, str(value), is_required, options)
         else:
             name = _(key, dbman_dict_name_list)
             if isinstance(value, Enum):
