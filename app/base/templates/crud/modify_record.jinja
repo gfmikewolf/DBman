@@ -6,12 +6,13 @@
     select_options={fk_col_name: ((pks, name)...)},
     date_keys: set(str),
     longtext_keys: set(str),
-    datajson_keys: set(str),
+    json_keys: set(str),
     required_keys: set(str),
     readonly_keys: set(str),
     data: dict(key, value)
 -#}
 {%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
+{%- from 'macros/datadict-dbman.jinja' import DatadictDBMan -%}
 {%- extends "base.jinja" -%}
 {%- set prev_page = url_for('base.crud.view_table', table_name=table_name) -%}
 {%- block head %}
@@ -43,82 +44,72 @@
           </div>
         </div>
       </div>
-      <div class="col col-sm-12 col-md-8 mx-auto dbman-independent-scroll">
+      <div class="col col-sm-12 col-md-6 mx-auto dbman-independent-scroll">
         <div class="card">
           <div class="card-header">
             {{- _('_enter_form_data') -}}
           </div>
           <div class="card-body">
-            {%- for key in headers -%}
-            {%- set value = data[key] %}
+          {%- for key, tnvr_o in data.items() %}
             <div class="input-group mb-3 flex-nowrap">
               <label class="input-group-text" for="{{ key }}">
-              {%- if key in col_rel_map %}
-                {{- _(col_rel_map[key], db_dict) -}}
-              {%- else %}
-                {{- _(key, db_dict) -}}
-              {%- endif -%}
-              {%- if key in required_keys -%}
+                {{- tnvr_o[1] -}}
+              {%- if tnvr_o[3] -%}
                 <div class="text-danger">*</div>
               {%- endif -%}
               </label>
-              {%- if key in date_keys %}
-              <input {{ 'name="' + key + '"' if key not in readonly_keys }}
-                    type="date"
-                    class="form-control"
-                    id="{{ key }}"
-                    value="{{- '' if pks == '_new' else value -}}"
-                    {{ 'required' if key in required_keys }}
-                    {{ 'readonly' if key in readonly_keys }}>
-              {%- elif key in select_options.keys() -%}
-              {%- set options = select_options[key] -%}
-              {%- set is_long_options = options|length > 5 -%}
-              {%- if is_long_options %}
-              <div class="mj-selectpicker">
-                <input type="search" class="form-control" placeholder="🔍" id="{{ key }}-search">
-              {%- endif %}
-              <select {{ 'name="' + key + '"' if key not in readonly_keys }}
-                      class="form-select"
+              {%- if tnvr_o[0] == 'date' %}
+              <input  name="{{ key }}"
+                      type="date"
+                      class="form-control"
                       id="{{ key }}"
-                      {{ 'required' if key in required_keys }}
-                      {{ 'readonly' if key in readonly_keys }}>
-                <option value="" {{ 'selected' if pks=="_new" else '' }} hidden>
-                  {{ _('Please select') -}}
-                </option>
-                {%- for option in options %}
-                <option value="{{- option[0] -}}"
-                  {%- if pks and value|string == option[0]|string -%}
-                  selected
-                  {%- endif -%}>
-                  {{- option[1] -}}
-                </option>
-                {%- endfor %}
-              </select>
-              {%- if is_long_options %}
+                      value="{{- tnvr_o[2] -}}"
+                      {{ 'required' if tnvr_o[3] }}>
+              {%- elif tnvr_o[0] == 'select' -%}
+                {%- set options = tnvr_o[4] -%}
+                {%- set is_long_options = options|length > 5 -%}
+                {%- if is_long_options %}
+              <div class="mj-selectpicker">
+                <input  type="search" class="form-control" placeholder="🔍" id="{{ key }}-search">
+                {%- endif %}
+                <select name="{{ key }}"
+                        class="form-select"
+                        id="{{ key }}"
+                        {{ 'required' if tnvr_o[3] }}>
+                  <option value="" 
+                          {{ 'selected' if tnvr_o[2] == None or tnvr_o[2] == '' }}
+                          {{ 'hidden' if tnvr_o[3] }}>/</option>
+                  {%- for option in options %}
+                  <option value="{{- option[0] -}}"
+                    {{ 'selected' if tnvr_o[2] == option[0] }}>
+                    {{- option[1] -}}
+                  </option>
+                  {%- endfor %}
+                </select>
+                {%- if is_long_options %}
               </div>
-              {%- endif -%}
-              {%- elif key in datajson_ref_map.keys() %}
+                {%- endif -%}
+              {%- elif tnvr_o[0] == 'DataJson' %}
               <textarea id="{{ key }}" name="{{ key }}" class="form-control" 
-                row="3" value='{{ value }}' readonly>{{- value -}}</textarea>
-              </div><div class="container-fluid">
-              <div id="dbman-datajson-{{ key }}" class="dbman-datajson" data-dbman-data="{{ value }}"></div>
-              {%- elif key in longtext_keys %}
-              <textarea {{ 'name="' + key + '"' if key not in readonly_keys }}
+                        row="3" value='{{ tnvr_o[2] }}' readonly>
+                {{- tnvr_o[2] -}}
+              </textarea>
+              <div id="dbman-datajson-{{ key }}" class="dbman-datajson" data-dbman-data="{{ tnvr_o[2] }}"></div>
+              {%- elif tnvr_o[0] == 'teaxarea' %}
+              <textarea name="{{ key }}"
                         id="{{- key -}}"
                         class="form-control"
-                        rows="{{- 3 if value is none or value == '' else ((value|length)/40)|round|int + 1 -}}"
-                        {{ 'required pattern=".*\S.*"' if key in required_keys }}
-                        {{ 'readonly' if key in readonly_keys }}>
-                {{- '' if pks == '_new' else value -}}
+                        rows="{{- 3 if tnvr_o[2] is none or tnvr_o[2] == '' else ((tnvr_o[2]|length)/40)|round|int + 1 -}}"
+                        {{ 'required pattern=".*\S.*"' if tnvr_o[3] }}>
+                {{- tnvr_o[2] -}}
               </textarea>
               {%- else %}
-              <input {{ 'name="' + key + '"' if key not in readonly_keys }}
+              <input name="{{ key }}"
                     type="text"
                     class="form-control"
                     id="{{- key -}}"
-                    value="{{- '' if pks == '_new' else value -}}"
-                    {{ 'required pattern=".*\S.*"' if key in required_keys }}
-                    {{ 'readonly' if key in readonly_keys }}>
+                    value="{{- tnvr_o[2] -}}"
+                    {{ 'required pattern=".*\S.*"' if tnvr_o[3] }}>
               <div class="invalid-feedback">
                 {{- _('Please enter a meaningful string') -}}
               </div>
@@ -143,7 +134,15 @@
           </button>
         </div>
       </div>
-      <div class="col col-md-2 d-none d-md-block dbman-independent-scroll">
+      <div class="col col-md-4 d-none d-md-block dbman-independent-scroll">
+       <div class="card">
+          <div class="card-header text-center">
+            {{- _('Original Data') -}}
+          </div>
+          <div class="card-body p-3">
+            {{ DatadictDBMan(name='orginal', data=viewer_original) }}
+          </div>
+        </div>
       </div>
     </div>
   </form>
@@ -165,7 +164,7 @@
 {%- block scripts -%}
 <script>
   var fromTemplate = {}
-  fromTemplate['datajson_ref_map'] = {{ datajson_ref_map }};
-  fromTemplate['db_dict_names'] = "{{ db_dict_names }}";
+  fromTemplate['dbman_dict_name_list'] = {{ dbman_dict_name_list }};
+  fromTemplate['datajson_element_id_map'] = {{ datajson_element_id_map|tojson }};
 </script>
 {%- endblock scripts -%}

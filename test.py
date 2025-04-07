@@ -1,12 +1,7 @@
-from enum import Enum
-
-class ClauseAction(Enum):
-    ADD = 'add'
-    REMOVE = 'remove'
-    UPDATE = 'update'
-
-class test:
-    x : ClauseAction = ClauseAction.ADD
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from app.base.crud.utils import fetch_tabledata
+from app.extensions import db_session, Base, DataJson
 
 if __name__ == "__main__":
-    print(f'{test.x.__class__('add').value}')
+    with db_session() as db_sess:
+        print(fetch_tabledata(Base.model_map['clause'], db_sess))

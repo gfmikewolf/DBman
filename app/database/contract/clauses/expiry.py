@@ -1,11 +1,12 @@
 from enum import Enum, auto
 from datetime import date
 from app.database.base import DataJson
+from app.database.contract.dbmodels import Contract
 
 class ExpiryType(Enum):
-    Date = 'D'
-    linked_to_Contract = 'LTC'
-    later_of_last_COA_or_Date = 'LOLCOD'
+    Date = 'date'
+    linked_to_Contract = 'linked to contract'
+    later_of_last_COA_or_Date = 'last COA or Date'
 
 class ClauseExpiry(DataJson):
     """
@@ -28,15 +29,14 @@ class ClauseExpiry(DataJson):
     expiry_type: ExpiryType = ExpiryType.Date
     expiry_date: date | None = date(1981, 12, 5)
     linked_contract_id: int | None = 0
-    attr_info = {
-        'data': {'expiry_type', 'expiry_date', 'linked_contract_id'},
-        'required': {'expiry_type'},
-        'rel_map': {
-            'linked_contract': {
-                'ref_table': 'contract',
-                'local_col': 'linked_contract_id',
-                'name_col': 'contract_name',
-                'select_order': ('contract_name',)
-            }
+    key_info = {
+        'data': ('expiry_type', 'expiry_date', 'linked_contract_id'),
+        'required': {'expiry_type'}
+    }
+    rel_info = {
+        'linked_contract': {
+            'ref_table': Contract,
+            'local_col': 'linked_contract_id',
+            'select_order': (Contract.contract_name,)
         }
     }

@@ -8,9 +8,6 @@
 
 {#- @param for base.jinja - prev_page: redirect to upper level page -#}
 {%- set prev_page = url_for('base.crud.view_table', table_name=table_name) -%}
-{%- set ref_names = rel_data['ref_names'] -%}
-{%- set ref_lists = rel_data['ref_lists'] -%}
-{%- set datajson_ref_names = rel_data['datajson_ref_names'] -%}
 {%- block content %}
   <div class="container-fluid">
     <div class="row p-3 dbman-fixed-fill mx-auto">
@@ -23,10 +20,6 @@
         {{- DatadictDBMan(
               name='basic',
               data=basic_info,
-              headers=headers,
-              ref_names=ref_names,
-              datajson_ref_names=datajson_ref_names,
-              dbman_dict_name_list=dbman_dict_name_list,
             ) 
         -}}
         </div>
@@ -34,42 +27,30 @@
       <div class="col-md-4 p-3 d-none d-md-block dbman-independent-scroll">
         <h5>{{- _('Related Objects') -}}</h5>
         <div class="list-group list-group-flush">
-        {%- for local_col_key, obj_data in ref_names.items() %}
-          {%- set ref_table = obj_data['ref_table'] -%}
-          {%- set ref_pks_name = obj_data['ref_pks_name'] -%}
-          {%- set rel_key = obj_data['rel_key'] %}
-          <div class="list-group-item">
-            <span>{{- _(ref_table, dbman_dict_name_list) }} :</span>
-            <a href="{{- url_for('base.crud.view_record',
-              table_name=ref_table,
-              pks=ref_pks_name[0])
-              -}}">
-                {{- ref_pks_name[1] -}}
+        {%- for rel_key, tablename_url_name in ref_objects['single'].items() %}
+          <div class="list-group-item list-group-item-action">
+            <span>{{- rel_key -}}:</span>
+            <a href="{{ tablename_url_name[1] }}">
+              {{- tablename_url_name[2] -}}
             </a>
           </div>
         {%- endfor %}
         </div>
         <div class="list-group list-group-flush mt-3">
-        {%- for rel_key, obj_data in rel_data['ref_lists'].items() -%}
-          {%- set ref_pks_names = obj_data['ref_pks_names'] -%}
+        {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
           <a class="list-group-item list-group-item-action"
-            href="#collapse-{{- rel_key -}}"
+            href="#collapse-{{- list_name -}}"
             data-bs-toggle="collapse">
-          {{- _(rel_key, dbman_dict_name_list) -}}
+            {{- list_name -}}
           </a>
-          <div class="collapse" id="collapse-{{- rel_key -}}">
+          <div class="collapse" id="collapse-{{- list_name -}}">
             <div class="list-group list-group-flush mt-3">
-            {%- set ref_table = obj_data['ref_table'] -%}
-            {%- for ref_pks_name in ref_pks_names %}
-              <div class="list-group-item d-flex justify-content-between">
-                <div>
-                  <span>{{- _(ref_table, dbman_dict_name_list) -}}:</span>
-                    <a href="{{- url_for('base.crud.view_record',
-                      table_name=ref_table,
-                      pks=ref_pks_name[0]) -}}">
-                      {{- ref_pks_name[1] -}}
-                    </a>
-                </div>
+            {%- for tablename_url_name in tablename_url_name_list %}
+              <div class="list-group-item">
+                <span>{{- tablename_url_name[0] -}}:</span>
+                <a href="{{ tablename_url_name[1] }}">
+                  {{- tablename_url_name[2] -}}
+                </a>
               </div>
             {%- endfor -%}
             </div>
@@ -83,43 +64,35 @@
         <div class="navbar-brand"></div>
         <ul class="nav">
           <li class="nav-item dropup">
-            <button class="btn dropdown-toggle {{ 'd-none' if (not rel_data['ref_names']) and (not rel_data['ref_lists']) -}}" 
+            <button class="btn dropdown-toggle {{ 'd-none' if (not ref_objects['single']) and (not ref_objects['multiple']) -}}" 
               data-bs-toggle="dropdown" data-bs-auto-close="outside" 
               role="button" aria-expanded="false">
               {{- _('Related Objects') -}}
             </button>
             <ul class="dropdown-menu" id="ref-list-group">
-            {%- for local_col_key, obj_data in rel_data['ref_names'].items() -%}
-              {%- set ref_pks_name = obj_data['ref_pks_name'] -%}
-              {%- set ref_table = obj_data['ref_table'] -%}
-              <li>
-                <a class="dropdown-item" 
-                  href="{{- url_for('base.crud.view_record', 
-                    table_name=ref_table, 
-                    pks=ref_pks_name[0]) 
-                  -}}">
-                  {{- _(ref_table, dbman_dict_name_list) -}} : {{- ref_pks_name[1] -}}
+            {%- for rel_key, tablename_url_name in ref_objects['single'].items() %}
+              <li class="dropdown-item">
+                <span>{{- rel_key -}}:</span>
+                <a href="{{ tablename_url_name[1] }}">
+                  {{- tablename_url_name[2] -}}
                 </a>
               </li>
             {%- endfor %}
-            {%- for rel_key, obj_data in rel_data['ref_lists'].items() -%}
-              {%- set ref_pks_names = obj_data['ref_pks_names'] -%}
-              {%- set ref_table = obj_data['ref_table'] %}
+            {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
               <li class="dropdown-item">
                 <div class="dropstart">
                   <button type="button" class="btn dropdown-toggle" 
                     data-bs-toggle="dropdown" data-bs-parent="#ref-list-group"
                     role="button">
-                  {{- _(rel_key, dbman_dict_name_list) -}}
+                  {{- list_name -}}
                   </button>
                   {#- ignore H021: -#}<ul class="dropdown-menu card-body" style="min-height:20vh; overflow-y:auto">
-                  {%- for ref_pks_name in ref_pks_names -%}
-                    <li>
+                  {%- for tablename_url_name in tablename_url_name_list -%}
+                    <li class="dropdown-item">
+                      <span>{{- tablename_url_name[0] -}}:</span>
                       <a class="dropdown-item" 
-                        href="{{- url_for('base.crud.view_record',
-                          table_name=ref_table,
-                          pks=ref_pks_name[0]) -}}">
-                       {{- ref_pks_name[1] -}}
+                        href="{{- tablename_url_name[1] -}}">
+                       {{- tablename_url_name[2] -}}
                       </a>
                     </li>
                   {%- endfor %}

@@ -155,7 +155,13 @@ class DatatableMJ extends ContainerMJ {
       dataRows.forEach(row => {
         const rowData = [];
         row.querySelectorAll('td[data-dbman-sn]:not(.d-none)').forEach(td => {
-          let cellText = td.dataset.dbmanData ? td.dataset.dbmanData.trim() : td.textContent.trim();
+          let cellText = ""
+          const aTag = td.querySelector('a');
+          if (aTag) {
+            cellText = td.innerHTML.replace(/<a[^>]*>(.*?)<\/a>/g, '$1').trim();
+          } else {
+            cellText = td.textContent.trim();
+          }
           rowData.push(escapeCSVField(cellText));
         });
         rows.push(rowData);

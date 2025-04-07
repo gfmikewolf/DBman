@@ -1,5 +1,5 @@
 from app.database.base import DataJson
-from ..clausetypes import ClauseAction
+from app.database.contract.dbmodels import Scope
 
 class ClauseScope(DataJson):
     """
@@ -21,21 +21,19 @@ class ClauseScope(DataJson):
     scope_id: int = 0
     old_scope_id: int | None = 0
     
-    attr_info = {
-        'data': {'scope_id', 'old_scope_id'},
-        'required': {'scope_id'},
-        'rel_map': {
-            'scope': {
-                'ref_table': 'scope',
-                'local_col': 'scope_id',
-                'name_col': 'scope_name',
-                'select_order': ('scope_name',)
-            },
-            'old_scope': {
-                'ref_table': 'scope',
-                'local_col': 'old_scope_id',
-                'name_col': 'scope_name',
-                'select_order': ('scope_name',)
-            }
+    key_info = {
+        'data': ('scope_id', 'old_scope_id'),
+        'required': {'scope_id'}
+    }
+    rel_info = {
+        'scope': {
+            'ref_table': Scope,
+            'local_col': 'scope_id',
+            'select_order': (Scope.scope_name,)
+        },
+        'old_scope': {
+            'ref_table': Scope,
+            'local_col': 'old_scope_id',
+            'select_order': (Scope.scope_name,)
         }
     }

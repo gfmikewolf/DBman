@@ -22,9 +22,9 @@ class FormModifyMJ extends ContainerMJ {
   _initProperties(container, modalAlert) {
     super._initProperties && super._initProperties(container, modalAlert);
     this.initialData = new FormData(this.container);
-    this.datajsonRefMap = fromTemplate['datajson_ref_map'];
-    if (typeof this.datajsonRefMap !== 'object') {
-      throw new TypeError(`${varDatajsonRefMapFromTemplate} is not object.`);
+    this.datajsonElementIdMap = fromTemplate['datajson_element_id_map'];
+    if (typeof this.datajsonElementIdMap !== 'object') {
+      throw new TypeError(`${this.datajsonElementIdMap} is not object.`);
     }
   }
 
@@ -166,7 +166,7 @@ class FormModifyMJ extends ContainerMJ {
   }
 
   _initDatajson() {
-    Object.entries(this.datajsonRefMap).forEach(([key, value]) => {
+    Object.entries(this.datajsonElementIdMap).forEach(([key, value]) => {
       const idElement = this.getValidElement(`[name="${value}"]`);
       const targetElement = this.getValidElement(`#${key}`);
       const inputElement = this.getValidElement(`#dbman-datajson-${key}`);

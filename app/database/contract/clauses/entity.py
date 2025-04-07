@@ -1,5 +1,6 @@
 # clauses/entity.py
 from app.database.base import DataJson
+from app.database.contract.dbmodels import Entity
 
 class ClauseEntity(DataJson):
     """
@@ -24,22 +25,20 @@ class ClauseEntity(DataJson):
     entity_id: int = 0
     old_entity_id: int | None = 0
     
-    attr_info = {
-        'data': {'entity_id', 'old_entity_id'},
+    key_info = {
+        'data': ('entity_id', 'old_entity_id', 'entity', 'old_entity'),
         'required': {'entity_id'},
-        'hidden': {'entity_id', 'old_entity_id'},
-        'rel_map': {
-            'entity': {
-                'ref_table': 'entity',
-                'local_col': 'entity_id',
-                'name_col': 'entity_name',
-                'select_order': ('entity_name',)
-            },
-            'old_entity': {
-                'ref_table': 'entity',
-                'local_col': 'old_entity_id',
-                'name_col': 'entity_name',
-                'select_order': ('entity_name',)
-            }
+        'hidden': {'entity_id', 'old_entity_id'}
+    }
+    rel_info = {
+        'entity': {
+            'ref_table': Entity,
+            'local_col': 'entity_id',
+            'order_by': (Entity.entity_name,)
+        },
+        'old_entity': {
+            'ref_table': Entity,
+            'local_col': 'old_entity_id',
+            'select_order': ('entity_name',)
         }
     }

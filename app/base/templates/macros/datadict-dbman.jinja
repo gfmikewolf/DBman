@@ -1,50 +1,20 @@
 {# app/base/templates/macros/datadict-dbman.jinja #}
-{%- from 'macros/jsonviewer-dbman.jinja' import JSONViewerDBMan -%}
 {%- macro DatadictDBMan(
       name='main',
       id='dbman-datadict-' + name,
-      headers=[],
-      data={},
-      ref_names=dict(),
-      datajson_ref_names=dict(),
-      dbman_dict_name_list=[]
+      data={}
     )
 %}
   <div class="dbman-datadict" id="{{- id -}}">
-  {%- for header in headers %}
+  {%- for header, value in data.items() %}
     <div class="dbman-datadict-row">
       <div class="dbman-datadict-key">
-      {%- if header in ref_names -%}
-      {%- set ref_pks_name = ref_names[header]['ref_pks_name'] %}
-        <strong>
-        {{- _(ref_names[header]['rel_key'], dbman_dict_name_list) -}}
-        </strong>:
-      {%- else %}
-        <strong>{{- _(header, dbman_dict_name_list) -}}</strong>:
-      {%- endif %}
+        <strong>{{- header -}}</strong>:
       </div>
       <div class="dbman-datadict-value">
-      {%- if header in ref_names %}
-        <a href="{{ url_for(
-              'base.crud.view_record', 
-              table_name=ref_names[header]['ref_table'], 
-              pks=ref_pks_name[0])
-          }}">
-          {{- ref_pks_name[1] -}}
-        </a>
-      {%- elif header in datajson_ref_names -%}
-        {{- JSONViewerDBMan(
-          name = 'basic-info-' + header,
-          data = data[header],
-          headers = datajson_ref_names[header]['headers'],
-          ref_names = datajson_ref_names[header],
-          dbman_dict_name_list = dbman_dict_name_list )
-        -}}
-      {%- else %}
-        {{- data[header] -}}
-        {%- endif -%}
+        {{- value -}}
       </div>
-      </div>
+    </div>
     {%- endfor %}
   </div>
 {%- endmacro -%}

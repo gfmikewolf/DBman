@@ -26,7 +26,18 @@ class Contract(Base):
         lazy='select', 
     )
 
-    col_key_info = {
+    key_info = {
+        'data': (
+            'contract_id', 
+            'contract_name', 
+            'contract_fullname',
+            'contract_effectivedate', 
+            'contract_expirydate',
+            'contract_scope', 
+            'contract_entities', 
+            'contract_remarks',
+            'contract_number_huawei'
+        ),
         'hidden': {'contract_id'},
         'readonly': {
             'contract_id', 
@@ -34,11 +45,6 @@ class Contract(Base):
             'contract_expirydate',
             'contract_scope',
             'contract_entities'
-        },
-        'rel_map': {
-            'contract': {
-                'select_order': ('contract_name',)
-            }
         }
     }
 
@@ -58,7 +64,8 @@ class Amendment(Base):
     # 通常载入Amendment时，需要同时载入contract，所以lazy='selectin'
     contract: Mapped['Contract'] = relationship(
         back_populates='amendments', 
-        lazy='selectin'
+        lazy='selectin',
+        info={'select_order': (Contract.contract_name,)},
     )
 
     # 载入Amendment时，未必需要载入clauses
@@ -67,22 +74,20 @@ class Amendment(Base):
         lazy = 'select'
     )
 
-    col_key_info = {
+    key_info = {
+        'data': (
+            'amendment_id',
+            'amendment_name',
+            'contract_id',
+            'contract',
+            'amendment_fullname',
+            'amendment_signdate',
+            'amendment_effectivedate',
+            'amendment_entities',
+            'amendment_remarks'
+        ),
         'hidden': {'amendment_id', 'contract_id'},
-        'readonly': {'amendment_id', 'amendment_entities'},
-        'rel_map': {
-            'contract': {
-                'select_order': ('contract_name',)
-            }
-        },
-        'nicknames': {
-            'amendment_name': 'amendment name',
-            'amendment_fullname': 'amendment fullname',
-            'amendment_signdate': 'amendment sign date',
-            'amendment_effectivedate': 'amendment effective date',
-            'amendment_entities': 'amendment entities',
-            'amendment_remarks': 'amendment remarks',
-        }
+        'readonly': {'amendment_id', 'amendment_entities', 'contract'},
     }
 
 class Clause(Base):
@@ -100,8 +105,8 @@ class Clause(Base):
     clause_ref: Mapped[str | None]
     clause_type: Mapped[ClauseType] = mapped_column(
         SqlEnum(ClauseType), 
-        info={'DataJson_id_for': 
-              'clause_json'})
+        info={'DataJson_id_for': 'clause_json'}
+    )
     clause_action: Mapped[ClauseAction] = mapped_column(
         SqlEnum(ClauseAction),
         default=ClauseAction.ADD)
@@ -112,7 +117,8 @@ class Clause(Base):
     
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
-        lazy='selectin'
+        lazy='selectin',
+        info={'select_order': (Amendment.amendment_name,)}
     )
 
     @hybrid_property
@@ -121,19 +127,28 @@ class Clause(Base):
     
     @_name.expression
     def _name(cls):
-        return (literal_column("clause_action") + ':' + literal_column("clause_type") + ':' + 
+        return (literal_column("clause_action") + ':' + 
+                literal_column("clause_type") + '#' + 
                 literal_column("clause_id")
                ).cast(String)
     
-    col_key_info = {
+    key_info = {
+        'data': (
+            'clause_id',
+            'amendment',
+            'amendment_id',
+            'clause_type',
+            'clause_pos',
+            'clause_ref',
+            'clause_action',
+            'clause_text',
+            'clause_json',
+            'clause_reviewcomments',
+            'clause_remarks'  
+        ),
         'hidden': { 'clause_id', 'amendment_id' },
-        'readonly': { 'clause_id' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
-        'rel_map': {
-            'amendment': {
-                'select_order': ('contract_id', 'amendment_name')
-            }
-        }
+        'readonly': { 'clause_id', 'amendment' },
+        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' }
     }
 
 class Entitygroup(Base):
@@ -148,7 +163,11 @@ class Entitygroup(Base):
         lazy='select'
     )
 
-    col_key_info = {
+    key_info = {
+        'data': (
+            'entitygroup_id',
+            'entitygroup_name'
+        ),
         'hidden': { 'entitygroup_id' },
         'readonly': { 'entitygroup_id' }
     }
@@ -164,17 +183,21 @@ class Entity(Base):
 
     entitygroup: Mapped['Entitygroup'] = relationship(
         back_populates='entities',
-        lazy='selectin'
+        lazy='selectin',
+        info={'select_order': (Entitygroup.entitygroup_name,)},
     )
 
-    col_key_info = {
-        'hidden': { 'entity_id', 'entitygroup_id' },
+    key_info = {
+        'data': (
+            'entity_id',
+            'entity_name',
+            'entity_fullname',
+            'entitygroup_id',
+            'entitygroup'
+        ),
         'readonly': { 'entity_id' },
-        'rel_map': {
-            'entitygroup': {
-                'select_order': ('entitygroup_name',)
-            }
-        }
+        'hidden': { 'entity_id', 'entitygroup_id' },
+        'readonly': { 'entity_id', 'entitygroup' }
     }
 
 class Scope(Base):
@@ -184,12 +207,8 @@ class Scope(Base):
     
     _name = synonym('scope_name')
 
-    col_key_info = {
+    key_info = {
+        'data': ( 'scope_id', 'scope_name' ),
         'hidden': { 'scope_id' },
-        'readonly': { 'scope_id' },
-        'rel_map': {
-            'scope': {
-                'select_order': ('scope_name',)
-            }
-        }
+        'readonly': { 'scope_id' }
     }

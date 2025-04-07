@@ -1,5 +1,5 @@
 {#- app/base/templates/macros/dbman-datatable.jinja -#}
-{%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan %}
 {#- depends on Bootstrap 5, Font Awesome 6
     @param name - string, table name, default is 'main'
     @param data - dict, keyed by headers, data, pks, fields_datajson, ref_map, ref_pks, etc.
@@ -31,9 +31,8 @@
     data construct:
     - data['headers'] - list of headers
     - data['data'] - list of data rows
-    - data['_pks'] - list of primary keys joined by comma
-    - data['fields_datajson'] - list of headers with normal json data
-    - data['ref_map'] - {header with foreign key: (id_col, ref_table)
+    - data['pks'] - list of primary keys joined by comma
+
 -#}
 {%- macro DatatableDBMan(
       table_name=none,
@@ -115,18 +114,18 @@
                   id="check-all">
               </th>
               <th>{{ _('Actions') }}</th>
-              {%- for header in data['headers'] -%}
+              {%- for header in data['headers'] %}
                 <th data-dbman-sn="{{ loop.index }}">
                   {#- translate header by specific dictionary -#}
-                  {{- _(header, dbman_dict_name_list) -}}
+                  {{- header -}}
                 </th>
               {%- endfor %}
             </tr>
           </thead>
           <tbody>
-          {%- for row in data['data'] -%}
-            {%- set row_number = loop.index0 -%} {#- for nested loop use -#}
-            {%- set pks = data['_pks'][loop.index0] %}
+          {%- for row in data['data'] %}
+            {%- set row_number = loop.index0 %} {#- for nested loop use -#}
+            {%- set pks = data['pks'][row_number] %}
             <tr class="align-items-top">
               <td>
                 <input class="form-check-imput" 
@@ -161,31 +160,14 @@
                   </a>
                 </div>
               </td>
-              {%- set ref_map = data['ref_map'] -%}
-              {%- set ref_pks = data['_ref_pks'] -%}
-              {%- for field_name in data['headers'] -%}
-                {%- set value = row[loop.index0] -%}
-                {%- if field_name in data['fields_datajson'] %}
-              <td data-dbman-sn="{{ loop.index }}" data-dbman-data='{{ value }}'> 
-{#- datajson display to be refined -#}                  
-                  {{- value -}}
-              </td>
-                {%- elif field_name in ref_pks.keys() -%}
-                {#- ref_map[rel_key] = (local_col_key, ref_table) -#}
-                  {%- set ref_table = ref_map[field_name][1] -%}
-                  {%- set ref_pk = ref_pks[field_name][row_number] %}
-              <td data-dbman-sn="{{ loop.index }}" data-dbman-data="{{ value }}">  
-                <a href="{{ url_for('base.crud.view_record', table_name=ref_table, pks=ref_pk) }}">
-                  {{- value -}}
-                </a>
-              </td>
-                {%- else %}
+              {%- for header in data['headers'] %}
+                {%- set col_number = loop.index0 %}
+                {%- set value = row[col_number] %}
               <td data-dbman-sn="{{ loop.index }}">
-                    {{- value -}}
+                {{- value -}}
               </td>
-                {%- endif -%}
               {%- endfor %}
-              </tr>
+            </tr>
             {%- endfor %}
           </tbody>
         </table>
@@ -199,4 +181,4 @@
     headers=data['headers']
   ) }}  
 </div>
-{%- endmacro -%}
+{%- endmacro %}
