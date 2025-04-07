@@ -152,6 +152,7 @@ class DatajsonMJ extends ContainerMJ {
     for (let key of structure['data']) {
       const keyUid = `${this.type}-${key}-${this.uid}`;
       let value = this.data[key];
+      const isRequired = structure['required'].includes(key)
       if (value === null || value === undefined) {
         value = '';
       }
@@ -161,7 +162,7 @@ class DatajsonMJ extends ContainerMJ {
         showKey = structure['col_rel_map'][key];
       }
       const translateResponse = (
-        await fetch(`/api/translate/spec/${fromTemplate["db_dict_names"]}/${showKey}`)
+        await fetch(`/api/translate/spec/${fromTemplate["dbman_dict_name_list"].join(',')}/${showKey}`)
       );
       if (translateResponse.ok) {
         showKey = await translateResponse.text();
@@ -173,8 +174,7 @@ class DatajsonMJ extends ContainerMJ {
         { for: keyUid },
         showKey
       );
-
-      if (structure['required'].includes(key)) {
+      if (isRequired) {
         const span = createElement('span', label, 'text-danger', {}, '*');
       }
       if (structure['date'].includes(key)) {
@@ -206,8 +206,14 @@ class DatajsonMJ extends ContainerMJ {
         );
         inputElement = select;
         const hiddenOption = createElement(
-          'option', select, '', { value: '', hidden: true }, '/'
+          'option', select, 
+          '', 
+          { value: '' }, 
+          '/'
         );
+        if (isRequired) {
+          hiddenOption.hidden = true;
+        }
         if (value === null || value === undefined || value === '') {
           hiddenOption.selected = true;
         }
