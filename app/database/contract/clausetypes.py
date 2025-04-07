@@ -1,6 +1,5 @@
 # app/database/contract/clausetypes.py
 from enum import Enum
-from re import M
 
 class ClauseAction(Enum):
     """
