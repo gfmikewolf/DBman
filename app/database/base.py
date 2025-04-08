@@ -3,18 +3,17 @@
 __all__ = ['Base', 'DataJson']
 
 # python
-from typing import Any, Iterable, Optional
-from enum import Enum
-from datetime import date
+from typing import Any, Optional
+from datetime import date # in use eval('date')
+from enum import Enum # in use eval('Enum')
 import json
 from abc import ABC, abstractmethod
 
 # sqlalchemy
-from sqlalchemy.orm import DeclarativeBase, ColumnProperty
+from sqlalchemy.orm import DeclarativeBase
 
 # app
 from app.utils.common import args_to_dict
-from .types import DataJsonType
 from .utils import serialize_value, convert_value_by_python_type
 
 class Base(DeclarativeBase):
@@ -127,7 +126,7 @@ class Base(DeclarativeBase):
         """
         return {
             next(iter(r.local_columns)).key : r.key 
-            for r in cls.__mapper__.relationships if not r.uselist
+            for r in cls.__mapper__.relationships if (not r.uselist) and (r.secondary is None)
         } # type: ignore
     
     @classmethod
