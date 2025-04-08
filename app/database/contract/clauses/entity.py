@@ -1,7 +1,7 @@
 # clauses/entity.py
 from typing import Iterable
 from ..types import ClauseAction
-from ..dbmodels import Entity, Clause
+from ..dbmodels import Entity
 from .clause_json import ClauseJson
 
 class ClauseEntity(ClauseJson):
@@ -24,11 +24,17 @@ class ClauseEntity(ClauseJson):
     __datajson_id__ = 'clause_entity'
     
     # Initiate cvars so that we can get the attribute types from class
+    clause_action: ClauseAction = ClauseAction.ADD
     entity_id: int = 0
     old_entity_id: int | None = 0
     
     key_info = {
-        'data': ('entity_id', 'old_entity_id', 'entity', 'old_entity'),
+        'data': (
+            'clause_action',
+            'entity_id', 
+            'old_entity_id', 
+            'entity', 
+            'old_entity'),
         'required': {'entity_id'},
         'hidden': {'entity_id', 'old_entity_id'}
     }
@@ -46,7 +52,7 @@ class ClauseEntity(ClauseJson):
     }
     
     def validate(
-        self, clause: Clause, 
+        self,
         valid_entity_ids: Iterable[int] | None = None,
         current_entities: Iterable[int] | None = None
     ) -> bool:
@@ -62,15 +68,15 @@ class ClauseEntity(ClauseJson):
         if valid_entity_ids:
             flag = flag and self.entity_id in valid_entity_ids
 
-        if clause.clause_action == ClauseAction.ADD:
+        if self.clause_action == ClauseAction.ADD:
             flag = not self.old_entity_id
             if current_entities is not None:
                 flag = flag and (self.entity_id not in current_entities)
-        elif clause.clause_action == ClauseAction.REMOVE:
+        elif self.clause_action == ClauseAction.REMOVE:
             flag = not self.old_entity_id
             if current_entities is not None:
                 flag = flag and (self.entity_id in current_entities)
-        elif clause.clause_action == ClauseAction.UPDATE:
+        elif self.clause_action == ClauseAction.UPDATE:
             flag = self.old_entity_id is not None and self.old_entity_id != self.entity_id
             if valid_entity_ids:
                 flag = flag and (self.old_entity_id in valid_entity_ids) # type: ignore
