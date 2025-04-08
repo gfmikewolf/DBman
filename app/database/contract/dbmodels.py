@@ -1,9 +1,8 @@
 # app/database/contract/dbmodels.py
-from codecs import backslashreplace_errors
 from datetime import date
-from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, Column, Table, func, select
+from sqlalchemy import Connection, Executable, ForeignKey, Date, Integer, String, Enum as SqlEnum, Column, Table, func, inspect, select, event
 from sqlalchemy.sql import literal_column
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, Mapper
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base, DataJson
 from ..types import DataJsonType
@@ -162,9 +161,6 @@ class Clause(Base):
         SqlEnum(ClauseType), 
         info={'DataJson_id_for': 'clause_json'}
     )
-    clause_action: Mapped[ClauseAction] = mapped_column(
-        SqlEnum(ClauseAction),
-        default=ClauseAction.ADD)
     clause_json: Mapped[DataJson | None] = mapped_column(DataJsonType)
     clause_text: Mapped[str | None]
     clause_reviewcomments: Mapped[str | None]
@@ -173,6 +169,7 @@ class Clause(Base):
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
         lazy='selectin',
+        active_history=True,
         info={'select_order': (Amendment.amendment_name,)}
     )
 
@@ -187,7 +184,7 @@ class Clause(Base):
 
     @hybrid_property
     def _name(self) -> str: # type: ignore[override]
-        return f"{self.clause_action.name}:{self.clause_type.name}#{self.clause_id}"
+        return f"{self.clause_type.name}#{self.clause_id}"
     
     @_name.expression
     def _name(cls):
@@ -195,7 +192,7 @@ class Clause(Base):
                 literal_column("clause_type") + '#' + 
                 literal_column("clause_id")
                ).cast(String)
-    
+
     key_info = {
         'data': (
             'clause_id',
@@ -204,7 +201,6 @@ class Clause(Base):
             'clause_type',
             'clause_pos',
             'clause_ref',
-            'clause_action',
             'clause_text',
             'clause_json',
             'clause_reviewcomments',
@@ -316,3 +312,104 @@ contract__map__scope = Table(
     Column('contract_id', ForeignKey('contract.contract_id')),
     Column('scope_id', ForeignKey('scope.scope_id'))
 )
+
+def _get_map_action_stmt(
+    action: ClauseAction, 
+    left_name: str, 
+    right_name: str, 
+    left_id:int, 
+    right_id:int, 
+    old_right_id: int | None = None
+) -> list[Executable]:
+    """
+    left_id shall be the main target, e.g. entity_id, scope_id ...
+    """
+    stmt_list = list()
+    map_table = eval(f'{left_name}__map__{right_name}')
+    id_to_remove = right_id if action == ClauseAction.REMOVE else old_right_id
+    if action == ClauseAction.REMOVE or action == ClauseAction.UPDATE:
+        left_expr = eval(f'{map_table}.c.{left_name}_id == {id_to_remove}')
+        right_expr = eval(f'{map_table}.c.{right_name}_id == {right_id}')
+        stmt = map_table.delete().where(left_expr, right_expr)
+        stmt_list.append(stmt)
+    if action == ClauseAction.ADD or action == ClauseAction.UPDATE:
+        values = {f'{left_name}_id': left_id, f'{right_name}_id': right_id}
+        stmt = map_table.insert().values(**values)
+        stmt_list.append(stmt)
+    return stmt_list
+
+def _get_map_reverse_action_stmt(
+    action: ClauseAction, 
+    left_name: str, 
+    right_name: str, 
+    left_id:int, 
+    right_id:int, 
+    old_right_id: int | None = None
+) -> list[Executable]:
+    if action == ClauseAction.REMOVE:
+        reverse_action = ClauseAction.ADD
+    elif action == ClauseAction.ADD:
+        reverse_action = ClauseAction.REMOVE
+    else:
+        reverse_action = ClauseAction.UPDATE
+    if reverse_action == ClauseAction.UPDATE:
+        temp = right_id
+        right_id = old_right_id # type: ignore
+        old_right_id = temp
+    return _get_map_action_stmt(
+        reverse_action,
+        left_name, right_name,
+        left_id, right_id, old_right_id
+    )
+
+@event.listens_for(Clause, 'after_insert')
+def clause_after_insert(mapper: Mapper, connection: Connection, target: Clause):
+    if target.clause_type in [ClauseType.ENTITY, ClauseType.SCOPE]:
+        table_name = target.clause_type.name.lower()
+        for stmt in _get_map_action_stmt(
+            target.clause_json.clause_action, # type: ignore
+            'contract', table_name,
+            target.amendment.contract_id, 
+            getattr(target.clause_json, f'{table_name}_id'),
+            getattr(target.clause_json, f'old_{table_name}_id')
+        ):
+            connection.execute(stmt)
+
+@event.listens_for(Clause, 'after_delete')
+def clause_after_delete(mapper: Mapper, connection: Connection, target: Clause):
+    if target.clause_type in [ClauseType.ENTITY, ClauseType.SCOPE]:
+        table_name = target.clause_type.name.lower()
+        for stmt in _get_map_reverse_action_stmt(
+            target.clause_json.clause_action, # type: ignore
+            'contract', table_name,
+            target.amendment.contract_id, 
+            getattr(target.clause_json, f'{table_name}_id'),
+            getattr(target.clause_json, f'old_{table_name}_id')
+        ):
+            connection.execute(stmt)
+
+@event.listens_for(Clause, 'after_update')
+def clause_after_update(mapper, connection, target):
+    insp = inspect(target)
+    clause_json_history = insp.attrs.clause_json.history
+    amendment_history = insp.attrs.amendment.history
+    old_clause_json = clause_json_history.deleted[0] if clause_json_history.deleted else None
+    old_amendment_history = amendment_history.deleted[0] if amendment_history.deleted else None
+    if target.clause_type in [ClauseType.ENTITY, ClauseType.SCOPE]:
+        table_name = target.clause_type.name.lower()
+        for stmt in _get_map_reverse_action_stmt(
+            old_clause_json.clause_action, # type: ignore
+            'contract', table_name,
+            old_amendment_history.contract_id, # type: ignore
+            getattr(old_clause_json, f'{table_name}_id'),
+            getattr(old_clause_json, f'old_{table_name}_id')
+        ):
+            connection.execute(stmt)
+        for stmt in _get_map_action_stmt(
+            target.clause_json.clause_action, # type: ignore
+            'contract', table_name,
+            target.amendment.contract_id, 
+            getattr(target.clause_json, f'{table_name}_id'),
+            getattr(target.clause_json, f'old_{table_name}_id')
+        ):
+            connection.execute(stmt)
