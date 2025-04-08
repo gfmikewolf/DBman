@@ -1,10 +1,10 @@
 # clauses/entity.py
 from typing import Iterable
-from app.database.base import DataJson
-from app.database.contract.types import ClauseAction
-from app.database.contract.dbmodels import Entity, Clause
+from ..types import ClauseAction
+from ..dbmodels import Entity, Clause
+from .clause_json import ClauseJson
 
-class ClauseEntity(DataJson):
+class ClauseEntity(ClauseJson):
     """
     A clause entity data object.
 
