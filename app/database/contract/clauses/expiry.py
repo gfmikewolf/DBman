@@ -1,8 +1,7 @@
 from datetime import date
-from typing import Any, Iterable
+from typing import Iterable
 from .clause_json import ClauseJson
-from ..dbmodels import Contract, Clause, Scope
-from ..types import ClauseAction
+from ..dbmodels import Contract, Scope
 from .types import ExpiryType
 
 class ClauseExpiry(ClauseJson):
@@ -16,6 +15,9 @@ class ClauseExpiry(ClauseJson):
             - Required if expiry_type is Date or later_of_last_COA_or_Date
         - linked_contract_id (int | None): 
             - Required if expiry_type is linked_to_Contract
+        - scope_id (int | None):
+            - Optional.
+            - if None, expiry applies to the whole amendment
 
     constraints:
         - expiry_date is required if expiry_type is Date or later_of_last_COA_or_Date.
@@ -27,8 +29,17 @@ class ClauseExpiry(ClauseJson):
     expiry_date: date | None = date(1981, 12, 5)
     linked_contract_id: int | None = 0
     key_info = {
-        'data': ('expiry_type', 'expiry_date', 'linked_contract_id', 'scope_id'),
-        'required': {'expiry_type'}
+        'data': (
+            'expiry_type', 
+            'expiry_date',
+            'linked_contract',
+            'linked_contract_id',
+            'applied_to_scope', 
+            'scope_id'
+        ),
+        'required': {
+            'expiry_type'
+        }
     }
     rel_info = {
         'linked_contract': {
