@@ -1,12 +1,12 @@
 from typing import Iterable
 from ..types import ClauseAction
-from ..dbmodels import Clause, Scope
+from ..dbmodels import Scope
 from .clause_json import ClauseJson
 
 class ClauseScope(ClauseJson):
     """
     attributes:
-        action (ClauseAction): 
+        clause_action (ClauseAction): 
             - Add, Remove, Novate
         scope_id (int): 
             - map table scope
@@ -20,11 +20,18 @@ class ClauseScope(ClauseJson):
     """
     __datajson_id__ = 'clause_scope'
     
+    clause_action: ClauseAction = ClauseAction.ADD
     scope_id: int = 0
     old_scope_id: int | None = 0
     
     key_info = {
-        'data': ('scope_id', 'old_scope_id'),
+        'data': (
+            'clause_action',
+            'scope',
+            'scope_id',
+            'old_scope', 
+            'old_scope_id',
+        ),
         'required': {'scope_id'}
     }
     rel_info = {
@@ -40,7 +47,7 @@ class ClauseScope(ClauseJson):
         }
     }
     def validate(
-        self, clause: Clause, 
+        self, 
         valid_scope_ids: Iterable[int] | None = None,
         current_entities: Iterable[int] | None = None
     ) -> bool:
@@ -56,15 +63,15 @@ class ClauseScope(ClauseJson):
         if valid_scope_ids:
             flag = flag and self.scope_id in valid_scope_ids
 
-        if clause.clause_action == ClauseAction.ADD:
+        if self.clause_action == ClauseAction.ADD:
             flag = not self.old_scope_id
             if current_entities is not None:
                 flag = flag and (self.scope_id not in current_entities)
-        elif clause.clause_action == ClauseAction.REMOVE:
+        elif self.clause_action == ClauseAction.REMOVE:
             flag = not self.old_scope_id
             if current_entities is not None:
                 flag = flag and (self.scope_id in current_entities)
-        elif clause.clause_action == ClauseAction.UPDATE:
+        elif self.clause_action == ClauseAction.UPDATE:
             flag = self.old_scope_id is not None and self.old_scope_id != self.scope_id
             if valid_scope_ids:
                 flag = flag and (self.old_scope_id in valid_scope_ids) # type: ignore
