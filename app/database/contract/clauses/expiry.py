@@ -39,14 +39,9 @@ class ClauseExpiry(ClauseJson):
         'applied_to_scope': {
             'ref_table': Scope,
             'local_col': 'scope_id',
-            'select_order': (Scope.scope_name,),
-            'select_criteria': existing_scope
+            'select_order': (Scope.scope_name,)
         }
     }
-    def existing_scope(self) -> list[int]:
-        r = list()
-        if self.clause:
-            self.clause.amendment
 
     def validate(
         self, 
