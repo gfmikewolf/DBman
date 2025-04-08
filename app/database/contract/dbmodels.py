@@ -1,11 +1,12 @@
 # app/database/contract/dbmodels.py
+from codecs import backslashreplace_errors
 from datetime import date
-from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum
+from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, Column, Table, func, select
 from sqlalchemy.sql import literal_column
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base, DataJson
-from ..types import DataJsonType, TypeSetInt
+from ..types import DataJsonType
 from .types import ClausePos, ClauseType, ClauseAction
 
 class Contract(Base):
@@ -13,43 +14,68 @@ class Contract(Base):
     contract_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     contract_name: Mapped[str]
     contract_fullname: Mapped[str | None] = mapped_column(String, info={'longtext': True})
-    contract_effectivedate: Mapped[date | None] = mapped_column(Date)
-    contract_expirydate: Mapped[date | None] = mapped_column(Date)
-    contract_scope: Mapped[str | None]
-    contract_entities: Mapped[str | None]
     contract_remarks: Mapped[str | None] = mapped_column(String, info={'longtext': True})
     contract_number_huawei: Mapped[str | None]
-    parent_contract_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey('contract.contract_id'))
-    legal_parent_contract_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey('contract.contract_id'))
+
     _name = synonym('contract_name')
 
+    @hybrid_property
+    def contract_effectivedate(self) -> date | None: # type: ignore
+        if self.amendments:
+            dates = [amendment.amendment_effectivedate for amendment in self.amendments]
+            if dates:
+                return min(dates)
+        return None
+
+    @contract_effectivedate.expression
+    def contract_effectivedate(cls):
+        return (
+            select(func.min(Amendment.amendment_effectivedate))
+            .where(Amendment.contract_id == cls.contract_id)
+            .scalar_subquery()
+        )
+    
     amendments: Mapped[list['Amendment']] = relationship(
         back_populates='contract', 
         lazy='select',
         order_by=lambda: Amendment.amendment_name
     )
-    parent_contract: Mapped['Contract'] = relationship(
-        back_populates='children_contracts', 
-        foreign_keys=[parent_contract_id],
-        remote_side=[contract_id],
-        lazy='selectin'
-    )
-    children_contracts: Mapped[list['Contract']] = relationship(
-        back_populates='parent_contract',
-        foreign_keys=[parent_contract_id],
+    parent_contracts: Mapped[list['Contract']] = relationship(
+        back_populates='child_contracts', 
+        secondary=lambda: contract__map__contract,
+        primaryjoin=lambda: Contract.contract_id == contract__map__contract.c.child_contract_id,
+        secondaryjoin=lambda: Contract.contract_id == contract__map__contract.c.parent_contract_id,
         lazy='select'
     )
-    legal_parent_contract: Mapped['Contract'] = relationship(
-        back_populates='legal_children_contracts', 
-        foreign_keys=[legal_parent_contract_id],
-        remote_side=[contract_id],
-        lazy='selectin'
+    child_contracts: Mapped[list['Contract']] = relationship(
+        back_populates='parent_contracts', 
+        secondary=lambda: contract__map__contract,
+        primaryjoin=lambda: Contract.contract_id == contract__map__contract.c.parent_contract_id,
+        secondaryjoin=lambda: Contract.contract_id == contract__map__contract.c.child_contract_id,
+        lazy='select'
     )
-    legal_children_contracts: Mapped[list['Contract']] = relationship(
-        back_populates='legal_parent_contract',
-        foreign_keys=[legal_parent_contract_id],
+    legal_parent_contracts: Mapped[list['Contract']] = relationship(
+        back_populates='legal_child_contracts', 
+        secondary=lambda: contract__legal_map__contract,
+        primaryjoin=lambda: Contract.contract_id == contract__legal_map__contract.c.child_contract_id,
+        secondaryjoin=lambda: Contract.contract_id == contract__legal_map__contract.c.parent_contract_id,
+        lazy='select'
+    )
+    legal_child_contracts: Mapped[list['Contract']] = relationship(
+        back_populates='legal_parent_contracts', 
+        secondary=lambda: contract__legal_map__contract,
+        primaryjoin=lambda: Contract.contract_id == contract__legal_map__contract.c.parent_contract_id,
+        secondaryjoin=lambda: Contract.contract_id == contract__legal_map__contract.c.child_contract_id,
+        lazy='select'
+    )
+    entities: Mapped[list['Entity']] = relationship(
+        back_populates='contracts',
+        secondary=lambda: contract__map__entity,
+        lazy='select'
+    )
+    scopes: Mapped[list['Scope']] = relationship(
+        back_populates='contracts',
+        secondary=lambda: contract__map__scope,
         lazy='select'
     )
     clauses: Mapped[list['Clause']] = relationship(
@@ -65,31 +91,19 @@ class Contract(Base):
         'data': (
             'contract_id', 
             'contract_name',
-            'parent_contract',
-            'parent_contract_id',
-            'legal_parent_contract',
-            'legal_parent_contract_id',
             'contract_fullname',
-            'contract_effectivedate', 
-            'contract_expirydate',
-            'contract_scope', 
-            'contract_entities', 
+            'contract_effectivedate',
             'contract_remarks',
-            'contract_number_huawei'
+            'contract_number_huawei',
+            'entities'
         ),
         'hidden': {
-            'contract_id',
-            'parent_contract_id',
-            'legal_parent_contract_id'
+            'contract_id'
         },
         'readonly': {
             'contract_id', 
-            'contract_effectivedate', 
-            'contract_expirydate',
-            'contract_scope',
-            'contract_entities',
-            'parent_contract',
-            'legal_parent_contract'
+            'contract_effectivedate',
+            'entities'
         }
     }
 
@@ -100,20 +114,17 @@ class Amendment(Base):
     amendment_fullname: Mapped[str | None]
     amendment_signdate: Mapped[date] = mapped_column(Date)
     amendment_effectivedate: Mapped[date] = mapped_column(Date)
-    amendment_entities: Mapped[set[int] | None] = mapped_column(TypeSetInt)
     amendment_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
     contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'))
     
     _name = synonym('amendment_name')
  
-    # 通常载入Amendment时，需要同时载入contract，所以lazy='selectin'
     contract: Mapped['Contract'] = relationship(
         back_populates='amendments', 
         lazy='selectin',
         info={'select_order': (Contract.contract_name,)},
     )
 
-    # 载入Amendment时，未必需要载入clauses
     clauses: Mapped[list['Clause']] = relationship(
         back_populates='amendment',
         lazy = 'select'
@@ -128,27 +139,11 @@ class Amendment(Base):
             'amendment_fullname',
             'amendment_signdate',
             'amendment_effectivedate',
-            'amendment_entities',
             'amendment_remarks'
         ),
         'hidden': {'amendment_id', 'contract_id'},
-        'readonly': {'amendment_id', 'amendment_entities', 'contract'},
+        'readonly': {'amendment_id', 'contract'},
     }
-
-    def update_entities(self):
-        entity_ids = set()
-        removed_ids = set()
-        for clause in self.clauses:
-            if clause.clause_type == ClauseType.ENTITY:
-                entity_id = clause.clause_json.entity_id # type: ignore
-                if clause.clause_action == ClauseAction.ADD:
-                    entity_ids.add(entity_id)
-                elif clause.clause_action == ClauseAction.REMOVE:
-                    removed_ids.add(removed_ids)
-                elif clause.clause_action == ClauseAction.UPDATE:
-                    entity_ids.add(entity_id)
-                    removed_ids.add(clause.clause_json.old_entity_id) # type: ignore
-        self.amendment_entities = entity_ids - removed_ids
 
 class Clause(Base):
     __tablename__ = 'clause'
@@ -181,9 +176,18 @@ class Clause(Base):
         info={'select_order': (Amendment.amendment_name,)}
     )
 
+    contract: Mapped['Contract'] = relationship(
+        back_populates='clauses',
+        secondary=lambda: Amendment.__table__,
+        primaryjoin=lambda: Clause.amendment_id == Amendment.amendment_id,
+        secondaryjoin=lambda: Contract.contract_id == Amendment.contract_id,
+        viewonly=True,
+        lazy='select'
+    )
+
     @hybrid_property
     def _name(self) -> str: # type: ignore[override]
-        return f"{self.clause_action.value}:{self.clause_type.value}:{self.clause_id}"
+        return f"{self.clause_action.name}:{self.clause_type.name}#{self.clause_id}"
     
     @_name.expression
     def _name(cls):
@@ -247,6 +251,12 @@ class Entity(Base):
         info={'select_order': (Entitygroup.entitygroup_name,)},
     )
 
+    contracts: Mapped[list['Contract']] = relationship(
+        back_populates='entities',
+        secondary=lambda: contract__map__entity,
+        lazy='select'
+    )
+
     key_info = {
         'data': (
             'entity_id',
@@ -272,3 +282,37 @@ class Scope(Base):
         'hidden': { 'scope_id' },
         'readonly': { 'scope_id' }
     }
+
+    contracts: Mapped[list['Contract']] = relationship(
+        back_populates='scopes',
+        secondary=lambda: contract__map__scope,
+        lazy='select'
+    )
+
+contract__map__contract = Table(
+    'contract__map__contract',
+    Base.metadata,
+    Column('parent_contract_id', ForeignKey('contract.contract_id')),
+    Column('child_contract_id', ForeignKey('contract.contract_id'))
+)
+
+contract__legal_map__contract = Table(
+    'contract__legal_map__contract',
+    Base.metadata,
+    Column('parent_contract_id', ForeignKey('contract.contract_id')),
+    Column('child_contract_id', ForeignKey('contract.contract_id'))
+)
+
+contract__map__entity = Table(
+    'contract__map__entity',
+    Base.metadata,
+    Column('contract_id', ForeignKey('contract.contract_id')),
+    Column('entity_id', ForeignKey('entity.entity_id'))
+)
+
+contract__map__scope = Table(
+    'contract__map__scope',
+    Base.metadata,
+    Column('contract_id', ForeignKey('contract.contract_id')),
+    Column('scope_id', ForeignKey('scope.scope_id'))
+)
