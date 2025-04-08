@@ -4,28 +4,10 @@ from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum
 from sqlalchemy.sql import literal_column
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.types import TypeDecorator
-from app.database.base import Base, DataJson, DataJsonType
-from .clausetypes import ClausePos, ClauseType, ClauseAction
+from ..base import Base, DataJson
+from ..types import DataJsonType, TypeSetInt
+from .types import ClausePos, ClauseType, ClauseAction
 
-class TypeSetInt(TypeDecorator):
-    impl = String
-
-    @property
-    def python_type(self) -> type:
-        return set
-    
-    def process_bind_param(self, value: set[int] | None, dialect):
-        if value is None:
-            return None
-        return ",".join(str(x) for x in value)
-
-    def process_result_value(self, value: str | None, dialect):
-        # 当从数据库读取时，将字符串转换回set
-        if value is None or value == "":
-            return set()
-        return {int(x.strip()) for x in value.split(",") if x.strip()}
-    
 class Contract(Base):
     __tablename__ = 'contract'
     contract_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -167,8 +149,6 @@ class Amendment(Base):
                     entity_ids.add(entity_id)
                     removed_ids.add(clause.clause_json.old_entity_id) # type: ignore
         self.amendment_entities = entity_ids - removed_ids
-
-    
 
 class Clause(Base):
     __tablename__ = 'clause'

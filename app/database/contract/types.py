@@ -1,4 +1,4 @@
-# app/database/contract/clausetypes.py
+# contract/types.py
 from enum import Enum
 
 class ClauseAction(Enum):
@@ -25,4 +25,4 @@ class ClausePos(Enum):
     """
     MAINBODY = 'mainbody'
     ANNEX = 'annex'
-    APPENDIX = 'appendix'
+    APPENDIX = 'appendix'  

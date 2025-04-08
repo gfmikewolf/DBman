@@ -56,7 +56,7 @@ def translate_text(input_text, dbman_dict, lang):
             if token.isspace():
                 translated_tokens.append(token)
             else:
-                translated_tokens.append(dbman_dict.get(token, token))
+                translated_tokens.append(dbman_dict.get(token.lower(), token))
     
     # 如果目标语言为中文，则删除翻译结果中所有仅包含空格的 token，
     # 这样翻译成中文的句子就不会有英文句内的空格

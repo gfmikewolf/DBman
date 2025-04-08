@@ -311,15 +311,10 @@ def fetch_modify_form_viewer(
     """
     data = dict()
     col_rel_map = instance.get_col_rel_map()
-    mod_keys = instance.get_keys('modifiable')
-    required_keys = instance.get_keys('required')
-    enum_keys = instance.get_keys('Enum')
-    json_keys = instance.get_keys('DataJson')
-    longtext_keys = instance.get_keys('longtext')
     select_options = fetch_select_options(instance.__class__, db_session=db_session)
 
-    for key in [key for key in instance.key_info['data'] if key in mod_keys]:
-        is_required = key in required_keys
+    for key in [key for key in instance.key_info['data'] if key in instance.get_keys('modifiable')]:
+        is_required = key in instance.get_keys('required')
         value = getattr(instance, key) or ''
         if key in col_rel_map:
             name = _(col_rel_map[key], dbman_dict_name_list)
@@ -338,9 +333,9 @@ def fetch_modify_form_viewer(
                 if key in instance.get_keys('date'):
                     tag = 'date'
                     value = value.isoformat() # type: ignore
-                elif key in longtext_keys:
+                elif key in instance.get_keys('longtext'):
                     tag = 'textarea'
-                elif key in json_keys:
+                elif key in instance.get_keys('DataJson'):
                     tag = 'DataJson'
                     value = value.dumps() if value else ''
                 else:

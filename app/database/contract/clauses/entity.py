@@ -1,6 +1,8 @@
 # clauses/entity.py
+from typing import Iterable
 from app.database.base import DataJson
-from app.database.contract.dbmodels import Entity
+from app.database.contract.types import ClauseAction
+from app.database.contract.dbmodels import Entity, Clause
 
 class ClauseEntity(DataJson):
     """
@@ -42,3 +44,37 @@ class ClauseEntity(DataJson):
             'select_order': ('entity_name',)
         }
     }
+    
+    def validate(
+        self, clause: Clause, 
+        valid_entity_ids: Iterable[int] | None = None,
+        current_entities: Iterable[int] | None = None
+    ) -> bool:
+        """
+        Validate the constraints for the ClauseEntity.
+
+        :return: True if all constraints are valid, False otherwise.
+        :param clause: The Clause instance to validate against.
+        :param valid_entity_ids: A list of valid entity IDs to check against.
+        :param current_entities: A list of current entity IDs to check against.
+        """
+        flag = False
+        if valid_entity_ids:
+            flag = flag and self.entity_id in valid_entity_ids
+
+        if clause.clause_action == ClauseAction.ADD:
+            flag = not self.old_entity_id
+            if current_entities is not None:
+                flag = flag and (self.entity_id not in current_entities)
+        elif clause.clause_action == ClauseAction.REMOVE:
+            flag = not self.old_entity_id
+            if current_entities is not None:
+                flag = flag and (self.entity_id in current_entities)
+        elif clause.clause_action == ClauseAction.UPDATE:
+            flag = self.old_entity_id is not None and self.old_entity_id != self.entity_id
+            if valid_entity_ids:
+                flag = flag and (self.old_entity_id in valid_entity_ids) # type: ignore
+            if current_entities is not None:
+                flag = flag and (self.old_entity_id in current_entities) # type: ignore
+                flag = flag and (self.entity_id not in current_entities)
+        return flag

@@ -14,8 +14,8 @@ from .clauses import ClauseEntity
 from .clauses import ClauseExpiry
 from .clauses import ClauseScope
 
-# type Enums
-from .clausetypes import ClauseAction, ClausePos, ClauseType
+# type
+from .types import ClauseAction, ClausePos, ClauseType
 
 Base.model_map = {
     'contract': Contract,

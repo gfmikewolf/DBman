@@ -1,82 +1,21 @@
 # app/database/base.py
 
-__all__ = ['Base', 'DataJson', 'DataJsonType']
+__all__ = ['Base', 'DataJson']
 
 # python
 from typing import Any, Iterable, Optional
 from enum import Enum
 from datetime import date
 import json
+from abc import ABC, abstractmethod
 
 # sqlalchemy
-from sqlalchemy.types import TypeDecorator, JSON
 from sqlalchemy.orm import DeclarativeBase, ColumnProperty
 
 # app
 from app.utils.common import args_to_dict
-
-def serialize_value(attr: Any) -> Any:
-    """
-    convert the `attr` to a serializable value according to its data type.
-    """
-    
-    if isinstance(attr, ColumnProperty):
-        attr_type = attr.type.python_type
-    else:
-        attr_type = type(attr)
-    srl_value = None
-    if isinstance(attr, set) or isinstance(attr, tuple):
-        srl_value = [serialize_value(v) for v in attr]
-    elif isinstance(attr, dict):
-        srl_value = {k: serialize_value(v) for k,v in attr.items()}
-    elif issubclass(attr_type, Enum):
-        srl_value = attr.value
-    elif attr_type == date:
-        srl_value = attr.isoformat()
-    elif issubclass(attr_type, DataJson):
-        srl_value = attr.dumps()
-    else:
-        srl_value = attr
-    return srl_value if srl_value is not None else ''
-
-def convert_value_by_python_type(value: Any, python_type: Any) -> Any:
-    """
-    convert the `value` by the `python_type`.
-    """
-
-    if value is None or (value == '' and not issubclass(python_type, str)):
-        return None
-    converted_value = value
-    if isinstance(value, python_type):
-        return value
-    elif issubclass(python_type, date) and isinstance(value, str):
-        converted_value = date.fromisoformat(value) if value else None
-    elif issubclass(python_type, int) and isinstance(value, str):
-        converted_value = python_type(value)
-    elif issubclass(python_type, float) and (isinstance(value, str) or isinstance(value, int)):
-        converted_value = python_type(value)
-    elif issubclass(python_type, bool) and (isinstance(value, str) or isinstance(value, int) or isinstance(value, float)): 
-        if isinstance(value, str):
-            converted_value = value.lower() not in ['false', '0', '', 'none', 'null']
-        if isinstance(value, int) or isinstance(value, float):
-            converted_value = value != 0
-    elif (issubclass(python_type, set) or issubclass(python_type, list)) and isinstance(value, Iterable):
-        converted_value = python_type(value)
-    elif issubclass(python_type, dict) and (isinstance(value, str) or isinstance(value, DataJson)):
-        if isinstance(value, str):
-            converted_value = json.loads(value)
-        elif isinstance(value, DataJson):
-            converted_value = value.data_dict()
-    elif issubclass(python_type, DataJson) and (isinstance(value, str) or isinstance(value, dict)):
-        converted_value = DataJson.get_obj(value)
-    elif issubclass(python_type, Enum):
-        enum_data_type = type(next(iter(python_type.__members__.values())))
-        if not isinstance(value, enum_data_type):
-            converted_value = python_type(enum_data_type(value))
-        converted_value = python_type(value)
-    else:
-        raise AttributeError(f'Value {value} ({type(value).__name__}) of wrong format for key: ({python_type.__name__})')
-    return converted_value
+from .types import DataJsonType
+from .utils import serialize_value, convert_value_by_python_type
 
 class Base(DeclarativeBase):
     """
@@ -307,32 +246,12 @@ class Base(DeclarativeBase):
                 if element_key is not None:
                     ele_id_map[element_key] = key
         return ele_id_map
-    
-class DataJsonType(TypeDecorator):
-    """
-    DataJson type decorator for SQLAlchemy.
-    """
-    impl = JSON
-    cache_ok = True
 
-    @property
-    def python_type(self):
-        return DataJson
-
-    def process_bind_param(self, value, dialect):
-        if value is not None:
-            return value.data_dict(serializeable=True)
-        return value
-
-    def process_result_value(self, value, dialect):
-        if value is not None:
-            return DataJson.get_obj(value)
-        return value
-
-class DataJson:
+class DataJson(ABC):
     """
     Base class for data of json type.
     """
+
     __datajson_id__ = NotImplemented
     """
     Unique identifier for the DataJson class. It is used to identify the class in the class_map.
@@ -492,8 +411,7 @@ class DataJson:
 
         for key in mod_keys:
             value = data.get(key, None)
-            if value is not None:
-                data_dict[key] = data_json_cls.convert_value_by_attr_type(value, key) # type: ignore
+            data_dict[key] = data_json_cls.convert_value_by_attr_type(value, key) # type: ignore
         return data_dict
 
     @classmethod
@@ -505,7 +423,8 @@ class DataJson:
         :param attr_key: the key of the attribute.
         :raise AttributeError: if the attribute is not found in the class.
         """
-
+        if value is None or value == '':
+            return None
         attr = getattr(cls, attr_key, None)
         if attr is None:
             raise AttributeError(f'Attribute {attr_key} not found in {cls}')
@@ -627,3 +546,7 @@ class DataJson:
         if not cache:
             cache = cls.key_info['headers'] = [key for key in cls.key_info.get('data') if key not in cls.get_keys('hidden')] # type: ignore
         return cache # type: ignore
+
+    @abstractmethod
+    def validate(self, *args, **kwargs) -> bool:
+        pass
