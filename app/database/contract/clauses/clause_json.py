@@ -1,4 +1,4 @@
-from app.database import DataJson
+from app.database.base import DataJson
 from ..dbmodels import Clause
 
 class ClauseJson(DataJson):
