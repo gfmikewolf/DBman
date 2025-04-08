@@ -1,10 +1,10 @@
 # app/base/crud/utils.py
-from datetime import date
-from typing import Any
+from typing import Any, Iterable
 from enum import Enum
 from flask import abort, url_for
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.hybrid import hybrid_property
 from config import Config
 from app.extensions import Base, DataJson
 from app import _
@@ -82,25 +82,35 @@ def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
 
     return table_dict
 
+def get_viewable_instance_name(instance: Base) -> str:
+    if isinstance(instance.__class__.__dict__.get('_name'), hybrid_property):
+        return _(instance._name, dbman_dict_name_list) # type: ignore
+    return instance._name # type: ignore
+
+def get_viewable_instance(instance: Base) -> str:
+    pks = ','.join([str(getattr(instance, pk.key)) for pk in instance.__mapper__.primary_key])
+    url = url_for(
+        'base.crud.view_record', 
+        table_name=instance.__tablename__, # type: ignore
+        pks=pks
+    )
+    return f'<a href="{url}">{get_viewable_instance_name(instance)}</a>' # type: ignore
+
 def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     """
     :return: a string representation of the value of the key in the instance.
     """
     property = getattr(instance, key)
-    if property is None:
+    if property is None or property == '' or (isinstance(property, (list, set, tuple, dict)) and len(property) == 0):
         value = ''
-    elif isinstance(property, set):
+    elif isinstance(property, list) and isinstance(next(iter(property)), Base):
+        value = ','.join([get_viewable_instance(r_i) for r_i in property])
+    elif isinstance(property, set) and isinstance(next(iter(property)), int):
         value = ','.join(map(str, property))
     elif isinstance(property, Enum):
         value = _(property.name, dbman_dict_name_list)
     elif isinstance(property, Base):
-        pks = ','.join([str(getattr(property, pk.key)) for pk in property.__mapper__.primary_key])
-        url = url_for(
-            'base.crud.view_record', 
-            table_name=property.__tablename__, # type: ignore
-            pks=pks
-        )
-        value = f'<a href="{url}">{property._name}</a>' # type: ignore
+        value = get_viewable_instance(property)
     elif isinstance(property, DataJson):
         value = fetch_json_viewer(property, mode='compact', db_session=db_session)
     else:
@@ -117,27 +127,34 @@ def fetch_json_viewer(
     """
     if not isinstance(datajson_obj, DataJson):
         raise TypeError(f"Expected DataJson object, got {type(datajson_obj)}")
-    rel_info = datajson_obj.rel_info
+    hidden_keys = datajson_obj.get_keys('hidden')
+    col_rel_map = datajson_obj.get_col_rel_map()
     entries = []
-    for key in datajson_obj.get_keys('data') - datajson_obj.get_keys('hidden'):
-        if key in rel_info:
+    for key in datajson_obj.get_keys('data'):
+        value = getattr(datajson_obj, key, None)
+        if value is None or value == '':
+            continue
+        if key in col_rel_map:
+            key = col_rel_map[key]
+            if key in hidden_keys:
+                continue
             if db_session is None:
                 raise ValueError("db_session is required for relationship resolution")
-            pk = getattr(datajson_obj, rel_info[key]['local_col']) # type: ignore
-            if pk is None or pk == '':
-                continue
-            Model = rel_info[key]['ref_table']
-            ref_instance = db_session.get(Model, pk) # type: ignore
+            if value is None or value == '':
+                continue    
+            Model = datajson_obj.rel_info[key]['ref_table']
+            ref_instance = db_session.get(Model, value) # type: ignore
             if ref_instance is None:
                 continue
             ref_url = url_for(
                 'base.crud.view_record', 
                 table_name=Model.__tablename__, # type: ignore
-                pks=str(pk)
+                pks=str(value)
             )
             value = f'<a href="{ref_url}">{ref_instance._name}</a>' # type: ignore
         else:
-            value = getattr(datajson_obj, key)
+            if key in hidden_keys:
+                continue
             if isinstance(value, Enum):
                 value = _(value.name, dbman_dict_name_list)
             elif isinstance(value, (list, set, tuple)):
@@ -169,7 +186,7 @@ def fetch_tablename_url_name(instance: Base, table_name: str) -> tuple[str, str,
     if instance is None:
         return('', '#', '')
     pks = ','.join([str(i) for i in inspect(instance).identity]) # type: ignore
-    name = instance._name # type: ignore
+    name = get_viewable_instance_name(instance)
     url = url_for(
         'base.crud.view_record', 
         table_name=table_name,
