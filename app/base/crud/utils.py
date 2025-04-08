@@ -244,7 +244,7 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) 
         mapper = Model.__mapper__
         for rel in mapper.relationships:
             pks_name_list = []
-            if rel.uselist:
+            if rel.uselist or rel.secondary is not None:
                 continue
             ref_Model = rel.entity.class_
             local_col_key = next(iter(rel.local_columns)).key
@@ -327,7 +327,7 @@ def fetch_modify_form_viewer(
 
     for key in [key for key in instance.key_info['data'] if key in instance.get_keys('modifiable')]:
         is_required = key in instance.get_keys('required')
-        value = getattr(instance, key) or ''
+        value = getattr(instance, key, None) or ''
         if key in col_rel_map:
             name = _(col_rel_map[key], dbman_dict_name_list)
             tag = 'select'
