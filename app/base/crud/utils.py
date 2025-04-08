@@ -127,21 +127,15 @@ def fetch_json_viewer(
     """
     if not isinstance(datajson_obj, DataJson):
         raise TypeError(f"Expected DataJson object, got {type(datajson_obj)}")
-    hidden_keys = datajson_obj.get_keys('hidden')
-    col_rel_map = datajson_obj.get_col_rel_map()
     entries = []
-    for key in datajson_obj.get_keys('data'):
-        value = getattr(datajson_obj, key, None)
-        if value is None or value == '':
-            continue
-        if key in col_rel_map:
-            key = col_rel_map[key]
-            if key in hidden_keys:
+    rel_info = datajson_obj.rel_info
+    for key in datajson_obj.get_keys('data') - datajson_obj.get_keys('hidden'):
+        if key in rel_info:
+            value = getattr(datajson_obj, rel_info[key]['local_col'], None) # type: ignore
+            if value is None or value == '':
                 continue
             if db_session is None:
-                raise ValueError("db_session is required for relationship resolution")
-            if value is None or value == '':
-                continue    
+                raise ValueError("db_session is required for relationship resolution")    
             Model = datajson_obj.rel_info[key]['ref_table']
             ref_instance = db_session.get(Model, value) # type: ignore
             if ref_instance is None:
@@ -151,9 +145,10 @@ def fetch_json_viewer(
                 table_name=Model.__tablename__, # type: ignore
                 pks=str(value)
             )
-            value = f'<a href="{ref_url}">{ref_instance._name}</a>' # type: ignore
+            value = f'<a href="{ref_url}">{get_viewable_instance_name(ref_instance)}</a>' # type: ignore
         else:
-            if key in hidden_keys:
+            value = getattr(datajson_obj, key, None)
+            if value is None or value == '':
                 continue
             if isinstance(value, Enum):
                 value = _(value.name, dbman_dict_name_list)
