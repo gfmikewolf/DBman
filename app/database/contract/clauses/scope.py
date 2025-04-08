@@ -1,9 +1,9 @@
 from typing import Iterable
-from app.database.base import DataJson
 from ..types import ClauseAction
 from ..dbmodels import Clause, Scope
+from .clause_json import ClauseJson
 
-class ClauseScope(DataJson):
+class ClauseScope(ClauseJson):
     """
     attributes:
         action (ClauseAction): 
