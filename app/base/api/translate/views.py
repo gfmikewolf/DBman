@@ -1,8 +1,8 @@
-# api/translation/views.py
-from app import _
+# api/translate/views.py
+from app.utils.common import _
 
-def translate(input_text:str, spec_dict_names:str | None = None):
-    if spec_dict_names:
-        return _(input_text, spec_dict_names.split(','))
-    else:
-        return _(input_text)
+def translate_g(input_text:str):
+    return _(input_text, True)
+
+def translate_s(input_text:str):
+    return _(input_text, is_spec=True)
