@@ -168,7 +168,7 @@ class Clause(Base):
     
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
-        lazy='selectin',
+        lazy='joined',
         active_history=True,
         info={'select_order': (Amendment.amendment_name,)}
     )
@@ -208,7 +208,8 @@ class Clause(Base):
         ),
         'hidden': { 'clause_id', 'amendment_id' },
         'readonly': { 'clause_id', 'amendment' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' }
+        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
+        'translate': { '_name' }
     }
 
 class Entitygroup(Base):
@@ -366,10 +367,15 @@ def _get_map_reverse_action_stmt(
 def clause_after_insert(mapper: Mapper, connection: Connection, target: Clause):
     if target.clause_type in [ClauseType.ENTITY, ClauseType.SCOPE]:
         table_name = target.clause_type.name.lower()
+        contract_id = connection.execute(
+            select(Amendment.contract_id).where(
+                Amendment.amendment_id == target.amendment_id
+            )
+        ).scalar()
         for stmt in _get_map_action_stmt(
             target.clause_json.clause_action, # type: ignore
             'contract', table_name,
-            target.amendment.contract_id, 
+            contract_id, # type: ignore
             getattr(target.clause_json, f'{table_name}_id'),
             getattr(target.clause_json, f'old_{table_name}_id')
         ):
@@ -394,13 +400,14 @@ def clause_after_update(mapper, connection, target):
     clause_json_history = insp.attrs.clause_json.history
     amendment_history = insp.attrs.amendment.history
     old_clause_json = clause_json_history.deleted[0] if clause_json_history.deleted else None
-    old_amendment_history = amendment_history.deleted[0] if amendment_history.deleted else None
+    old_amendment = amendment_history.deleted[0] if amendment_history.deleted else None
+    contract_id = old_amendment.contract_id if old_amendment else target.amendment.contract_id
     if target.clause_type in [ClauseType.ENTITY, ClauseType.SCOPE]:
         table_name = target.clause_type.name.lower()
         for stmt in _get_map_reverse_action_stmt(
             old_clause_json.clause_action, # type: ignore
             'contract', table_name,
-            old_amendment_history.contract_id, # type: ignore
+            contract_id, # type: ignore
             getattr(old_clause_json, f'{table_name}_id'),
             getattr(old_clause_json, f'old_{table_name}_id')
         ):
