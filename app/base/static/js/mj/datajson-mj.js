@@ -167,7 +167,7 @@ class DatajsonMJ extends ContainerMJ {
         showKey = structure['col_rel_map'][key];
       }
       const translateResponse = (
-        await fetch(`/api/translate/spec/${fromTemplate["dbman_dict_name_list"].join(',')}/${showKey}`)
+        await fetch(`/api/translate/spec/${showKey}`)
       );
       if (translateResponse.ok) {
         showKey = await translateResponse.text();
