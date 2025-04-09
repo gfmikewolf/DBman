@@ -19,7 +19,7 @@
           <button type="button"
             data-bs-toggle="dropdown" 
             class="btn btn-sm btn-outline-dark dropdown-toggle">
-            {{- table_name -}}
+            {{- _(table_name, True) -}}
           </button>
           <ul class="dropdown-menu">
             {%- for tn in table_names -%}
@@ -32,7 +32,7 @@
                   {%- set dd_url = url_for('base.crud.view_table', table_name=tn) -%}
                 {%- endif -%}
                 <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
-                  {{- tn -}}
+                  {{- _(tn, True) -}}
                 </a>
               </li>
             {%- endfor -%}
