@@ -2,7 +2,6 @@
 
 from flask import Blueprint
 
-from app import _
 from .datajson import datajson_bp
 from .translate import translate_bp
 
