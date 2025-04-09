@@ -329,8 +329,8 @@ def _get_map_action_stmt(
     map_table = eval(f'{left_name}__map__{right_name}')
     id_to_remove = right_id if action == ClauseAction.REMOVE else old_right_id
     if action == ClauseAction.REMOVE or action == ClauseAction.UPDATE:
-        left_expr = eval(f'{map_table}.c.{left_name}_id == {id_to_remove}')
-        right_expr = eval(f'{map_table}.c.{right_name}_id == {right_id}')
+        left_expr = eval(f'{map_table}.c.{left_name}_id == {left_id}')
+        right_expr = eval(f'{map_table}.c.{right_name}_id == {id_to_remove}')
         stmt = map_table.delete().where(left_expr, right_expr)
         stmt_list.append(stmt)
     if action == ClauseAction.ADD or action == ClauseAction.UPDATE:
