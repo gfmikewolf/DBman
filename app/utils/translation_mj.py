@@ -1,7 +1,6 @@
-# translation_mj.py
+# app/utils/translation_mj.py
 import re
 from flask import session
-
 
 class TranslationMJ:
 
