@@ -67,5 +67,8 @@
     "last_child_expiry_date_or_fixed_date": "子合同最晚到期日与固定到期日取孰晚",
     "expiry_type": "到期类型",
     "expiry_date": "到期日期",
-    "linked_contract": "关联合同"
+    "linked_contract": "关联合同",
+    "equipment": "设备",
+    "gfa": "集团框架",
+    "applied_to_scope": "应用于交付范围"
 }
