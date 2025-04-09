@@ -1,11 +1,10 @@
-{# app/base/templates/macros/jsonviewer-dbman.jinja #}
+{# templates/macros/jsonviewer-dbman.jinja #}
 {%- macro JSONViewerDBMan(
       name='main',
       id='dbman-jsonviewer-' + name,
       headers=[],
       data={},
-      ref_names={},
-      dbman_dict_name_list=[]
+      ref_names={}
     )
 %}
   <ul class="list-group mt-1" id="{{- id -}}">
@@ -16,12 +15,12 @@
       {%- if header in ref_names %}
         {%- set rel_key = ref_names[header]['rel_key'] %}
         {%- if rel_key %}
-          {{- _(rel_key, dbman_dict_name_list) -}}
+          {{- _(rel_key, True) -}}
         {%- else %}
-          {{- _(header, dbman_dict_name_list) -}}
+          {{- _(header, True) -}}
         {%- endif -%}
       {%- else %}
-        {{- _(header, dbman_dict_name_list) -}}
+        {{- _(header, True) -}}
       {%- endif -%}
       </strong>: 
       {%- if header in ref_names %}
