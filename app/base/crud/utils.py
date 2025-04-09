@@ -4,11 +4,8 @@ from enum import Enum
 from flask import abort, url_for
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
-from config import Config
+from app.utils.common import _
 from app.extensions import Base, DataJson
-from app import _
-
-dbman_dict_name_list = Config.DATABASE_NAMES.split(',')  # type: ignore
 
 def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
     """
@@ -60,7 +57,7 @@ def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
 
     table_dict = dict()
     table_dict['headers'] = [
-        _(header_key, dbman_dict_name_list) 
+        _(header_key, True)
         for header_key in header_list
     ]
     table_dict['pks'] = list()
@@ -82,7 +79,10 @@ def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
     return table_dict
 
 def get_viewable_instance_name(instance: Base) -> str:
-    return _(instance._name, dbman_dict_name_list) # type: ignore
+    if '_name' in instance.get_keys('translate'):
+        return _(instance._name, True) # type: ignore
+    else:
+        return instance._name # type: ignore
 
 def get_viewable_instance(instance: Base) -> str:
     pks = ','.join([str(getattr(instance, pk.key)) for pk in instance.__mapper__.primary_key])
@@ -105,7 +105,7 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     elif isinstance(property, set) and isinstance(next(iter(property)), int):
         value = ','.join(map(str, property))
     elif isinstance(property, Enum):
-        value = _(property.name, dbman_dict_name_list)
+        value = _(property.name, True)
     elif isinstance(property, Base):
         value = get_viewable_instance(property)
     elif isinstance(property, DataJson):
@@ -148,7 +148,7 @@ def fetch_json_viewer(
             if value is None or value == '':
                 continue
             if isinstance(value, Enum):
-                value = _(value.name, dbman_dict_name_list)
+                value = _(value.name, True)
             elif isinstance(value, (list, set, tuple)):
                 value = ', '.join([str(v) for v in value])
             elif isinstance(value, dict):
@@ -160,14 +160,14 @@ def fetch_json_viewer(
             else:
                 value = str(value)
         if mode == 'compact':
-            entries.append(f'{_(key, dbman_dict_name_list)}: {value}')
+            entries.append(f'{_(key, True)}: {value}')
     return ', '.join(entries)
 
 def fetch_model_viewer(instance: Base, db_session: Session, header_list: list[str] | None = None):
     if header_list is None:
         header_list = instance.get_headers()
     return {
-        _(header, dbman_dict_name_list): fetch_viewable_value(instance, header, db_session) 
+        _(header, True): fetch_viewable_value(instance, header, db_session) 
         for header in header_list
     }
 
@@ -184,7 +184,7 @@ def fetch_tablename_url_name(instance: Base, table_name: str) -> tuple[str, str,
         table_name=table_name,
         pks=pks
     )
-    return (_(table_name, dbman_dict_name_list), url, name)
+    return (_(table_name, True), url, name)
 
 def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]:
     """
@@ -200,14 +200,14 @@ def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]
             if len(instance_list) == 0:
                 continue
             table_name = instance_list[0].__class__.__tablename__
-            rm[_(rel.key, dbman_dict_name_list)] = [
+            rm[_(rel.key, True)] = [
                 fetch_tablename_url_name(ref_instance, table_name)
                 for ref_instance in instance_list ]
         else:
             rel_prop = getattr(instance, rel.key)
             if rel_prop is None:
                 continue
-            rs[_(rel.key, dbman_dict_name_list)] = fetch_tablename_url_name(
+            rs[_(rel.key, True)] = fetch_tablename_url_name(
                     rel_prop, rel.entity.class_.__tablename__
             )
             
@@ -256,7 +256,7 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) 
             enum_Model = attr.type.python_type
             if not issubclass(enum_Model, Enum):
                 raise AttributeError(f'Invalid enum_Model {enum_Model} for {Model}')
-            value_name_list = [(member.value, _(member.name, dbman_dict_name_list)) for member in enum_Model]
+            value_name_list = [(member.value, _(member.name, True)) for member in enum_Model]
             select_options[key] = value_name_list       
     elif issubclass(Model, DataJson):
         for rel_key, rel_info in Model.rel_info.items(): # type: ignore
@@ -271,7 +271,7 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) 
             attr = getattr(Model, key)
             if not isinstance(attr, Enum):
                 raise AttributeError(f'Invalid enum_key {key} for {Model}')
-            value_name_list = [(member.value, _(member.name, dbman_dict_name_list)) for member in type(attr)]
+            value_name_list = [(member.value, _(member.name, True)) for member in type(attr)]
             select_options[key] = value_name_list
     else:
         raise TypeError(f'Invalid Model type {Model}')
@@ -326,12 +326,12 @@ def fetch_modify_form_viewer(
         is_required = key in instance.get_keys('required')
         value = getattr(instance, key, None) or ''
         if key in col_rel_map:
-            name = _(col_rel_map[key], dbman_dict_name_list)
+            name = _(col_rel_map[key], True)
             tag = 'select'
             options = select_options[key]
             data[key] = (tag, name, str(value), is_required, options)
         else:
-            name = _(key, dbman_dict_name_list)
+            name = _(key, True)
             if key in instance.get_keys('Enum'):
                 tag = 'select'
                 if value:
