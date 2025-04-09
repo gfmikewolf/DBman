@@ -42,24 +42,26 @@ def get_dbman_dict(locales: list[str] = []) -> dict[str, str]:
 import re
 
 def translate_text(input_text, dbman_dict, lang):
-    # 使用正则表达式拆分文本，同时保留非字母分隔符
-    # (\W+) 捕获所有非字母数字下划线的连续字符（包括空格、标点等）
-    tokens = re.split(r'(\W+)', input_text)
+    # 预处理：先替换掉多词短语或含特殊字符的短语
+    # 例如，处理包含空格或撇号的键
+    multi_word_keys = [key for key in dbman_dict if ' ' in key or "'" in key]
+    for phrase in multi_word_keys:
+        # 使用 re.escape 处理可能的特殊字符，忽略大小写匹配
+        pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+        input_text = pattern.sub(dbman_dict[phrase], input_text)
     
+    # 正常拆分文本并逐词翻译
+    tokens = re.split(r'(\W+)', input_text)
     translated_tokens = []
     for token in tokens:
-        # 如果 token 全为字母（isalpha 判断排除数字和标点），就翻译单词（忽略大小写）
         if token.isalpha():
             translated_tokens.append(dbman_dict.get(token.lower(), token))
         else:
-        # 对于连续空格，保留原样，不进行翻译，对于非空格的其他字符，直接翻译
             if token.isspace():
                 translated_tokens.append(token)
             else:
                 translated_tokens.append(dbman_dict.get(token.lower(), token))
     
-    # 如果目标语言为中文，则删除翻译结果中所有仅包含空格的 token，
-    # 这样翻译成中文的句子就不会有英文句内的空格
     if lang == 'zh':
         return ''.join(token for token in translated_tokens if not token.isspace())
     else:

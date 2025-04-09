@@ -83,9 +83,7 @@ def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
     return table_dict
 
 def get_viewable_instance_name(instance: Base) -> str:
-    if isinstance(instance.__class__.__dict__.get('_name'), hybrid_property):
-        return _(instance._name, dbman_dict_name_list) # type: ignore
-    return instance._name # type: ignore
+    return _(instance._name, dbman_dict_name_list) # type: ignore
 
 def get_viewable_instance(instance: Base) -> str:
     pks = ','.join([str(getattr(instance, pk.key)) for pk in instance.__mapper__.primary_key])
