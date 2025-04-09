@@ -1,7 +1,10 @@
-# utils/common.py
+# app/utils/common.py
 from copy import deepcopy
+import os
 from typing import Any
 import json
+
+from flask import current_app
 
 def args_to_dict(data: str | dict | None = None, **kwargs: Any) -> dict[str, Any]:
     """
@@ -25,3 +28,26 @@ def args_to_dict(data: str | dict | None = None, **kwargs: Any) -> dict[str, Any
         data_dict.update(kwargs)
     return data_dict
 
+def get_translation_dict(lang_set: list[str], locales: list[str] = []) -> dict[str, dict[str, str]]:
+    dir_list = [os.getcwd(), 'app', 'dbman_dict']
+    base_dir = os.path.join(*dir_list)
+    dbman_dict = {}
+    
+    if locales and lang_set:
+        try:
+            for lang in lang_set:
+                lang_dict = dict()
+                for locale in locales:
+                    filepath = os.path.join(base_dir, f'{locale}_{lang}.json')
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        jsonData = json.load(f)
+                    lang_dict.update(jsonData)
+                dbman_dict[lang] = lang_dict
+        except Exception as e:
+            raise FileNotFoundError(f"Error {e} occurred while loading dbman_dict file: {filepath}") # type: ignore
+    return dbman_dict
+
+def _(input_text:str | None, is_spec:bool = False):
+    if not input_text:
+        return ''
+    return current_app.config['TRANSLATOR'].translate(input_text, is_spec)
