@@ -1,13 +1,15 @@
 from typing import Iterable
+
+from sqlalchemy import select
 from ..types import ClauseAction
-from ..dbmodels import Scope
+from ..dbmodels import Scope, Contract, Amendment, contract__map__entity
 from .clause_json import ClauseJson
 
 class ClauseScope(ClauseJson):
     """
     attributes:
         clause_action (ClauseAction): 
-            - Add, Remove, Novate
+            - Add, Remove, Update
         scope_id (int): 
             - map table scope
         old_scope_id (int | None): 
@@ -32,7 +34,8 @@ class ClauseScope(ClauseJson):
             'old_scope', 
             'old_scope_id',
         ),
-        'required': {'scope_id'}
+        'hidden': {'old_scope_id', 'scope_id'},
+        'required': {'scope_id', 'clause_action'}
     }
     rel_info = {
         'scope': {
@@ -46,6 +49,7 @@ class ClauseScope(ClauseJson):
             'select_order': (Scope.scope_name,)
         }
     }
+
     def validate(
         self, 
         valid_scope_ids: Iterable[int] | None = None,
