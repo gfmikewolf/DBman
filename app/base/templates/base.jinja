@@ -29,7 +29,7 @@
           <a href="{{ prev_page }}" data-dbman-toggle="prev-page" class="btn"><i class="fa fa-arrow-up"></i></a>
           <a href="{{ url_for('base.index') }}" class="btn"><i class="fa fa-house"></i></a>
           {%- endif -%}
-          {%- if session.get('language') == 'en' %}
+          {%- if session.get('LANG') == 'en' %}
           <a href="{{ url_for('base.set_lang', lang='zh') }}" class="btn">简中</a>
           {%- else %}
           <a href="{{ url_for('base.set_lang', lang='en') }}" class="btn">En</a>
