@@ -1,10 +1,9 @@
 # app/base/crud/utils.py
-from typing import Any, Iterable
+from typing import Any
 from enum import Enum
 from flask import abort, url_for
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
-from sqlalchemy.ext.hybrid import hybrid_property
 from config import Config
 from app.extensions import Base, DataJson
 from app import _
