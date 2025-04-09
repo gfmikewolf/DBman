@@ -35,7 +35,7 @@ class ClauseEntity(ClauseJson):
             'old_entity_id', 
             'entity', 
             'old_entity'),
-        'required': {'entity_id'},
+        'required': {'entity_id', 'clause_action'},
         'hidden': {'entity_id', 'old_entity_id'}
     }
     rel_info = {
