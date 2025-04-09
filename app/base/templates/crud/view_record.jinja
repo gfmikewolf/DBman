@@ -1,66 +1,133 @@
-{#- app/base/templates/crud/view_table.jinja -#}
-{%- from 'macros/datatable-dbman.jinja' import DatatableDBMan -%}
-{%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
-{%- extends "base.jinja" -%}
+{#- app/base/templates/crud/view_record.jinja -#}
+{%- from 'macros/datadict-dbman.jinja' import DatadictDBMan -%}
+{%- extends 'base.jinja' -%}
 
 {%- block head -%}
-  <meta name="modules" content="modal-alert,datatable">
+  <meta name="modules" content="">
 {%- endblock head -%}
 
 {#- @param for base.jinja - prev_page: redirect to upper level page -#}
-{%- set prev_page = url_for('base.crud.index') -%}
-
+{%- set prev_page = url_for('base.crud.view_table', table_name=table_name) -%}
 {%- block content %}
   <div class="container-fluid">
-    <div class="row">
-      <h5 class="mt-3">
-        {{- _('Table') -}}:
-        <div class="dropdown d-inline">
-          <button type="button"
-            data-bs-toggle="dropdown" 
-            class="btn btn-sm btn-outline-dark dropdown-toggle">
-            {{- _(table_name, True) -}}
-          </button>
-          <ul class="dropdown-menu">
-            {%- for tn in table_names -%}
-              <li>
-                {%- if tn == table_name -%}
-                  {%- set dd_active = 'active' -%}
-                  {%- set dd_url = '#' -%}
-                {%- else -%}
-                  {%- set dd_active = '' -%}
-                  {%- set dd_url = url_for('base.crud.view_table', table_name=tn) -%}
-                {%- endif -%}
-                <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
-                  {{- _(tn, True) -}}
+    <div class="row p-3 dbman-fixed-fill mx-auto">
+      <div class="col-md-2 p-3 d-none d-md-block dbman-independent-scroll text-center">
+        <div class="card">
+          <div class="card-header text-center">
+            {{- _('Related Actions') -}}
+          </div>
+          <div class="list-group text-center">
+            <a  class="list-group-item list-group-item-action"
+                href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}">
+              {{- _('Modify the record') -}}
+            </a>
+            <a  href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
+                class="list-group-item list-group-item-action">
+              {{- _('View table') -}}
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-12 col-md-6 p-3 border dbman-independent-scroll">
+        <h5>{{- _('Basic Information') -}}</h5>
+        <div>
+        {{- DatadictDBMan(
+              name='basic',
+              data=basic_info,
+            ) 
+        -}}
+        </div>
+      </div>
+      <div class="col-md-4 p-3 d-none d-md-block dbman-independent-scroll">
+        <h5>{{- _('Related Objects') -}}</h5>
+        <div class="list-group list-group-flush">
+        {%- for rel_key, tablename_url_name in ref_objects['single'].items() %}
+          <div class="list-group-item list-group-item-action">
+            <span>{{- rel_key -}}:</span>
+            <a href="{{ tablename_url_name[1] }}">
+              {{- tablename_url_name[2] -}}
+            </a>
+          </div>
+        {%- endfor %}
+        </div>
+        <div class="list-group list-group-flush mt-3">
+        {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
+          <a class="list-group-item list-group-item-action"
+            href="#collapse-{{- list_name -}}"
+            data-bs-toggle="collapse">
+            {{- list_name -}}
+          </a>
+          <div class="collapse" id="collapse-{{- list_name -}}">
+            <div class="list-group list-group-flush mt-3">
+            {%- for tablename_url_name in tablename_url_name_list %}
+              <div class="list-group-item">
+                <span>{{- tablename_url_name[0] -}}:</span>
+                <a href="{{ tablename_url_name[1] }}">
+                  {{- tablename_url_name[2] -}}
+                </a>
+              </div>
+            {%- endfor -%}
+            </div>
+          </div>
+        {%- endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="row bg-light">
+      <nav id="navbar-view" class="navbar navbar-expand-lg navbar-light p-3 d-md-none">
+        <div class="navbar-brand"></div>
+        <ul class="nav">
+          <li class="nav-item dropup">
+            <button class="btn dropdown-toggle {{ 'd-none' if (not ref_objects['single']) and (not ref_objects['multiple']) -}}" 
+              data-bs-toggle="dropdown" data-bs-auto-close="outside" 
+              role="button" aria-expanded="false">
+              {{- _('Related Objects') -}}
+            </button>
+            <ul class="dropdown-menu" id="ref-list-group">
+            {%- for rel_key, tablename_url_name in ref_objects['single'].items() %}
+              <li class="dropdown-item">
+                <span>{{- rel_key -}}:</span>
+                <a href="{{ tablename_url_name[1] }}">
+                  {{- tablename_url_name[2] -}}
                 </a>
               </li>
-            {%- endfor -%}
-          </ul>
-        </div>
-      </h5>
-    </div>
-    <div class="row">
-    {{- DatatableDBMan(
-      table_name=table_name, 
-      name='main', 
-      data=data) 
-    }}
+            {%- endfor %}
+            {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
+              <li class="dropdown-item">
+                <div class="dropstart">
+                  <button type="button" class="btn dropdown-toggle" 
+                    data-bs-toggle="dropdown" data-bs-parent="#ref-list-group"
+                    role="button">
+                  {{- list_name -}}
+                  </button>
+                  {#- ignore H021: -#}<ul class="dropdown-menu card-body" style="min-height:20vh; overflow-y:auto">
+                  {%- for tablename_url_name in tablename_url_name_list -%}
+                    <li class="dropdown-item">
+                      <span>{{- tablename_url_name[0] -}}:</span>
+                      <a class="dropdown-item" 
+                        href="{{- tablename_url_name[1] -}}">
+                       {{- tablename_url_name[2] -}}
+                      </a>
+                    </li>
+                  {%- endfor %}
+                  </ul>
+                </div>
+              </li>
+            {%- endfor %}
+            </ul>
+          </li>
+          <li class="nav-item dropup">
+            <button class="btn dropdown-toggle" 
+               data-bs-toggle="dropdown" 
+               href="#" role="button" aria-expanded="false">
+              {{- _('Related Functions') -}}
+            </button>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="#">Func 1</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
     </div>
   </div>
 {%- endblock content -%}
-
-{%- block alert %}
-  {{ ModalDBMan(
-    name='main',
-    type='dbman-alert',
-    title=_('Alert'),
-    msgs={
-      'success': [_('Success'), _('Operation Successful')],
-      'error': [_('Error'), _('Operation Error')],
-      'warning_delete': [_('Alert'), _('_warning_delete')]
-    }
-  ) }}
-{%- endblock alert -%}
-
-{%- block scripts -%}{%- endblock scripts -%}
