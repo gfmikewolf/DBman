@@ -150,6 +150,12 @@ class Base(DeclarativeBase):
                 if info == 'data':
                     info_keys = set(info_keys)
                 keys.update(info_keys)
+            elif info == 'pk':
+                info_keys = set()
+                for col in cls.__mapper__.primary_key:
+                    info_keys.add(col.key)
+                cls.key_info[info] = info_keys
+                keys.update(info_keys)
             elif info == 'required':
                 info_keys = set()
                 for col in cls.__mapper__.columns:
@@ -238,12 +244,15 @@ class Base(DeclarativeBase):
         :return: dict {DataJson_local_col.key: DataJson_id_col.key }
         """
         ele_id_map = dict()
-        for key in cls.key_info['data']:
+        for key in cls.key_info['DataJson']:
             attr = getattr(cls, key)
             if hasattr(attr, 'info'):
-                element_key = attr.info.get('DataJson_id_for', None)
-                if element_key is not None:
+                element_key = attr.info.get('DataJson_id_key', None)
+                if element_key is None:
+                    ele_id_map[key] = None
+                else:
                     ele_id_map[element_key] = key
+
         return ele_id_map
 
 class DataJson(ABC):

@@ -156,7 +156,7 @@ def fetch_json_viewer(
             elif isinstance(value, DataJson):
                 value = '{' + fetch_json_viewer(value, mode='compact', db_session=db_session) + '}'
             elif isinstance(value, str):
-                value = f'{value!r}'
+                value = f'{value}'
             else:
                 value = str(value)
         if mode == 'compact':
@@ -325,7 +325,7 @@ def fetch_modify_form_viewer(
     for key in [key for key in instance.key_info['data'] if key in instance.get_keys('modifiable')]:
         is_required = key in instance.get_keys('required')
         value = getattr(instance, key, None) or ''
-        if key in col_rel_map:
+        if key in col_rel_map and key not in instance.get_keys('pk'):
             name = _(col_rel_map[key], True)
             tag = 'select'
             options = select_options[key]

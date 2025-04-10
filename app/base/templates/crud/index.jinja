@@ -17,7 +17,7 @@
                     <div class="list-group">
                         {% for table_name in table_names %}
                         <a href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
-                            class="list-group-item list-group-item-action">{{ table_name }}</a>
+                            class="list-group-item list-group-item-action">{{ _(table_name, True) }}</a>
                         {% endfor %}
                     </div>
                 </div>

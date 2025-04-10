@@ -165,20 +165,27 @@ class FormModifyMJ extends ContainerMJ {
     });
   }
 
-  _initDatajson() {
+  _initDatajson() {  
     Object.entries(this.datajsonElementIdMap).forEach(([key, value]) => {
-      const idElement = this.getValidElement(`[name="${value}"]`);
+      let idElement = null;
+      let idValue = `${fromTemplate['table_name']}_${key}`;
+      if (value) {
+        idElement = this.getValidElement(`[name="${value}"]`);
+        idValue = idElement.value;
+      }
       const targetElement = this.getValidElement(`#${key}`);
       const inputElement = this.getValidElement(`#dbman-datajson-${key}`);
       const djObj = new DatajsonMJ(
         inputElement,
         targetElement, 
-        idElement.value, 
+        idValue, 
         targetElement.value
       );
-      idElement.addEventListener('change', async () => {
-        await djObj.update(idElement.value);
-      });
+      if (idElement) {
+        idElement.addEventListener('change', async () => {
+          await djObj.update(idElement.value);
+        });
+      }
     });
   }
 }
