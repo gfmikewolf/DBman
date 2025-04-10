@@ -1,4 +1,4 @@
 # app/database/models.py
-from .asset import Base, DataJson
+from .asset import Base
 
-__all__ = ['Base', 'DataJson']
+__all__ = ['Base']
