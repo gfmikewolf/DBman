@@ -1,5 +1,5 @@
 # app/database/__init__.py
-from ..base import Base
+from ..base import Base, DataJson
 
 # database models
 from .dbmodels import Contract
