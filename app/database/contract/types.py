@@ -5,28 +5,28 @@ class ClauseAction(Enum):
     """
     { 'add', 'remove', 'update' }
     """
-    ADD = 'add'
-    REMOVE = 'remove'
-    UPDATE = 'update'
+    A = 'add'
+    R = 'remove'
+    U = 'update'
 
 class ClauseType(Enum):
     """
     { 'clause_entity', 'clause_scope', 'clause_expiry' }
     """
-    BASIC = 'clause'
-    ENTITY = 'clause_entity'
-    SCOPE = 'clause_scope'
-    EXPIRY = 'clause_expiry'
+    BASIC = 'clause without structured data'
+    ENTITY = 'entity'
+    SCOPE = 'scope'
+    EXPIRY = 'expiry'
 
 class ClausePos(Enum):
     """
     { 'mainbody', 'annex', 'appendix' }
     """
-    MAINBODY = 'mainbody'
-    ANNEX = 'annex'
-    APPENDIX = 'appendix'  
+    M = 'mainbody'
+    AN = 'annex'
+    AP = 'appendix'  
 
 class ExpiryType(Enum):
-    FIXED_EXPIRY_DATE = 'FD'
-    LINKED_TO_CONTRACT = 'LC'
-    LAST_CHILD_EXPIRY_DATE_OR_FIXED_DATE = 'LLOF'
+    FD = 'fixed expiry date'
+    LC = 'linked to another contract'
+    LL = 'later of last child contract or an expiry date'
