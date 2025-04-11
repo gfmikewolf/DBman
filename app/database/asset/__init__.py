@@ -1,5 +1,5 @@
 # app/database/__init__.py
-from ..base import Base, DataJson
+from ..base import Base
 
 # database models
 from .dbmodels import (
@@ -9,16 +9,15 @@ from .dbmodels import (
     Area, 
     Currency,
     Organization,
-    Account
+    Account,
+    BankAccount,
+    BrokerageAccount,
+    CryptoAccount,
+    CashAccount
 )
 
 # DataJson models
 
-from .djmodels import (
-    AccountExtraInfo,
-    ManagerExtraInfo,
-    OrganizationExtraInfo
-)
 # type
 
 
@@ -29,12 +28,9 @@ Base.model_map = {
     'area': Area,
     'currency': Currency,
     'organization': Organization,
-    'account': Account
-}
-
-DataJson.class_map = {
-    'data_json': DataJson,
-    'account_extra_info': AccountExtraInfo,
-    'manager_extra_info': ManagerExtraInfo,
-    'organization_extra_info': OrganizationExtraInfo
+    'account': Account,
+    'bank_account': BankAccount,
+    'brokerage_account': BrokerageAccount,
+    'crypto_account': CryptoAccount,
+    'cash_account': CashAccount
 }

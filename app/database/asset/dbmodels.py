@@ -1,9 +1,7 @@
-from ast import For
-from turtle import back
 from sqlalchemy import Integer, String, Enum as SqlEnum, ForeignKey
 from sqlalchemy.orm import mapped_column, Mapped, synonym, relationship
-from app.database.types import DataJsonType
-from ..base import Base, DataJson
+from ..base import Base
+from .types import AccountType
 
 
 class ExpenseType(Base):
@@ -55,8 +53,6 @@ class Manager(Base):
     email: Mapped[str | None]
     phone_number: Mapped[str | None]
     remarks: Mapped[str | None] = mapped_column(info={'longtext': True})
-    from .djmodels import ManagerExtraInfo
-    extra_info: Mapped[ManagerExtraInfo | None] = mapped_column(DataJsonType)
 
     nationality: Mapped['Area'] = relationship(lazy='selectin')
     accounts: Mapped[list['Account']] = relationship(
@@ -75,8 +71,7 @@ class Manager(Base):
             'address',
             'email',
             'phone_number',
-            'remarks',
-            'extra_info'
+            'remarks'
         ),
         'hidden': {'id', 'nationality_code'},
         'readonly': {'id', 'nationality'}
@@ -138,8 +133,6 @@ class Organization(Base):
     nickname: Mapped[str]
     fullname: Mapped[str | None]
     area_code: Mapped[str | None] = mapped_column(ForeignKey('area.code'))
-    from .djmodels import OrganizationExtraInfo
-    extra_info: Mapped[DataJson | None] = mapped_column(DataJsonType)
 
     area: Mapped['Area'] = relationship(lazy='selectin')
 
@@ -151,8 +144,7 @@ class Organization(Base):
             'nickname',
             'fullname',
             'area_code',
-            'area',
-            'extra_info'
+            'area'
         ),
         'hidden': {'id', 'area_code'},
         'readonly': {'id', 'area'}
@@ -163,15 +155,19 @@ class Account(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nickname: Mapped[str]
-    identifier: Mapped[str | None]
     owner_id: Mapped[int | None] = mapped_column(ForeignKey('manager.id'))
-    financial_organization_id: Mapped[int | None] = mapped_column(ForeignKey('organization.id'))
-    currency_code: Mapped[str | None] = mapped_column(ForeignKey('currency.code'))
-    from .djmodels import AccountExtraInfo
-    extra_info: Mapped[AccountExtraInfo | None] = mapped_column(DataJsonType)
-
     owner: Mapped['Manager'] = relationship(lazy='selectin')
-    financial_organization: Mapped['Organization'] = relationship(lazy='selectin')
+    account_type: Mapped[AccountType] = mapped_column(SqlEnum(AccountType))
+    currency_code: Mapped[str | None] = mapped_column(ForeignKey('currency.code'))
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey('account.id'))
+    
+    parent_account: Mapped['Account'] = relationship(lazy='selectin', remote_side=[id])
+    
+    child_accounts: Mapped[list['Account']] = relationship(
+        back_populates='parent_account',
+        lazy='select'
+    )
+
     currency: Mapped['Currency'] = relationship(lazy='selectin')
 
     _name = synonym('nickname')
@@ -180,16 +176,174 @@ class Account(Base):
         'data': (
             'id',
             'nickname',
-            'identifier',
+            'account_type',
             'owner_id',
             'owner',
-            'financial_organization_id',
-            'financial_organization',
             'currency_code',
             'currency',
-            'extra_info'
+            'parent_id',
+            'parent_account',
         ),
-        'hidden': {'id', 'owner_id', 'financial_organization_id', 'currency_code'},
-        'readonly': {'id', 'owner', 'financial_organization', 'currency'}
+        'hidden': {'id', 'owner_id', 'currency_code', 'parent_id'},
+        'readonly': {'id', 'owner', 'currency', 'parent_account'}
     }
 
+    __mapper_args__ = {
+        'polymorphic_identity': AccountType.OTHER_ACCOUNT,
+        'polymorphic_on': account_type
+    }
+
+class BankAccount(Account):
+    __tablename__ = 'bank_account'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('account.id'), primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey('organization.id'))
+    account_number: Mapped[str | None]
+    IBAN: Mapped[str | None]
+
+    organization: Mapped['Organization'] = relationship(lazy='selectin')
+
+    key_info = {
+        'data': (
+            'id',
+            'nickname',
+            'account_type',
+            'owner_id',
+            'owner',
+            'currency_code',
+            'currency',
+            'IBAN',
+            'account_number',
+            'organization_id',
+            'organization',
+            'parent_id',
+            'parent_account'
+        ),
+        'hidden': {'id', 'owner_id', 'organization_id', 'currency_code', 'parent_id'},
+        'readonly': {'id', 'owner', 'organization', 'currency', 'parent_account'}
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AccountType.BANK_ACCOUNT,
+    }
+
+class CashAccount(Account):
+    __tablename__ = 'cash_account'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('account.id'), primary_key=True)
+    area_code: Mapped[str | None] = mapped_column(ForeignKey('area.code'))
+
+    location: Mapped['Area'] = relationship(lazy='selectin')
+
+    key_info = {
+        'data': (
+            'id',
+            'nickname',
+            'account_type',
+            'owner_id',
+            'owner',
+            'currency_code',
+            'currency',
+            'area_code',
+            'location',
+            'parent_id',
+            'parent_account'
+        ),
+        'hidden': {'id', 'owner_id', 'currency_code', 'area_code', 'parent_id'},
+        'readonly': {'id', 'owner', 'currency', 'location', 'parent_account'}
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AccountType.CASH_ACCOUNT,
+    }
+
+class BrokerageAccount(Account):
+    __tablename__ = 'brokerage_account'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('account.id'), primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey('organization.id'))
+    account_number: Mapped[str | None]
+
+    organization: Mapped['Organization'] = relationship(lazy='selectin')
+
+    key_info = {
+        'data': (
+            'id',
+            'nickname',
+            'account_type',
+            'owner_id',
+            'owner',
+            'currency_code',
+            'currency',
+            'account_number',
+            'organization_id',
+            'organization',
+            'parent_id',
+            'parent_account'
+        ),
+        'hidden': {'id', 'owner_id', 'organization_id', 'currency_code', 'parent_id'},
+        'readonly': {'id', 'owner', 'organization', 'currency', 'parent_account'}
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AccountType.BROKERAGE_ACCOUNT,
+    }
+
+class CryptoAccount(Account):
+    __tablename__ = 'crypto_account'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('account.id'), primary_key=True)
+    account_number: Mapped[str | None]
+
+    key_info = {
+        'data': (
+            'id',
+            'nickname',
+            'account_type',
+            'owner_id',
+            'owner',
+            'currency_code',
+            'currency',
+            'account_number'
+            'parent_id',
+            'parent_account'
+        ),
+        'hidden': {'id', 'owner_id', 'currency_code', 'parent_id'},
+        'readonly': {'id', 'owner', 'currency', 'parent_account'}
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AccountType.CRYPTO_ACCOUNT,
+    }
+
+class LoanAccount(Account):
+    __tablename__ = 'loan_account'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('account.id'), primary_key=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey('organization.id'))
+    account_number: Mapped[str | None]
+
+    organization: Mapped['Organization'] = relationship(lazy='selectin')
+
+    key_info = {
+        'data': (
+            'id',
+            'nickname',
+            'account_type',
+            'owner_id',
+            'owner',
+            'currency_code',
+            'currency',
+            'account_number',
+            'organization_id',
+            'organization'
+            'parent_id',
+            'parent_account'
+        ),
+        'hidden': {'id', 'owner_id', 'organization_id', 'currency_code', 'parent_id'},
+        'readonly': {'id', 'owner', 'organization', 'currency', 'parent_account'}
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AccountType.LOAN_ACCOUNT,
+    }

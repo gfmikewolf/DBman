@@ -46,6 +46,9 @@
     "bank": "银行",
     "identifier": "标识符(如账户号码)",
     "owner": "所有者",
-    "accounts": "账户"
+    "accounts": "账户",
+    "parent_account": "上级账户",
+    "child_accounts": "下级账户",
+    "account_type": "账户类型"
 
 }
