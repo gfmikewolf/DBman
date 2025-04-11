@@ -190,6 +190,10 @@ def fetch_tablename_url_name(instance: Base, table_name: str) -> tuple[str, str,
 def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]:
     """
     :return: a dict of related objects for the instance.
+
+    .. attention:: 
+    Active session is required to access list relationships
+
     """
     related_objects = dict()
     related_objects['single'] = rs = dict()
@@ -211,7 +215,17 @@ def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]
             rs[_(rel.key, True)] = fetch_tablename_url_name(
                     rel_prop, rel.entity.class_.__tablename__
             )
-            
+    
+    for key in instance.get_keys('data') - rs.keys() - rm.keys():
+        attrs = getattr(instance, key, None)
+        if attrs and isinstance(attrs, (list, set, tuple)):
+            sample = next(iter(attrs))
+            table_name = sample.__class__.__tablename__
+            if isinstance(sample, Base):
+                rm[_(key, True)] = [
+                    fetch_tablename_url_name(attr_instance, table_name)
+                    for attr_instance in attrs
+                ]
     return related_objects
 
 def fetch_select_list(Model: type[Base], db_session: Session, order_by: Any = None) -> list[tuple[str, str]]:
@@ -240,7 +254,7 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session, 
     base_data_keys = set()
     if polymorphic_spec_only:
         base_data_keys = Model.get_keys('polybase_data')
-
+    polymorphic_spec_only = polymorphic_spec_only and bool(base_data_keys)
     if issubclass(Model, Base):
         # Extract foreign key col and referenced pks and name tuple for each relationship
         mapper = Model.__mapper__
