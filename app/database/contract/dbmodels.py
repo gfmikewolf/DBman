@@ -1,8 +1,8 @@
 # app/database/contract/dbmodels.py
 from datetime import date
-from sqlalchemy import Connection, Executable, ForeignKey, Date, Integer, String, Enum as SqlEnum, Column, Table, func, inspect, select, event
+from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, Column, Table, func, select
 from sqlalchemy.sql import literal_column
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, Mapper
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
 from .types import ClausePos, ClauseType, ClauseAction, ExpiryType
@@ -66,11 +66,7 @@ class Contract(Base):
         secondaryjoin=lambda: Contract.contract_id == contract__legal_map__contract.c.child_contract_id,
         lazy='select'
     )
-    entities: Mapped[list['Entity']] = relationship(
-        back_populates='contracts',
-        secondary=lambda: contract__map__entity,
-        lazy='select'
-    )
+                    
     scopes: Mapped[list['Scope']] = relationship(
         back_populates='contracts',
         secondary=lambda: contract__map__scope,
@@ -85,6 +81,46 @@ class Contract(Base):
         order_by=lambda: Clause.clause_type
     )
 
+    @hybrid_property
+    def entities(self) -> set['Entity']: # type: ignore
+        new_set = set()
+        old_set = set()
+        for amendment in self.amendments:
+            for clause in amendment.clauses:
+                if clause.clause_type == ClauseType.CLAUSE_ENTITY:
+                    new_one = getattr(clause, 'new_entity', None)
+                    old_one = getattr(clause, 'old_entity', None)
+                    if new_one:
+                        new_set.add(new_one)
+                    if (old_one):
+                        old_set.add(old_one)
+        return new_set - old_set
+
+    @entities.expression
+    def entities(cls):
+        from .dbmodels import ClauseEntity, Amendment
+        sub_old = (
+            select(ClauseEntity.old_entity_id)
+            .join(Amendment, Amendment.amendment_id == ClauseEntity.amendment_id)
+            .where(
+                Amendment.contract_id == cls.contract_id,
+                ClauseEntity.old_entity_id.isnot(None)
+            )
+            .distinct()
+        )
+        new_expr = (
+            select(func.group_concat(ClauseEntity.new_entity_id, ','))
+            .join(Amendment, Amendment.amendment_id == ClauseEntity.amendment_id)
+            .where(
+                Amendment.contract_id == cls.contract_id,
+                ClauseEntity.new_entity_id.isnot(None),
+                ClauseEntity.new_entity_id.not_in(sub_old)
+            )
+            .distinct()
+            .scalar_subquery()
+        )
+        return new_expr
+    
     key_info = {
         'data': (
             'contract_id', 
@@ -210,7 +246,7 @@ class Clause(Base):
 
     __mapper_args__ = {
         'polymorphic_on': clause_type,
-        'polymorphic_identity': ClauseType.BASIC
+        'polymorphic_identity': ClauseType.CLAUSE
     }
 
 class ClauseScope(Clause):
@@ -219,7 +255,7 @@ class ClauseScope(Clause):
         Integer,          
         ForeignKey('clause.clause_id'),
         primary_key=True)
-    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum)
+    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum(ClauseAction))
     
     new_scope_id: Mapped[int | None] = mapped_column(
         ForeignKey('scope.scope_id')
@@ -239,7 +275,7 @@ class ClauseScope(Clause):
     )
 
     __mapper_args__ = {
-        'polymorphic_identity': ClauseType.SCOPE
+        'polymorphic_identity': ClauseType.CLAUSE_SCOPE
     }
 
     key_info = {
@@ -251,6 +287,7 @@ class ClauseScope(Clause):
             'clause_pos',
             'clause_ref',
             'clause_text',
+            'clause_action',
             'new_scope_id',
             'new_scope',
             'old_scope_id',
@@ -270,7 +307,7 @@ class ClauseEntity(Clause):
         Integer,          
         ForeignKey('clause.clause_id'),
         primary_key=True)
-    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum)
+    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum(ClauseAction))
     
     new_entity_id: Mapped[int | None] = mapped_column(
         ForeignKey('entity.entity_id')
@@ -290,7 +327,7 @@ class ClauseEntity(Clause):
     )
 
     __mapper_args__ = {
-        'polymorphic_identity': ClauseType.ENTITY
+        'polymorphic_identity': ClauseType.CLAUSE_ENTITY
     }
 
     key_info = {
@@ -302,6 +339,7 @@ class ClauseEntity(Clause):
             'clause_pos',
             'clause_ref',
             'clause_text',
+            'clause_action',
             'new_entity_id',
             'new_entity',
             'old_entity_id',
@@ -338,7 +376,7 @@ class ClauseExpiry(Clause):
     )
 
     __mapper_args__ = {
-        'polymorphic_identity': ClauseType.EXPIRY
+        'polymorphic_identity': ClauseType.CLAUSE_EXPIRY
     }
 
     key_info = {
@@ -351,11 +389,15 @@ class ClauseExpiry(Clause):
             'clause_ref',
             'clause_text',
             'applied_to_scope_id',
+            'expiry_type',
+            'expiry_date',
+            'linked_to_contract_id',
+            'linked_to_contract',
             'applied_to_scope',
             'clause_reviewcomments',
             'clause_remarks'  
         ),
-        'hidden': { 'clause_id', 'amendment_id', 'applied_to_scope_id' },
+        'hidden': { 'clause_id', 'amendment_id', 'applied_to_scope_id', 'linked_to_contract_id' },
         'readonly': { 'clause_id', 'amendment', 'applied_to_scope' },
         'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
         'translate': { '_name' }
@@ -395,12 +437,6 @@ class Entity(Base):
         back_populates='entities',
         lazy='selectin',
         info={'select_order': (Entitygroup.entitygroup_name,)},
-    )
-
-    contracts: Mapped[list['Contract']] = relationship(
-        back_populates='entities',
-        secondary=lambda: contract__map__entity,
-        lazy='select'
     )
 
     key_info = {
