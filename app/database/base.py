@@ -115,7 +115,15 @@ class Base(DeclarativeBase):
         return cache # type: ignore
 
     @classmethod
-    def get_col_rel_map(cls) -> dict[str, str]:
+    def get_polymorphic_base(cls) -> type['Base'] | None:
+        base_class = cls.__mapper__.base_mapper.class_
+        if base_class.__mapper_args__.get('polymorphic_on', None):
+            return base_class
+        else:
+            return None
+    
+    @classmethod
+    def get_col_rel_map(cls, polymorphic_spec_only=False) -> dict[str, str]:
         """
         :return: a dict of the single relationship map for the class.
 
@@ -124,10 +132,17 @@ class Base(DeclarativeBase):
             { 'entity_id': 'entity', 'old_entity_id': 'old_entity' }
         ```
         """
-        return {
-            next(iter(r.local_columns)).key : r.key 
-            for r in cls.__mapper__.relationships if (not r.uselist) and (r.secondary is None)
-        } # type: ignore
+        crm = dict()
+        base_data_keys = set()
+        if polymorphic_spec_only:
+            base_data_keys = cls.get_keys('polybase_data')
+
+        for r in cls.__mapper__.relationships:
+            local_col_key = next(iter(r.local_columns)).key
+            cond = (not r.uselist) and (r.secondary is None)
+            if cond and local_col_key not in base_data_keys:
+                crm[local_col_key] = r.key
+        return crm
     
     @classmethod
     def get_keys(cls, *args: str) -> set[str]:
@@ -135,7 +150,7 @@ class Base(DeclarativeBase):
         :return: a set keys of keys. 
         :param args: a list of information strings, including:
 
-            - user-defined types: string, 'readonly', 'hidden', 'required', 'data'
+            - user-defined types: string, 'readonly', 'hidden', 'required', 'data', 'polybase_data'
             - data types: string, 'str', 'int', 'float', 'bool', 'set', 'list', 'dict', 'DataJson', 'Enum'
             - relationship types: 'single_rel', 'multi_rel'
             - other args: return the keys with property.info[arg] exists
@@ -150,6 +165,13 @@ class Base(DeclarativeBase):
                 if info == 'data':
                     info_keys = set(info_keys)
                 keys.update(info_keys)
+            elif info == 'polybase_data':
+                info_keys = set()
+                p_base = cls.get_polymorphic_base()
+                if p_base:
+                    info_keys = p_base.get_keys('data')
+                    keys.update(info_keys)
+                    cls.key_info[info] = info_keys
             elif info == 'pk':
                 info_keys = set()
                 for col in cls.__mapper__.primary_key:
