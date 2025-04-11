@@ -169,8 +169,9 @@
 {%- endblock alert -%}
 {%- block scripts -%}
 <script>
-  var fromTemplate = {}
-  fromTemplate['datajson_element_id_map'] = {{ datajson_element_id_map|tojson }};
-  fromTemplate['table_name'] = '{{ table_name }}';
+  var fromTemplate = {
+    table_name: '{{ table_name }}',
+    polymorphic_key: '{{ polymorphic_key }}'
+  }
 </script>
 {%- endblock scripts -%}
