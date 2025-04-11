@@ -13,7 +13,7 @@ class ClauseType(Enum):
     """
     { 'clause_entity', 'clause_scope', 'clause_expiry' }
     """
-    CLAUSE = 'clause without structured data'
+    CLAUSE = 'unstructured clause'
     CLAUSE_ENTITY = 'entity'
     CLAUSE_SCOPE = 'scope'
     CLAUSE_EXPIRY = 'expiry'
