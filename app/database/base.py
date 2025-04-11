@@ -112,7 +112,10 @@ class Base(DeclarativeBase):
         """
         cache = cls.key_info.get('headers', list())
         if not cache:
-            cache = cls.key_info['headers'] = [key for key in cls.key_info.get('data') if key not in cls.get_keys('hidden')] # type: ignore
+            cache = cls.key_info['headers'] = [ # type: ignore
+                key for key in cls.key_info['data'] 
+                if key not in cls.get_keys('hidden')
+            ] 
         return cache # type: ignore
 
     @classmethod
