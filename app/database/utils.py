@@ -60,10 +60,7 @@ def convert_value_by_python_type(value: Any, python_type: Any) -> Any:
     elif issubclass(python_type, DataJson) and (isinstance(value, str) or isinstance(value, dict)):
         converted_value = DataJson.get_obj(value)
     elif issubclass(python_type, Enum):
-        enum_data_type = type(next(iter(python_type.__members__.values())))
-        if not isinstance(value, enum_data_type):
-            converted_value = python_type(enum_data_type(value))
-        converted_value = python_type(value)
+        converted_value = python_type[value]
     else:
         raise AttributeError(f'Value {value} ({type(value).__name__}) of wrong format for key: ({python_type.__name__})')
     return converted_value
