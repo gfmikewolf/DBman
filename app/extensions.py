@@ -1,4 +1,6 @@
 # app/extensions.py
-from app.database import engine, db_session, Base, DataJson
+__all__ = ['engine', 'db_session', 'Base']
 
-__all__ = ['engine', 'db_session', 'Base', 'DataJson']
+from app.database import engine, db_session, Base
+
+
