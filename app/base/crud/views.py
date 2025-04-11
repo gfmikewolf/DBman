@@ -6,8 +6,8 @@ from typing import Any
 from flask import Response, render_template, request, jsonify, abort, url_for
 # app
 from config import Config
-from app import _
 from app.utils.templates import PageNavigation
+from app.utils.common import _
 from app.extensions import db_session, Base
 from .utils import fetch_instance, fetch_model_viewer, fetch_modify_form_viewer, fetch_related_objects, fetch_tabledata, fetch_select_options
 
@@ -18,11 +18,6 @@ navigation = PageNavigation ({
 """
 navigation is a PageNavigation object that manages the navigation links for the CRUD views.
 It contains links to the homepage and the CRUD index page.
-"""
-
-dbman_dict_name_list = Config.DATABASE_NAMES.split(',') # type: ignore
-"""
-db_dict is a list of database names, split by commas.
 """
 
 def index() -> str:
@@ -45,13 +40,17 @@ def view_table(table_name: str) -> str:
         navigation = navigation.get_nav({'View table': '#'}), 
         table_names=Base.model_map.keys(), 
         table_name=table_name,
-        data=tabledata,
-        dbman_dict_name_list=dbman_dict_name_list
+        data=tabledata
     )
 
 def modify_record(table_name: str, pks: str) -> Any:
     with db_session() as db_sess:
         instance = fetch_instance(table_name, pks, db_sess)
+        polymorphic_attr = instance.__mapper_args__.get('polymorphic_on', None)
+        if polymorphic_attr:
+            polymorphic_key = polymorphic_attr.name
+        else:
+            polymorphic_key = ''
         if request.method == 'GET':
             viewer_original = fetch_model_viewer(instance, db_sess)
             data = fetch_modify_form_viewer(instance, db_sess)
@@ -59,12 +58,12 @@ def modify_record(table_name: str, pks: str) -> Any:
             return render_template(
                 'crud/modify_record.jinja',
                 navigation = navigation.get_nav({'Modify record': '#'}), 
-                table_name = table_name, 
+                table_name = table_name,
+                polymorphic_key = polymorphic_key,
                 pks = pks,
                 data = data,
                 viewer_original = viewer_original,
-                datajson_element_id_map = datajson_element_id_map,
-                dbman_dict_name_list = dbman_dict_name_list
+                datajson_element_id_map = datajson_element_id_map
             )
         elif request.method == 'POST':
             try:
