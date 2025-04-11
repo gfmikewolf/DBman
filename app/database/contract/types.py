@@ -13,10 +13,10 @@ class ClauseType(Enum):
     """
     { 'clause_entity', 'clause_scope', 'clause_expiry' }
     """
-    BASIC = 'clause without structured data'
-    ENTITY = 'entity'
-    SCOPE = 'scope'
-    EXPIRY = 'expiry'
+    CLAUSE = 'clause without structured data'
+    CLAUSE_ENTITY = 'entity'
+    CLAUSE_SCOPE = 'scope'
+    CLAUSE_EXPIRY = 'expiry'
 
 class ClausePos(Enum):
     """
