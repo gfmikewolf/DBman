@@ -60,16 +60,17 @@ class Base(DeclarativeBase):
         """
         set default values for all new instances
         """
-        super().__init__(**kwargs)
-        for key in self.get_keys('data'):
+        super().__init__()
+        for key in self.get_keys('modifiable'):
             if key not in kwargs:
                 cls = self.__class__
                 prop = cls.__mapper__.columns.get(key)
                 if prop is not None:
                     default = prop.default
-                    if default:
-                        if default and hasattr(default, 'arg'):
-                            setattr(self, key, default.arg) # type: ignore
+                    if default and hasattr(default, 'arg'):
+                        setattr(self, key, default.arg) # type: ignore
+            else:
+                setattr(self, key, kwargs.get(key))
 
     @classmethod
     def __init_subclass__(cls, **kwargs):
@@ -117,10 +118,20 @@ class Base(DeclarativeBase):
     @classmethod
     def get_polymorphic_base(cls) -> type['Base'] | None:
         base_class = cls.__mapper__.base_mapper.class_
-        if base_class.__mapper_args__.get('polymorphic_on', None):
+        if hasattr(base_class, '__mapper_args__') and base_class.__mapper_args__.get('polymorphic_on', None):
             return base_class
         else:
             return None
+    
+    @classmethod
+    def get_polymorphic_key(cls) -> str:
+        key = ''
+        ma = getattr(cls, '__mapper_args__', None)
+        if ma:
+            polymorphic_attr = cls.__mapper_args__.get('polymorphic_on', None)
+            if polymorphic_attr:
+                key = polymorphic_attr.name
+        return key
     
     @classmethod
     def get_col_rel_map(cls, polymorphic_spec_only=False) -> dict[str, str]:
@@ -223,27 +234,45 @@ class Base(DeclarativeBase):
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
         return keys
-
-    def __setattr__(self, key: str, value: Any) -> None:
-        """
-        set data attribute of the class with the datatypes converted accordingly.
-        if the key is not in `cls.get_keys('data')`, it will be set as is.
-        
-        :raise AttributeError: if the key is not valid e.g. readonly for this class or 
-        the value is not valid for the key.
-        """
-        converted_value = value
-        if key in self.get_keys('data'):
-            readonly_keys = self.get_keys('readonly')
-            if key in readonly_keys:
-                raise AttributeError(f'Key {key} is readonly for {self}')
-            attr = getattr(self.__class__, key, None)
-            if attr is None:
-                raise AttributeError(f'Invalid key {key} for {self}')
-            if hasattr(attr, 'type') and hasattr(attr.type, 'python_type'):
-                converted_value = convert_value_by_python_type(value, attr.type.python_type)
-        super().__setattr__(key, converted_value)
-      
+    
+    @classmethod
+    def get_obj(cls, table_name: str, data: dict[str, Any]) -> 'Base':
+        data_cls = cls.model_map.get(table_name, None)
+        if data_cls is None:
+            raise KeyError(f'{table_name} not in Base.model_map')
+        if hasattr(data_cls, '__mapper_args__'):
+            ma = data_cls.__mapper_args__
+            if ma:
+                id_on = ma.get('polymorphic_on')
+                if id_on:
+                    id_key = id_on.name
+                    attr_type = getattr(data_cls, id_key).type.python_type
+                    if issubclass(attr_type, Enum):
+                        id_v = attr_type[data.get(id_key)] # type: ignore
+                    else:
+                        id_v = attr_type(data.get(id_key))
+                    pm = data_cls.__mapper__.polymorphic_map
+                data_cls = pm.get(id_v).class_ # type: ignore
+        conv_data = data_cls.convert_dict_by_attr_type(data) # type: ignore
+        return data_cls(**conv_data)
+    
+    @classmethod
+    def convert_dict_by_attr_type(cls, data: dict[str, Any]) -> dict[str, Any]:
+        conv_data = dict()
+        for key, value in data.items():
+            converted_value = value
+            if key in cls.get_keys('data'):
+                readonly_keys = cls.get_keys('readonly')
+                if key in readonly_keys:
+                    raise AttributeError(f'Key {key} is readonly for {cls}')
+                attr = getattr(cls, key, None)
+                if attr is None:
+                    raise AttributeError(f'Invalid key {key} for {cls}')
+                if hasattr(attr, 'type') and hasattr(attr.type, 'python_type'):
+                    converted_value = convert_value_by_python_type(value, attr.type.python_type)
+                conv_data[key] = converted_value
+        return conv_data
+    
     def data_dict(self, serializeable: bool = False) -> dict[str, Any]:
         """
         :return: a dictionary containing data of the instance.
