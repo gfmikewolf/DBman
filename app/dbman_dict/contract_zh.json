@@ -40,9 +40,9 @@
     "clause_remarks": "条款备注",
 
     "amendment": "变更",
-    "entity": "实体",
+    "new_entity": "新实体",
     "old_entity": "原实体",
-    "scope": "交付范围",
+    "new_scope": "新交付范围",
     "scopes": "交付范围",
     "old_scope": "原交付范围",
 
