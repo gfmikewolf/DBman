@@ -44,17 +44,12 @@ def view_table(table_name: str) -> str:
     )
 
 def modify_record(table_name: str, pks: str) -> Any:
-    with db_session() as db_sess:
-        instance = fetch_instance(table_name, pks, db_sess)
-        polymorphic_attr = instance.__mapper_args__.get('polymorphic_on', None)
-        if polymorphic_attr:
-            polymorphic_key = polymorphic_attr.name
-        else:
-            polymorphic_key = ''
         if request.method == 'GET':
-            viewer_original = fetch_model_viewer(instance, db_sess)
-            data = fetch_modify_form_viewer(instance, db_sess)
-            datajson_element_id_map = instance.get_col_datajson_id_map()
+            with db_session() as db_sess:
+                instance = fetch_instance(table_name, pks, db_sess)
+                polymorphic_key = instance.get_polymorphic_key()
+                viewer_original = fetch_model_viewer(instance, db_sess)
+                data = fetch_modify_form_viewer(instance, db_sess)
             return render_template(
                 'crud/modify_record.jinja',
                 navigation = navigation.get_nav({'Modify record': '#'}), 
@@ -63,20 +58,18 @@ def modify_record(table_name: str, pks: str) -> Any:
                 pks = pks,
                 data = data,
                 viewer_original = viewer_original,
-                datajson_element_id_map = datajson_element_id_map
             )
         elif request.method == 'POST':
-            try:
-                instance.update_data(request.get_json())
-                if pks == '_new':
-                    db_sess.add(instance)
-                db_sess.commit()
-                return jsonify(success=True), 200
-            except Exception as e:
-                db_sess.rollback()
-                return jsonify(success=False, error=str(e)), 500
-        else:
-            abort(404)
+            with db_session() as db_sess:
+                try:    
+                    instance = Base.get_obj(table_name, request.get_json())
+                    if pks == '_new':
+                        db_sess.add(instance)
+                    db_sess.commit()
+                    return jsonify(success=True), 200
+                except Exception as e:
+                    db_sess.rollback()
+                    return jsonify(success=False, error=str(e)), 500
 
 def delete_record(table_name: str, pks: str) -> Response | tuple[Response, int]:
     if request.method != 'DELETE':
