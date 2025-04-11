@@ -266,7 +266,7 @@ class Base(DeclarativeBase):
         :return: dict {DataJson_local_col.key: DataJson_id_col.key }
         """
         ele_id_map = dict()
-        for key in cls.key_info['DataJson']:
+        for key in cls.get_keys('DataJson'):
             attr = getattr(cls, key)
             if hasattr(attr, 'info'):
                 element_key = attr.info.get('DataJson_id_key', None)
