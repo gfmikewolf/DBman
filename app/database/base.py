@@ -207,7 +207,7 @@ class Base(DeclarativeBase):
                 keys.update(info_keys)
             elif info in {'date', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'DataJson', 'Enum'}:
                 info_keys = set()
-                for key in cls.get_keys('data') - cls.get_keys('single_rel'):
+                for key in cls.get_keys('modifiable'):
                     attr = getattr(cls, key)
                     if hasattr(attr, 'type') and hasattr(attr.type, 'python_type'):
                         if issubclass(attr.type.python_type, eval(info)):
@@ -252,7 +252,7 @@ class Base(DeclarativeBase):
                     else:
                         id_v = attr_type(data.get(id_key))
                     pm = data_cls.__mapper__.polymorphic_map
-                data_cls = pm.get(id_v).class_ # type: ignore
+                    data_cls = pm.get(id_v).class_ # type: ignore
         conv_data = data_cls.convert_dict_by_attr_type(data) # type: ignore
         return data_cls(**conv_data)
     
