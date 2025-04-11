@@ -101,12 +101,14 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     property = getattr(instance, key, None)
     if property is None or property == '' or (isinstance(property, (list, set, tuple, dict)) and len(property) == 0):
         value = ''
-    elif isinstance(property, list) and isinstance(next(iter(property)), Base):
-        value = ','.join([get_viewable_instance(r_i) for r_i in property])
-    elif isinstance(property, set) and isinstance(next(iter(property)), int):
-        value = ','.join(map(str, property))
+    elif isinstance(property, (list, set, tuple)):
+        sample = next(iter(property))
+        if isinstance(sample, Base):
+            value = ', '.join(map(get_viewable_instance, property))
+        else:
+            value = ', '.join(map(str, property))
     elif isinstance(property, Enum):
-        value = _(property.name, True)
+        value = _(property.value, True)
     elif isinstance(property, Base):
         value = get_viewable_instance(property)
     elif isinstance(property, DataJson):
@@ -362,7 +364,7 @@ def fetch_modify_form_viewer(
             if key in instance.get_keys('Enum'):
                 tag = 'select'
                 if value:
-                    value = value.value # type: ignore
+                    value = value.name # type: ignore
                 options = select_options[key]
                 data[key] = (tag, name, value, is_required, options)
             else:
