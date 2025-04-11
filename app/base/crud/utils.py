@@ -330,12 +330,14 @@ def fetch_modify_form_viewer(
     base_data_keys = set()
     if polymorphic_spec_only:
         base_data_keys = instance.get_keys('polybase_data')
+    polymorphic_spec_only = polymorphic_spec_only and bool(base_data_keys)
     col_rel_map = instance.get_col_rel_map(polymorphic_spec_only)
     select_options = fetch_select_options(instance.__class__, db_session, polymorphic_spec_only)
 
     for key in [key for key in instance.key_info['data'] if key in instance.get_keys('modifiable') - base_data_keys]:
         is_required = key in instance.get_keys('required')
         value = getattr(instance, key, None) or ''
+        
         if key in col_rel_map and key not in instance.get_keys('pk'):
             name = _(col_rel_map[key], True)
             tag = 'select'
@@ -352,7 +354,10 @@ def fetch_modify_form_viewer(
             else:
                 if key in instance.get_keys('date'):
                     tag = 'date'
-                    value = value.isoformat() # type: ignore
+                    try:
+                        value = value.isoformat() # type: ignore
+                    except:
+                        value = ''
                 elif key in instance.get_keys('longtext'):
                     tag = 'textarea'
                 elif key in instance.get_keys('DataJson'):
@@ -362,4 +367,3 @@ def fetch_modify_form_viewer(
                     tag = 'text'
                 data[key] = (tag, name, value, is_required)
     return data
-
