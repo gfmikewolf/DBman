@@ -24,7 +24,6 @@ class FormModifyMJ extends ContainerMJ {
   _initProperties(container, modalAlert) {
     super._initProperties && super._initProperties(container, modalAlert);
     this.extendedContainerCache = {}
-    this.initialData = new FormData(this.container);
     this.polymorphic_key = fromTemplate['polymorphic_key'];
   }
 
@@ -40,6 +39,7 @@ class FormModifyMJ extends ContainerMJ {
       this._initPolymorphicViewer();
     }
     // this._initDatajson();
+    this.initialData = new FormData(this.container);
   }
 
   _initPolymorphicViewer() {
@@ -75,10 +75,10 @@ class FormModifyMJ extends ContainerMJ {
       currentData = new FormData(this.container);
     }
     const dataModified = {}
-    for (let [key, origValue] of this.initialData.entries()) {
-      const currentValue = currentData.get(key)
-      if ( currentValue !== origValue) {
-        dataModified[key] = currentValue
+    for (let [key, value] of currentData.entries()) {
+      const originalValue = this.initialData.get(key)
+      if ( (value || originalValue) && value !== originalValue) {
+        dataModified[key] = value
       }
     }
     return dataModified;
