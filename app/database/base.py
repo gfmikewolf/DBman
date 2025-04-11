@@ -152,8 +152,9 @@ class Base(DeclarativeBase):
             base_data_keys = cls.get_keys('polybase_data')
 
         for r in cls.__mapper__.relationships:
-            local_col_key = next(iter(r.local_columns)).key
-            cond = (not r.uselist) and (r.secondary is None)
+            local_col = next(iter(r.local_columns))
+            local_col_key = local_col.key
+            cond = (not r.uselist) and (r.secondary is None) and (local_col.foreign_keys)
             if cond and local_col_key not in base_data_keys:
                 crm[local_col_key] = r.key
         return crm
