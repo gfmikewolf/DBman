@@ -354,7 +354,7 @@ def fetch_modify_form_viewer(
         is_required = key in instance.get_keys('required')
         value = getattr(instance, key, None) or ''
         
-        if key in col_rel_map and key not in instance.get_keys('pk'):
+        if key in col_rel_map:
             name = _(col_rel_map[key], True)
             tag = 'select'
             options = select_options[key]
