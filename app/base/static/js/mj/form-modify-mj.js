@@ -1,7 +1,9 @@
 // mj/form-modify-mj.js
 import { ContainerMJ } from './container-mj.js';
 import { ModalAlertMJ } from './modal-alert-mj.js';
-import { DatajsonMJ } from './datajson-mj.js';
+// import { DatajsonMJ } from './datajson-mj.js';
+import { createElement } from './utils-mj.js';
+import { getElement } from './utils-mj.js';
 
 class FormModifyMJ extends ContainerMJ {
   constructor(container, modalAlert) {
@@ -21,11 +23,9 @@ class FormModifyMJ extends ContainerMJ {
 
   _initProperties(container, modalAlert) {
     super._initProperties && super._initProperties(container, modalAlert);
+    this.extendedContainerCache = {}
     this.initialData = new FormData(this.container);
-    this.datajsonElementIdMap = fromTemplate['datajson_element_id_map'];
-    if (typeof this.datajsonElementIdMap !== 'object') {
-      throw new TypeError(`${this.datajsonElementIdMap} is not object.`);
-    }
+    this.polymorphic_key = fromTemplate['polymorphic_key'];
   }
 
   _initFunctions(container, modalAlert) {
@@ -36,7 +36,38 @@ class FormModifyMJ extends ContainerMJ {
     this.deleteButtons.forEach(btn => {
       btn.addEventListener('click', this._delete.bind(this));
     });
-    this._initDatajson();
+    if(this.polymorphic_key) {
+      this._initPolymorphicViewer();
+    }
+    // this._initDatajson();
+  }
+
+  _initPolymorphicViewer() {
+    const cardBody = getElement('.card-body', this.container);
+    const extendedContainer = createElement(
+      'div',
+      cardBody,
+      'container',
+      {id : 'extended-data'},
+      ''
+    );
+    const polyKeyEle = getElement(
+      `select[name="${this.polymorphic_key}"]`, this.container
+    );
+    let extendedViewerContent;
+    polyKeyEle.addEventListener('change', async () => {
+      const newPolyKey = polyKeyEle.value
+      if (Object.keys(this.extendedContainerCache).includes(newPolyKey)) {
+        extendedViewerContent = this.extendedContainerCache[newPolyKey];
+      } else {
+        const response = await fetch(`/api/pages/spec_form_entries/${newPolyKey}`);
+        if (response.ok) {
+          extendedViewerContent = await response.text();
+        }
+        this.extendedContainerCache[newPolyKey] = extendedViewerContent
+      }
+      extendedContainer.innerHTML = extendedViewerContent;
+    });
   }
 
   _dataModified(currentData = null) {
@@ -165,6 +196,7 @@ class FormModifyMJ extends ContainerMJ {
     });
   }
 
+/*
   _initDatajson() {  
     Object.entries(this.datajsonElementIdMap).forEach(([key, value]) => {
       let idElement = null;
@@ -188,6 +220,7 @@ class FormModifyMJ extends ContainerMJ {
       }
     });
   }
+*/
 }
 
 export { FormModifyMJ };
