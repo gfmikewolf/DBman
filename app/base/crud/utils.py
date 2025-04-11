@@ -5,7 +5,8 @@ from flask import abort, url_for
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
 from app.utils.common import _
-from app.extensions import Base, DataJson
+from app.extensions import Base
+from app.database.base import DataJson
 
 def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
     """
@@ -97,7 +98,7 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     """
     :return: a string representation of the value of the key in the instance.
     """
-    property = getattr(instance, key)
+    property = getattr(instance, key, None)
     if property is None or property == '' or (isinstance(property, (list, set, tuple, dict)) and len(property) == 0):
         value = ''
     elif isinstance(property, list) and isinstance(next(iter(property)), Base):
@@ -227,7 +228,7 @@ def fetch_select_list(Model: type[Base], db_session: Session, order_by: Any = No
         pks_name_list.append((pks, row[-1]))
     return pks_name_list
 
-def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) -> dict[str, list[tuple[Any, str]]]:
+def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session, polymorphic_spec_only: bool=False) -> dict[str, list[tuple[Any, str]]]:
     """
     :return: a dict of select options for each relationship and enum type column
 
@@ -236,6 +237,10 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) 
     """
     
     select_options = dict()
+    base_data_keys = set()
+    if polymorphic_spec_only:
+        base_data_keys = Model.get_keys('polybase_data')
+
     if issubclass(Model, Base):
         # Extract foreign key col and referenced pks and name tuple for each relationship
         mapper = Model.__mapper__
@@ -245,18 +250,20 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) 
                 continue
             ref_Model = rel.entity.class_
             local_col_key = next(iter(rel.local_columns)).key
+            if local_col_key in base_data_keys:
+                continue
             select_order = rel.info.get('select_order', None)
             pks_name_list = fetch_select_list(ref_Model, db_session, order_by=select_order) 
             select_options[local_col_key] = pks_name_list
         
         # Extract Enum types and get options from Enum definition
-        enum_keys = Model.get_keys('Enum')
+        enum_keys = Model.get_keys('Enum') - base_data_keys
         for key in enum_keys:
             attr = getattr(Model, key)
             enum_Model = attr.type.python_type
             if not issubclass(enum_Model, Enum):
                 raise AttributeError(f'Invalid enum_Model {enum_Model} for {Model}')
-            value_name_list = [(member.value, _(member.name, True)) for member in enum_Model]
+            value_name_list = [(member.name, _(member.value, True)) for member in enum_Model]
             select_options[key] = value_name_list       
     elif issubclass(Model, DataJson):
         for rel_key, rel_info in Model.rel_info.items(): # type: ignore
@@ -271,7 +278,7 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session) 
             attr = getattr(Model, key)
             if not isinstance(attr, Enum):
                 raise AttributeError(f'Invalid enum_key {key} for {Model}')
-            value_name_list = [(member.value, _(member.name, True)) for member in type(attr)]
+            value_name_list = [(member.name, _(member.value, True)) for member in type(attr)]
             select_options[key] = value_name_list
     else:
         raise TypeError(f'Invalid Model type {Model}')
@@ -300,7 +307,8 @@ def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[
 
 def fetch_modify_form_viewer(
         instance: Base, 
-        db_session: Session, 
+        db_session: Session,
+        polymorphic_spec_only: bool = False
     ) -> dict[str, Any]:
     """
     :return: a dict of data for the modify form.
@@ -319,10 +327,13 @@ def fetch_modify_form_viewer(
     ```
     """
     data = dict()
-    col_rel_map = instance.get_col_rel_map()
-    select_options = fetch_select_options(instance.__class__, db_session=db_session)
+    base_data_keys = set()
+    if polymorphic_spec_only:
+        base_data_keys = instance.get_keys('polybase_data')
+    col_rel_map = instance.get_col_rel_map(polymorphic_spec_only)
+    select_options = fetch_select_options(instance.__class__, db_session, polymorphic_spec_only)
 
-    for key in [key for key in instance.key_info['data'] if key in instance.get_keys('modifiable')]:
+    for key in [key for key in instance.key_info['data'] if key in instance.get_keys('modifiable') - base_data_keys]:
         is_required = key in instance.get_keys('required')
         value = getattr(instance, key, None) or ''
         if key in col_rel_map and key not in instance.get_keys('pk'):
@@ -351,3 +362,4 @@ def fetch_modify_form_viewer(
                     tag = 'text'
                 data[key] = (tag, name, value, is_required)
     return data
+
