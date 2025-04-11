@@ -80,5 +80,9 @@
     "date": "日",
     "linked to": "关联到",
     "another": "另一",
-    "later of last child contract or an expiry date": "最晚子合同到期日与固定日期取孰晚"
+    "later of last child contract or an expiry date": "最晚子合同到期日与固定日期取孰晚",
+    "parent_contract": "母合同",
+    "child_contract": "子合同",
+    "contract__map__contract": "合同业务关系",
+    "contract__legal_map__contract": "合同法律关系"
 }
