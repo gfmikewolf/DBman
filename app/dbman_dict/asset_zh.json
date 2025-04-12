@@ -44,11 +44,19 @@
     "account": "账户",
     "financial_organization": "金融机构",
     "bank": "银行",
-    "identifier": "标识符(如账户号码)",
     "owner": "所有者",
     "accounts": "账户",
-    "parent_account": "上级账户",
-    "child_accounts": "下级账户",
-    "account_type": "账户类型"
+    "parent_account": "母账户",
+    "child_accounts": "子账户",
+    "account_type": "账户类型",
+    "bank_account": "银行账户",
+    "brokerage_account": "经纪账户",
+    "cash_account": "现金账户",
+    "crypto_account": "加密货币账户",
+    "other_account": "其他账户",
+    "loan_account": "贷款账户",
+    "account_number": "账户号码",
+    "male": "男",
+    "female": "女"
 
 }

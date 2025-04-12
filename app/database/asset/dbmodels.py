@@ -1,7 +1,7 @@
 from sqlalchemy import Integer, String, Enum as SqlEnum, ForeignKey
 from sqlalchemy.orm import mapped_column, Mapped, synonym, relationship
 from ..base import Base
-from .types import AccountType
+from .types import AccountType, Gender
 
 
 class ExpenseType(Base):
@@ -48,7 +48,7 @@ class Manager(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str]
     nationality_code: Mapped[str | None] = mapped_column(String, ForeignKey('area.code'))
-    gender: Mapped[str | None]
+    gender: Mapped[Gender | None] = mapped_column(SqlEnum(Gender))
     address: Mapped[str | None] = mapped_column(info={'longtext': True})
     email: Mapped[str | None]
     phone_number: Mapped[str | None]
@@ -155,7 +155,7 @@ class Account(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nickname: Mapped[str]
-    owner_id: Mapped[int | None] = mapped_column(ForeignKey('manager.id'))
+    owner_id: Mapped[int] = mapped_column(ForeignKey('manager.id'))
     owner: Mapped['Manager'] = relationship(lazy='selectin')
     account_type: Mapped[AccountType] = mapped_column(SqlEnum(AccountType))
     currency_code: Mapped[str | None] = mapped_column(ForeignKey('currency.code'))
@@ -304,7 +304,7 @@ class CryptoAccount(Account):
             'owner',
             'currency_code',
             'currency',
-            'account_number'
+            'account_number',
             'parent_id',
             'parent_account'
         ),
@@ -336,7 +336,7 @@ class LoanAccount(Account):
             'currency',
             'account_number',
             'organization_id',
-            'organization'
+            'organization',
             'parent_id',
             'parent_account'
         ),

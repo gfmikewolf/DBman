@@ -43,20 +43,13 @@ class FormModifyMJ extends ContainerMJ {
   }
 
   _initPolymorphicViewer() {
-    const cardBody = getElement('.card-body', this.container);
-    const extendedContainer = createElement(
-      'div',
-      cardBody,
-      'container',
-      {id : 'extended-data'},
-      ''
-    );
+    const extendedContainer = getElement('#extended-data');
     const polyKeyEle = getElement(
       `select[name="${this.polymorphic_key}"]`, this.container
     );
     let extendedViewerContent;
     polyKeyEle.addEventListener('change', async () => {
-      const newPolyKey = polyKeyEle.value
+      const newPolyKey = polyKeyEle.value;
       if (Object.keys(this.extendedContainerCache).includes(newPolyKey)) {
         extendedViewerContent = this.extendedContainerCache[newPolyKey];
       } else {
@@ -134,7 +127,6 @@ class FormModifyMJ extends ContainerMJ {
     event.stopPropagation();
     // back to previous page when the form is submitted successfully
 
-
     this.container.querySelectorAll('select[required]').forEach(select => {
       if (select.value === '') {
         select.classList.add('is-invalid');
@@ -162,7 +154,7 @@ class FormModifyMJ extends ContainerMJ {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(dataModified)
+      body: JSON.stringify(Object.fromEntries(new FormData(this.container)))
     })
     .then(async response => {
       if (response.ok) {

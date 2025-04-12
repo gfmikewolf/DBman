@@ -4,6 +4,7 @@ from enum import Enum
 from flask import abort, url_for
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
+from app import base
 from app.utils.common import _
 from app.extensions import Base
 from app.database.base import DataJson
@@ -11,7 +12,6 @@ from app.database.base import DataJson
 def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
     """
     Fetch a model instance from the database based on the table name and pks (primary keys).
-    If pks is '_new', a new instance of the model is created.
 
     :returns: A Base model derived from DeclarativeBase.
     :param table_name: The name of the table to fetch the model from.
@@ -28,15 +28,12 @@ def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
         abort(404)
     Model = Base.model_map[table_name]
     if pks == '_new':
-        model = Model()
-    else:
-        pk_value_tuple = tuple(pks.split(','))
-        if not db_session:
-            raise DatabaseError(f'db_session must be initialized')
-        model = db_session.get(Model, pk_value_tuple)
-    if model is None:
+        return Model()
+    pk_value_tuple = tuple(pks.split(','))
+    instance = db_session.get(Model, pk_value_tuple)
+    if instance is None:
         abort(404)
-    return model
+    return instance
 
 def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
     """
@@ -98,6 +95,8 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     """
     :return: a string representation of the value of the key in the instance.
     """
+    if not hasattr(instance, key):
+        value = ''
     property = getattr(instance, key, None)
     if property is None or property == '' or (isinstance(property, (list, set, tuple, dict)) and len(property) == 0):
         value = ''
@@ -218,7 +217,7 @@ def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]
                     rel_prop, rel.entity.class_.__tablename__
             )
     
-    for key in instance.get_keys('data') - rs.keys() - rm.keys():
+    for key in instance.get_keys('list', 'set', 'tuple') - rs.keys() - rm.keys():
         attrs = getattr(instance, key, None)
         if attrs and isinstance(attrs, (list, set, tuple)):
             sample = next(iter(attrs))
@@ -241,7 +240,8 @@ def fetch_select_list(Model: type[Base], db_session: Session, order_by: Any = No
     pks_name_list = []
     for row in result:
         pks = ','.join([str(pk) for pk in row[:-1]])
-        pks_name_list.append((pks, row[-1]))
+        name = _(row[-1], True) if '_name' in Model.get_keys('translate') else row[-1] # type: ignore
+        pks_name_list.append((pks, name))
     return pks_name_list
 
 def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session, polymorphic_spec_only: bool=False) -> dict[str, list[tuple[Any, str]]]:
@@ -323,15 +323,14 @@ def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[
 
 def fetch_modify_form_viewer(
         instance: Base, 
-        db_session: Session,
-        polymorphic_spec_only: bool = False
-    ) -> dict[str, Any]:
+        db_session: Session
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     :return: a dict of data for the modify form.
 
     .. example::
     ```python
-        data = fetch_modify_form_viewer(instance, db_session)
+        base_data, spec_data = fetch_modify_form_viewer(instance, db_session)
         data = {
             'name': ('text', 'Name', 'John Doe', IsRequired:bool),
             'agelevel': ('select', 'Age', 1, False, [(1, '10'), (2, '20')]),
@@ -343,14 +342,15 @@ def fetch_modify_form_viewer(
     ```
     """
     data = dict()
-    base_data_keys = set()
-    if polymorphic_spec_only:
-        base_data_keys = instance.get_keys('polybase_data')
-    polymorphic_spec_only = polymorphic_spec_only and bool(base_data_keys)
-    col_rel_map = instance.get_col_rel_map(polymorphic_spec_only)
-    select_options = fetch_select_options(instance.__class__, db_session, polymorphic_spec_only)
+    spec_data = dict()
+    base_data_keys = instance.get_keys('polybase_data')
+    col_rel_map = instance.get_col_rel_map()
+    select_options = fetch_select_options(instance.__class__, db_session)
 
-    for key in [key for key in instance.key_info['data'] if key in instance.get_keys('modifiable') - base_data_keys]:
+    for key in [
+        key for key in instance.key_info['data'] 
+        if key in instance.get_keys('modifiable')
+    ]:
         is_required = key in instance.get_keys('required')
         value = getattr(instance, key, None) or ''
         
@@ -358,7 +358,7 @@ def fetch_modify_form_viewer(
             name = _(col_rel_map[key], True)
             tag = 'select'
             options = select_options[key]
-            data[key] = (tag, name, str(value), is_required, options)
+            r = (tag, name, str(value), is_required, options)
         else:
             name = _(key, True)
             if key in instance.get_keys('Enum'):
@@ -366,7 +366,7 @@ def fetch_modify_form_viewer(
                 if value:
                     value = value.name # type: ignore
                 options = select_options[key]
-                data[key] = (tag, name, value, is_required, options)
+                r = (tag, name, value, is_required, options)
             else:
                 if key in instance.get_keys('date'):
                     tag = 'date'
@@ -381,5 +381,9 @@ def fetch_modify_form_viewer(
                     value = value.dumps() if value else ''
                 else:
                     tag = 'text'
-                data[key] = (tag, name, value, is_required)
-    return data
+                r = (tag, name, value, is_required)
+        if key in base_data_keys:
+            data[key] = r
+        else:
+            spec_data[key] = r
+    return data, spec_data

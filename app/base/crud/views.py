@@ -1,16 +1,20 @@
 # app/base/crud/views.py
 
 # python
+from enum import Enum
+from hmac import new
 from typing import Any
 # flask
 from flask import Response, render_template, request, jsonify, abort, url_for
+# sqlalchemy
+from sqlalchemy import delete, inspect
 # app
-from config import Config
+from app import base
+from app.database.utils import convert_value_by_python_type
 from app.utils.templates import PageNavigation
 from app.utils.common import _
 from app.extensions import db_session, Base
 from .utils import fetch_instance, fetch_model_viewer, fetch_modify_form_viewer, fetch_related_objects, fetch_tabledata, fetch_select_options
-from sqlalchemy import delete
 
 navigation = PageNavigation ({
     '_homepage': '/',
@@ -45,27 +49,33 @@ def view_table(table_name: str) -> str:
     )
 
 def modify_record(table_name: str, pks: str) -> Any:
-    if request.method == 'GET':
-        with db_session() as db_sess:
-            instance = fetch_instance(table_name, pks, db_sess)
-            polymorphic_key = instance.get_polymorphic_key()
+    with db_session() as db_sess:
+        instance = fetch_instance(table_name, pks, db_sess)
+        polymorphic_key = instance.get_polymorphic_key()
+        if request.method == 'GET':
             viewer_original = fetch_model_viewer(instance, db_sess)
-            data = fetch_modify_form_viewer(instance, db_sess)
-        return render_template(
-            'crud/modify_record.jinja',
-            navigation = navigation.get_nav({'Modify record': '#'}), 
-            table_name = table_name,
-            polymorphic_key = polymorphic_key,
-            pks = pks,
-            data = data,
-            viewer_original = viewer_original,
-        )
-    elif request.method == 'POST':
-        with db_session() as db_sess:
-            try:    
-                instance = Base.get_obj(table_name, request.get_json())
-                if pks == '_new':
-                    db_sess.add(instance)
+            base_data, spec_data = fetch_modify_form_viewer(instance, db_sess)
+            return render_template(
+                'crud/modify_record.jinja',
+                navigation = navigation.get_nav({'Modify record': '#'}), 
+                table_name = table_name,
+                polymorphic_key = polymorphic_key,
+                data = base_data,
+                spec_data = spec_data,
+                pks = pks,
+                viewer_original = viewer_original,
+            )
+        elif request.method == 'POST':
+            form_data = request.get_json()
+            if not form_data:
+                return jsonify(success=False, error=_('No data provided')), 400
+            if pks == '_new':
+                instance = Base.get_obj(table_name, form_data)
+                db_sess.add(instance)
+            else:
+                instance = fetch_instance(table_name, pks, db_sess)
+                instance.update_data(form_data)
+            try:
                 db_sess.commit()
                 return jsonify(success=True), 200
             except Exception as e:
@@ -75,19 +85,10 @@ def modify_record(table_name: str, pks: str) -> Any:
 def delete_record(table_name: str, pks: str) -> Response | tuple[Response, int]:
     if request.method != 'DELETE':
         abort(404)
-    if table_name not in Base.model_map:
-        abort(404)
-    Model = Base.model_map[table_name]
-    pks_tuple = tuple(pks.split(','))
-
     with db_session() as sess:
-        pk_columns = Model.__mapper__.primary_key
-        if len(pk_columns) != len(pks_tuple):
-            abort(400, description="PK number mismatched")
-        conditions = [col == pk for col, pk in zip(pk_columns, pks_tuple)]
-        stmt = delete(Model).where(*conditions)
+        instance = fetch_instance(table_name, pks, sess)
         try:
-            sess.execute(stmt)
+            sess.delete(instance)
             sess.commit()
             return jsonify(success=True), 200 
         except Exception as e:  

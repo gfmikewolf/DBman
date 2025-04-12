@@ -10,9 +10,11 @@ import json
 from abc import ABC, abstractmethod
 
 # sqlalchemy
+from sqlalchemy import delete, insert, inspect, update
 from sqlalchemy.orm import DeclarativeBase
 
 # app
+from app import base
 from app.utils.common import args_to_dict
 from .utils import serialize_value, convert_value_by_python_type
 
@@ -85,25 +87,80 @@ class Base(DeclarativeBase):
         if cls.key_info is NotImplemented:
             cls.key_info = dict()
 
+    @classmethod
+    def convert_value_by_data_type(cls, key: str, value: Any) -> Any:
+        if key not in cls.get_keys('modifiable'):
+            raise AttributeError(f'Key {key} is not modifiable for {cls}')
+        attr = getattr(cls, key)
+        attr_type = attr.type.python_type # assume all modifiable attributes are of type ColumnProperty
+        return convert_value_by_python_type(value, attr_type)
+    
     def update_data(self, data: str | dict | None = None, **kwargs: Any) -> None:
         """
         Update the data of an instance with `data` and `kwargs`.
         if the instance is new, entries not specified will be filled with default values.
         if the instance exists in database, only entries in parameters will be updated.
-        .. attention:: This method will only update the data in the instance.
+        .. attention:: This method will use active session to update the instance including creating new instance in case of polymorphic class.
 
         :param data: string or dict or none, json string or dict to be converted to DataJson object.
         :param kwargs: other keyword arguments which override the correspondent entries in parameter `data`.
         """
         args_dict = args_to_dict(data, **kwargs)
-        mod_keys = self.get_keys('modifiable')
-        json_keys = self.get_keys('DataJson')
-        if args_dict.keys() - mod_keys: # check if there is any keys not modifiable
-            raise KeyError(f'Invalid keys: {args_dict.keys() - mod_keys}')
+        old_cls = self.__class__
+        i_old_cls = inspect(old_cls)
+        if i_old_cls.polymorphic_identity is not None: # either base or sub class of a polymorphic class
+            poly_base_cls = old_cls
+            poly_on = i_old_cls.polymorphic_on
+            poly_base_cls = i_old_cls.base_mapper.class_
+            if poly_base_cls is None or inspect(poly_base_cls).polymorphic_on is None:
+                poly_base_cls = old_cls
+            
+            poly_key = poly_on.name # type: ignore
+            new_poly_name = args_dict.get(poly_key)
+            old_poly_id = getattr(self, poly_key)
+            new_poly_id = type(old_poly_id)[new_poly_name] # type: ignore assume poly identity is always Enum type
+            if new_poly_id != old_poly_id:
+                pk_cols = i_old_cls.primary_key
+                pk_values = i_old_cls.primary_key_from_instance(self)
+                pk_keys = [pk_col.key for pk_col in pk_cols]
+                new_cls_item = i_old_cls.polymorphic_map.get(new_poly_id, None)
+                if new_cls_item is None:
+                    raise ValueError(f'{new_poly_id} not in {old_cls} polymorphic_map')
+                new_cls = new_cls_item.class_
+                i_self = inspect(self)
+                sess = i_self.session
+                if sess is None:
+                    raise ValueError(f'Instance {self} not in session')
+                if new_cls is None:
+                    raise ValueError(f'{new_poly_id} not in {old_cls} polymorphic_map')
+                if old_cls != poly_base_cls: # old class is base and new is sub
+                    from sqlalchemy import select
+                    old_table = old_cls.__table__
+                    conditions = [
+                        old_table.columns[pk_key]==pk_value 
+                        for pk_key, pk_value in zip(pk_keys, pk_values)
+                    ]
+                    sess.execute(delete(old_cls.__table__).where(*conditions)) # type: ignore
+                base_update_dict = dict()
+                new_update_dict = dict()
+                for key in args_dict:
+                    if key in poly_base_cls.get_keys('modifiable'):
+                        base_update_dict[key] = poly_base_cls.convert_value_by_data_type(key, args_dict[key])
+                    elif key in new_cls.get_keys('modifiable'):
+                        new_update_dict[key] = new_cls.convert_value_by_data_type(key, args_dict[key])
+                pk_conditions = [
+                    poly_base_cls.__table__.columns[pk_col.key]==pk_value 
+                    for pk_col, pk_value in zip(pk_cols, pk_values)]
+                sess.execute(update(poly_base_cls).values(**base_update_dict).where(*pk_conditions))
+                # insert new sub-class data
+                if new_cls != poly_base_cls:
+                    for key, value in zip(pk_keys, pk_values):
+                        new_update_dict[key] = value
+                    sess.execute(insert(new_cls).values(**new_update_dict))
+                return
         for key, value in args_dict.items():
-            if key in json_keys:
-                value = DataJson.get_obj(value)
-            setattr(self, key, value)
+            if key in self.get_keys('modifiable'):
+                setattr(self, key, old_cls.convert_value_by_data_type(key, value))
 
     @classmethod
     def get_headers(cls) -> list[str]:
@@ -119,25 +176,31 @@ class Base(DeclarativeBase):
         return cache # type: ignore
 
     @classmethod
-    def get_polymorphic_base(cls) -> type['Base'] | None:
-        base_class = cls.__mapper__.base_mapper.class_
-        if hasattr(base_class, '__mapper_args__') and base_class.__mapper_args__.get('polymorphic_on', None):
-            return base_class
-        else:
+    def get_polymorphic_base(cls) -> Optional[type['Base']]:
+        """
+        :return: the base class of the polymorphic class. None if not polymorphic.
+        """
+        insp = inspect(cls)
+        if insp.polymorphic_identity is None:
             return None
+        base_mapper = insp.base_mapper
+        base_cls = base_mapper.class_
+        if base_cls is None or base_mapper.polymorphic_on is None:
+            return cls
+        else:
+            return base_cls
+
+    @classmethod
+    def get_polymorphic_key(cls) -> str: # type: ignore
+        """
+        :return: the key of the polymorphic class. Empty string if not polymorphic.
+        """
+        if inspect(cls).polymorphic_identity is not None:
+            return inspect(cls).polymorphic_on.name # type: ignore
+        return ''
     
     @classmethod
-    def get_polymorphic_key(cls) -> str:
-        key = ''
-        ma = getattr(cls, '__mapper_args__', None)
-        if ma:
-            polymorphic_attr = cls.__mapper_args__.get('polymorphic_on', None)
-            if polymorphic_attr:
-                key = polymorphic_attr.name
-        return key
-    
-    @classmethod
-    def get_col_rel_map(cls, polymorphic_spec_only=False) -> dict[str, str]:
+    def get_col_rel_map(cls) -> dict[str, str]:
         """
         :return: a dict of the single relationship map for the class.
 
@@ -148,14 +211,12 @@ class Base(DeclarativeBase):
         """
         crm = dict()
         base_data_keys = set()
-        if polymorphic_spec_only:
-            base_data_keys = cls.get_keys('polybase_data')
 
         for r in cls.__mapper__.relationships:
             local_col = next(iter(r.local_columns))
             local_col_key = local_col.key
             cond = (not r.uselist) and (r.secondary is None) and (local_col.foreign_keys)
-            if cond and local_col_key not in base_data_keys:
+            if cond and local_col_key:
                 crm[local_col_key] = r.key
         return crm
     
@@ -209,7 +270,7 @@ class Base(DeclarativeBase):
                 info_keys = cls.get_keys('data') - cls.get_keys('hidden')
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
-            elif info in {'date', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'DataJson', 'Enum'}:
+            elif info in {'date', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'tuple' 'DataJson', 'Enum'}:
                 info_keys = set()
                 for key in cls.get_keys('modifiable'):
                     attr = getattr(cls, key)
@@ -243,21 +304,21 @@ class Base(DeclarativeBase):
     def get_obj(cls, table_name: str, data: dict[str, Any]) -> 'Base':
         data_cls = cls.model_map.get(table_name, None)
         if data_cls is None:
-            raise KeyError(f'{table_name} not in Base.model_map')
-        if hasattr(data_cls, '__mapper_args__'):
-            ma = data_cls.__mapper_args__
-            if ma:
-                id_on = ma.get('polymorphic_on')
-                if id_on:
-                    id_key = id_on.name
-                    attr_type = getattr(data_cls, id_key).type.python_type
-                    if issubclass(attr_type, Enum):
-                        id_v = attr_type[data.get(id_key)] # type: ignore
-                    else:
-                        id_v = attr_type(data.get(id_key))
-                    pm = data_cls.__mapper__.polymorphic_map
-                    data_cls = pm.get(id_v).class_ # type: ignore
-        conv_data = data_cls.convert_dict_by_attr_type(data) # type: ignore
+            raise ValueError(f'{table_name} not in Base.model_map')
+        insp = inspect(data_cls)
+        id_on = insp.polymorphic_on
+        if id_on is not None: # Polymorphic class
+            id_key = id_on.name
+            attr_type = getattr(data_cls, id_key).type.python_type
+            if issubclass(attr_type, Enum): # Enum type data from web form is string, need to convert to Enum
+                id_v = attr_type[data.get(id_key)] # type: ignore
+            else:
+                id_v = data.get(id_key)
+            id_pm = insp.polymorphic_map.get(id_v, None)
+            if id_pm is None:
+                raise ValueError(f'{id_v} not in {data_cls} polymorphic_map')
+            data_cls = id_pm.class_
+        conv_data = data_cls.convert_dict_by_attr_type(data)
         return data_cls(**conv_data)
     
     @classmethod
@@ -283,8 +344,8 @@ class Base(DeclarativeBase):
         :param serializeable: if True, the data is serialized to allowed types for JSON.
         """
         data_dict = {'__tablename__': self.__tablename__}
-        for data_key in self.get_keys('data') - self.get_keys('single_rel'):
-            value = getattr(self, data_key)
+        for data_key in self.__class__.__mapper__.columns.keys():
+            value = getattr(self, data_key, None)
             if value is None and serializeable:
                 data_dict[data_key] = ''
             elif serializeable:        

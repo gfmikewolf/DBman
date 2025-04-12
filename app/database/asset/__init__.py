@@ -13,7 +13,8 @@ from .dbmodels import (
     BankAccount,
     BrokerageAccount,
     CryptoAccount,
-    CashAccount
+    CashAccount,
+    LoanAccount
 )
 
 # DataJson models
@@ -32,5 +33,7 @@ Base.model_map = {
     'bank_account': BankAccount,
     'brokerage_account': BrokerageAccount,
     'crypto_account': CryptoAccount,
-    'cash_account': CashAccount
+    'cash_account': CashAccount,
+    'loan_account': LoanAccount,
+    'other_account': Account
 }
