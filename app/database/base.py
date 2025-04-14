@@ -289,11 +289,10 @@ class Base(DeclarativeBase):
                 keys.update(info_keys)
             elif info in {'date', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'tuple' 'DataJson', 'Enum'}:
                 info_keys = set()
-                for key in cls.get_keys('modifiable'):
+                for key in cls.get_keys('data') - cls.get_keys('single_rel'):
                     attr = getattr(cls, key)
-                    if hasattr(attr, 'type') and hasattr(attr.type, 'python_type'):
-                        if issubclass(attr.type.python_type, eval(info)):
-                            info_keys.add(key)
+                    if isinstance(attr, eval(info)):
+                        info_keys.add(key)
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
             elif info in {'single_rel', 'multi_rel'}:
