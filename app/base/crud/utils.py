@@ -1,565 +1,437 @@
-# app/database/contract/dbmodels.py
-from datetime import date
-from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, func, select, and_, not_
-from sqlalchemy.sql import literal_column
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
-from sqlalchemy.ext.hybrid import hybrid_property
+# app/base/crud/utils.py
 
-from ..base import Base
-from .types import ClausePos, ClauseType, ClauseAction, ExpiryType
+__all__ = [
+    'fetch_instance',
+    'fetch_tabledata',
+    'fetch_viewable_value',
+    'fetch_json_viewer',
+    'fetch_model_viewer',
+    'fetch_tablename_url_name',
+    'fetch_related_objects',
+    'fetch_select_list',
+    'fetch_select_options',
+    'fetch_datajson_structure',
+    'fetch_modify_form_viewer',
+    'fetch_related_funcs'
+]
 
-class Contract(Base):
-    __tablename__ = 'contract'
-    contract_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    contract_name: Mapped[str]
-    contract_fullname: Mapped[str | None] = mapped_column(String, info={'longtext': True})
-    contract_remarks: Mapped[str | None] = mapped_column(String, info={'longtext': True})
-    contract_number_huawei: Mapped[str | None]
+from typing import Any
+from enum import Enum
+from flask import abort, url_for
+from sqlalchemy import select, inspect
+from sqlalchemy.orm import Session, RelationshipProperty
+from app.utils.common import _
+from app.extensions import Base
+from app.database.base import DataJson
 
-    _name = synonym('contract_name')
+def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
+    """
+    Fetch a model instance from the database based on the table name and pks (primary keys).
 
-    @hybrid_property
-    def contract_effectivedate(self) -> date | None: # type: ignore
-        if self.amendments:
-            dates = [amendment.amendment_effectivedate for amendment in self.amendments]
-            if dates:
-                return min(dates)
-        return None
-
-    @contract_effectivedate.expression
-    def contract_effectivedate(cls):
-        return (
-            select(func.min(Amendment.amendment_effectivedate))
-            .where(Amendment.contract_id == cls.contract_id)
-            .scalar_subquery()
-        )
+    :returns: A Base model derived from DeclarativeBase.
+    :param table_name: The name of the table to fetch the model from.
+    :param pks: The primary keys joined by comma. If pks is '_new', a new instance is created.
+    :raises: 404 if the table name is not found or the model instance is not found.
     
-    amendments: Mapped[list['Amendment']] = relationship(
-        back_populates='contract', 
-        lazy='select',
-        order_by=lambda: Amendment.amendment_signdate
-    )
-    parent_contracts: Mapped[list['Contract']] = relationship(
-        back_populates='child_contracts', 
-        secondary=lambda: ContractMAPContract.__table__,
-        primaryjoin=lambda: Contract.contract_id == ContractMAPContract.child_contract_id,
-        secondaryjoin=lambda: Contract.contract_id == ContractMAPContract.parent_contract_id,
-        lazy='select'
-    )
-    child_contracts: Mapped[list['Contract']] = relationship(
-        back_populates='parent_contracts', 
-        secondary=lambda: ContractMAPContract.__table__,
-        primaryjoin=lambda: Contract.contract_id == ContractMAPContract.parent_contract_id,
-        secondaryjoin=lambda: Contract.contract_id == ContractMAPContract.child_contract_id,
-        lazy='select'
-    )
-    legal_parent_contracts: Mapped[list['Contract']] = relationship(
-        back_populates='legal_child_contracts', 
-        secondary=lambda: ContractLEGALMAPContract.__table__,
-        primaryjoin=lambda: Contract.contract_id == ContractLEGALMAPContract.child_contract_id,
-        secondaryjoin=lambda: Contract.contract_id == ContractLEGALMAPContract.parent_contract_id,
-        lazy='select'
-    )
-    legal_child_contracts: Mapped[list['Contract']] = relationship(
-        back_populates='legal_parent_contracts', 
-        secondary=lambda: ContractLEGALMAPContract.__table__,
-        primaryjoin=lambda: Contract.contract_id == ContractLEGALMAPContract.parent_contract_id,
-        secondaryjoin=lambda: Contract.contract_id == ContractLEGALMAPContract.child_contract_id,
-        lazy='select'
-    )
+    *example*:
+    ```python
+    model = fetch_instance('user', '1,2')
+    model = fetch_instance('user', '_new')
+    ```
+    """
+    if table_name not in Base.model_map or (pks is None or pks == ''):
+        abort(404)
+    Model = Base.model_map[table_name]
+    if pks == '_new':
+        return Model()
+    pk_value_tuple = tuple(pks.split(','))
+    instance = db_session.get(Model, pk_value_tuple)
+    if instance is None:
+        abort(404)
+    return instance
 
-    clauses: Mapped[list['Clause']] = relationship(
-        lazy='select',
-        secondary=lambda: Amendment.__table__,
-        viewonly=True,
-        order_by=lambda: Clause.clause_type
-    )
+def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
+    """
+    :return: a select statement for all rows in the table.
 
-    @hybrid_property
-    def entities(self) -> set['Entity']: # type: ignore
-        new_set = set()
-        old_set = set()
+    .. example::
+    ```python
+        table_dict = fetch_datatable(Model, db_session)
+        table_dict['headers'] = ['header1', 'header2', ...]
+        table_dict['pks'] = ['pk1', 'pk2', ...]
+        table_dict['data'] = [
+            ['value1', 'value2', ...],
+            ['value3', 'value4', ...],
+            ...
+        ]
+    ```
+    """
+    header_list = Model.get_headers()
 
-        for amendment in self.amendments:
-            for clause in amendment.clauses:
-                if clause.clause_type == ClauseType.CLAUSE_ENTITY:
-                    new_one = getattr(clause, 'new_entity', None)
-                    old_one = getattr(clause, 'old_entity', None)
-                    if new_one:
-                        new_set.add(new_one)
-                    if (old_one):
-                        old_set.add(old_one)
-        return new_set - old_set
+    table_dict = dict()
+    table_dict['headers'] = [
+        _(header_key, True)
+        for header_key in header_list
+    ]
+    table_dict['pks'] = list()
+    table_dict['data'] = list()
 
-    @entities.expression
-    def entities(cls):
-        from .dbmodels import ClauseEntity, Amendment
-        sub_old = (
-            select(ClauseEntity.old_entity_id)
-            .join(Amendment, Amendment.amendment_id == ClauseEntity.amendment_id)
-            .where(
-                Amendment.contract_id == cls.contract_id,
-                ClauseEntity.old_entity_id.isnot(None)
-            )
-            .distinct()
+    instances = db_session.scalars(select(Model)).all()
+    for instance in instances:
+        mapper = inspect(instance)
+        table_dict['pks'].append(
+            ','.join([str(pk) for pk in mapper.identity]) # type: ignore
         )
-        new_expr = (
-            select(func.group_concat(ClauseEntity.new_entity_id, ','))
-            .join(Amendment, Amendment.amendment_id == ClauseEntity.amendment_id)
-            .where(
-                Amendment.contract_id == cls.contract_id,
-                ClauseEntity.new_entity_id.isnot(None),
-                ClauseEntity.new_entity_id.not_in(sub_old)
-            )
-            .distinct()
-            .scalar_subquery()
+        table_dict['data'].append(
+            [
+                fetch_viewable_value(instance, header_key, db_session) 
+                for header_key in header_list
+            ]
         )
-        return new_expr
+
+    return table_dict
+
+def get_viewable_instance_name(instance: Base) -> str:
+    if '_name' in instance.get_keys('translate'):
+        return _(instance._name, True) # type: ignore
+    else:
+        return instance._name # type: ignore
+
+def get_viewable_instance(instance: Base) -> str:
+    pks = ','.join([str(getattr(instance, pk.key)) for pk in instance.__mapper__.primary_key])
+    url = url_for(
+        'base.crud.view_record', 
+        table_name=instance.__tablename__, # type: ignore
+        pks=pks
+    )
+    return f'<a href="{url}">{get_viewable_instance_name(instance)}</a>' # type: ignore
+
+def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
+    """
+    :return: a string representation of the value of the key in the instance.
+    """
+    if not hasattr(instance, key):
+        value = ''
+    property = getattr(instance, key, None)
+    if property is None or property == '':
+        value = ''
+    elif isinstance(property, (list, set, tuple)):
+        if len(property) == 0:
+            return ''
+        sample = next(iter(property))
+        if isinstance(sample, Base):
+            value = ', '.join(map(get_viewable_instance, property))
+        else:
+            value = ', '.join(map(str, property))
+    elif isinstance(property, Enum):
+        value = _(property.value, True)
+    elif isinstance(property, Base):
+        value = get_viewable_instance(property)
+    elif isinstance(property, DataJson):
+        value = fetch_json_viewer(property, mode='compact', db_session=db_session)
+    else:
+        value = str(property)
+    return value
+
+def fetch_json_viewer(
+        datajson_obj: DataJson, 
+        mode:str = 'compact', 
+        db_session: Session | None = None
+    ) -> str:
+    """
+    :return: a string representation of the DataJson object.
+    """
+    if not isinstance(datajson_obj, DataJson):
+        raise TypeError(f"Expected DataJson object, got {type(datajson_obj)}")
+    entries = []
+    rel_info = datajson_obj.rel_info
+    for key in datajson_obj.get_keys('data') - datajson_obj.get_keys('hidden'):
+        if key in rel_info:
+            value = getattr(datajson_obj, rel_info[key]['local_col'], None) # type: ignore
+            if value is None or value == '':
+                continue
+            if db_session is None:
+                raise ValueError("db_session is required for relationship resolution")    
+            Model = datajson_obj.rel_info[key]['ref_table']
+            ref_instance = db_session.get(Model, value) # type: ignore
+            if ref_instance is None:
+                continue
+            ref_url = url_for(
+                'base.crud.view_record', 
+                table_name=Model.__tablename__, # type: ignore
+                pks=str(value)
+            )
+            value = f'<a href="{ref_url}">{get_viewable_instance_name(ref_instance)}</a>' # type: ignore
+        else:
+            value = getattr(datajson_obj, key, None)
+            if value is None or value == '':
+                continue
+            if isinstance(value, Enum):
+                value = _(value.name, True)
+            elif isinstance(value, (list, set, tuple)):
+                value = ', '.join([str(v) for v in value])
+            elif isinstance(value, dict):
+                value = '{' + ', '.join([f'{k}: {v}' for k, v in value.items()]) + '}'
+            elif isinstance(value, DataJson):
+                value = '{' + fetch_json_viewer(value, mode='compact', db_session=db_session) + '}'
+            elif isinstance(value, str):
+                value = f'{value}'
+            else:
+                value = str(value)
+        if mode == 'compact':
+            entries.append(f'{_(key, True)}: {value}')
+    return ', '.join(entries)
+
+def fetch_model_viewer(instance: Base, db_session: Session, header_list: list[str] | None = None):
+    if header_list is None:
+        header_list = instance.get_headers()
+    return {
+        _(header, True): fetch_viewable_value(instance, header, db_session) 
+        for header in header_list
+    }
+
+def fetch_tablename_url_name(instance: Base, table_name: str) -> tuple[str, str, str]:
+    """
+    :return: an url linking to the instance and string representation of the instance name.
+    """
+    if instance is None:
+        return('', '#', '')
+    pks = ','.join([str(i) for i in inspect(instance).identity]) # type: ignore
+    name = get_viewable_instance_name(instance)
+    url = url_for(
+        'base.crud.view_record', 
+        table_name=table_name,
+        pks=pks
+    )
+    return (_(table_name, True), url, name)
+
+def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]:
+    """
+    :return: a dict of related objects for the instance.
+
+    .. attention:: 
+    Active session is required to access list relationships
+
+    """
+    related_objects = dict()
+    related_objects['single'] = rs = dict()
+    related_objects['multiple'] = rm = dict()
+
+    for rel in instance.__class__.__mapper__.relationships:
+        if rel.uselist:
+            instance_list = getattr(instance, rel.key)
+            if len(instance_list) == 0:
+                db_session.refresh(instance, attribute_names=[rel.key])
+                if len(instance_list) == 0:
+                    continue
+            table_name = instance_list[0].__class__.__tablename__
+            rm[_(rel.key, True)] = [
+                fetch_tablename_url_name(ref_instance, table_name)
+                for ref_instance in instance_list ]
+        else:
+            rel_prop = getattr(instance, rel.key)
+            if rel_prop is None:
+                continue
+            rs[_(rel.key, True)] = fetch_tablename_url_name(
+                    rel_prop, rel.entity.class_.__tablename__
+            )
     
-    @hybrid_property
-    def scopes(self) -> set['Scope']: # type: ignore
-        new_set = set()
-        old_set = set()
-        for amendment in self.amendments:
-            for clause in amendment.clauses:
-                if clause.clause_type == ClauseType.CLAUSE_SCOPE:
-                    new_one = getattr(clause, 'new_scope', None)
-                    old_one = getattr(clause, 'old_scope', None)
-                    if new_one:
-                        new_set.add(new_one)
-                    if (old_one):
-                        old_set.add(old_one)
-        return new_set - old_set
+    for key in instance.get_keys('list', 'set', 'tuple'):
+        attrs = getattr(instance, key, None)
+        if attrs and isinstance(attrs, (list, set, tuple)):
+            sample = next(iter(attrs))
+            if isinstance(sample, Base):
+                table_name = sample.__class__.__tablename__
+                rm[_(key, True)] = [
+                    fetch_tablename_url_name(attr_instance, table_name)
+                    for attr_instance in attrs
+                ]
+    return related_objects
 
-    @scopes.expression
-    def scopes(cls):
-        from .dbmodels import ClauseScope, Amendment
-        sub_old = (
-            select(ClauseScope.old_scope_id)
-            .join(Amendment, Amendment.amendment_id == ClauseScope.amendment_id)
-            .where(
-                Amendment.contract_id == cls.contract_id,
-                ClauseScope.old_scope_id.isnot(None)
-            )
-            .distinct()
-        )
-        new_expr = (
-            select(func.group_concat(ClauseScope.new_scope_id, ','))
-            .join(Amendment, Amendment.amendment_id == ClauseScope.amendment_id)
-            .where(
-                Amendment.contract_id == cls.contract_id,
-                ClauseScope.new_scope_id.isnot(None),
-                ClauseScope.new_scope_id.not_in(sub_old)
-            )
-            .distinct()
-            .scalar_subquery()
-        )
-        return new_expr
+def fetch_select_list(Model: type[Base], db_session: Session, order_by: Any = None) -> list[tuple[str, str]]:
+    """
+    :return: a list of tuples containing the primary key and name of the Model.
+    """
+    stmt = select(*Model.__mapper__.primary_key, Model._name) # type: ignore
+    if order_by:
+        stmt = stmt.order_by(*order_by) # type: ignore
+    result = db_session.execute(stmt)
+    pks_name_list = []
+    for row in result:
+        pks = ','.join([str(pk) for pk in row[:-1]])
+        name = _(row[-1], True) if '_name' in Model.get_keys('translate') else row[-1] # type: ignore
+        pks_name_list.append((pks, name))
+    return pks_name_list
+
+def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session, polymorphic_spec_only: bool=False) -> dict[str, list[tuple[Any, str]]]:
+    """
+    :return: a dict of select options for each relationship and enum type column
+
+        - key: local column name 
+        - value: [tuple[referenced pk value, referenced column value]]. Values are ordered according to key_info['rel_info'][local_col]['select_order']
+    """
     
-    key_info = {
-        'data': (
-            'contract_id', 
-            'contract_name',
-            'contract_fullname',
-            'contract_effectivedate',
-            'contract_remarks',
-            'contract_number_huawei',
-            'entities',
-            'scopes'
-        ),
-        'hidden': {
-            'contract_id'
-        },
-        'readonly': {
-            'contract_id', 
-            'contract_effectivedate',
-            'entities',
-            'scopes'
+    select_options = dict()
+    base_data_keys = set()
+    if polymorphic_spec_only:
+        base_data_keys = Model.get_keys('polybase_data')
+    polymorphic_spec_only = polymorphic_spec_only and bool(base_data_keys)
+    if issubclass(Model, Base):
+        # Extract foreign key col and referenced pks and name tuple for each relationship
+        mapper = Model.__mapper__
+        for rel in mapper.relationships:
+            pks_name_list = []
+            if rel.uselist or rel.secondary is not None:
+                continue
+            ref_Model = rel.entity.class_
+            local_col_key = next(iter(rel.local_columns)).key
+            if local_col_key in base_data_keys:
+                continue
+            select_order = rel.info.get('select_order', None)
+            pks_name_list = fetch_select_list(ref_Model, db_session, order_by=select_order) 
+            select_options[local_col_key] = pks_name_list
+        
+        # Extract Enum types and get options from Enum definition
+        enum_keys = Model.get_keys('Enum') - base_data_keys
+        for key in enum_keys:
+            attr = getattr(Model, key)
+            enum_Model = attr.type.python_type
+            if not issubclass(enum_Model, Enum):
+                raise AttributeError(f'Invalid enum_Model {enum_Model} for {Model}')
+            value_name_list = [(member.name, _(member.value, True)) for member in enum_Model]
+            select_options[key] = value_name_list       
+    elif issubclass(Model, DataJson):
+        for rel_key, rel_info in Model.rel_info.items(): # type: ignore
+            ref_Model = rel_info.get('ref_table')
+            local_col_key = rel_info.get('local_col')
+            select_order = rel_info.get('select_order', None)
+            pks_name_list = fetch_select_list(ref_Model, db_session, order_by=select_order) # type: ignore
+            select_options[local_col_key] = pks_name_list
+        # Extract Enum types and get options from Enum definition
+        enum_keys = Model.get_keys('Enum')
+        for key in enum_keys:
+            attr = getattr(Model, key)
+            if not isinstance(attr, Enum):
+                raise AttributeError(f'Invalid enum_key {key} for {Model}')
+            value_name_list = [(member.name, _(member.value, True)) for member in type(attr)]
+            select_options[key] = value_name_list
+    else:
+        raise TypeError(f'Invalid Model type {Model}')
+    return select_options
+
+def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[str, Any]:
+    """
+    :return: dict of structure of the DataJson class
+    - keys: data, required, readonly, date, Enum, foreign_keys, longtext
+    - values: list of keys in the class
+    """
+    struct = dict()
+    if Model == DataJson:
+        raise AttributeError('Cannot call fetch_structure() on DataJson')
+    
+    struct['__datajson_id__'] = Model.__datajson_id__
+    struct['data'] = [key for key in Model.key_info['data'] if key not in Model.get_keys('single_rel')]
+    struct['required'] = Model.get_keys('required')
+    struct['readonly'] = Model.get_keys('readonly')
+    struct['date'] = Model.get_keys('date')
+    struct['longtext'] = Model.get_keys('longtext')
+    struct['constraints'] = Model.key_info.get('constraints', dict())
+    struct['select_options'] = fetch_select_options(Model, db_session=db_session)
+    struct['col_rel_map'] = Model.get_col_rel_map()
+    return struct
+
+def fetch_modify_form_viewer(
+        instance: Base, 
+        db_session: Session
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    :return: a dict of data for the modify form.
+
+    .. example::
+    ```python
+        base_data, spec_data = fetch_modify_form_viewer(instance, db_session)
+        data = {
+            'name': ('text', 'Name', 'John Doe', IsRequired:bool),
+            'agelevel': ('select', 'Age', 1, False, [(1, '10'), (2, '20')]),
+            'address': ('textarea', 'My Address', '123 Main St', False),
+            'is_active': ('checkbox', 'If Active', True, False),
+            'created_at': ('date', 'Create Date', datetime.now(), False),
+            'clause_json': ('DataJson', 'Structured Clause Data', {'key': 'value'}, False)
         }
-    }
+    ```
+    """
+    data = dict()
+    spec_data = dict()
+    base_data_keys = instance.get_keys('polybase_data')
+    col_rel_map = instance.get_col_rel_map()
+    select_options = fetch_select_options(instance.__class__, db_session)
 
-class Amendment(Base):
-    __tablename__ = 'amendment'
-    amendment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    amendment_name: Mapped[str]
-    amendment_fullname: Mapped[str | None]
-    amendment_signdate: Mapped[date] = mapped_column(Date)
-    amendment_effectivedate: Mapped[date] = mapped_column(Date)
-    amendment_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
-    contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'))
-    
-    _name = synonym('amendment_name')
- 
-    contract: Mapped['Contract'] = relationship(
-        back_populates='amendments', 
-        lazy='selectin',
-        info={'select_order': (Contract.contract_name,)},
-    )
+    for key in [
+        key for key in instance.key_info['data'] 
+        if key in instance.get_keys('modifiable')
+    ]:
+        is_required = key in instance.get_keys('required')
+        value = getattr(instance, key, None) or ''
+        
+        if key in col_rel_map:
+            name = _(col_rel_map[key], True)
+            tag = 'select'
+            options = select_options[key]
+            r = (tag, name, str(value), is_required, options)
+        else:
+            name = _(key, True)
+            if key in instance.get_keys('Enum'):
+                tag = 'select'
+                if value:
+                    value = value.name # type: ignore
+                options = select_options[key]
+                r = (tag, name, value, is_required, options)
+            else:
+                if key in instance.get_keys('date'):
+                    tag = 'date'
+                    try:
+                        value = value.isoformat() # type: ignore
+                    except:
+                        value = ''
+                elif key in instance.get_keys('longtext'):
+                    tag = 'textarea'
+                elif key in instance.get_keys('DataJson'):
+                    tag = 'DataJson'
+                    value = value.dumps() if value else ''
+                else:
+                    tag = 'text'
+                r = (tag, name, value, is_required)
+        if key in base_data_keys:
+            data[key] = r
+        else:
+            spec_data[key] = r
+    return data, spec_data
 
-    clauses: Mapped[list['Clause']] = relationship(
-        back_populates='amendment',
-        lazy = 'select'
-    )
-
-    key_info = {
-        'data': (
-            'amendment_id',
-            'amendment_name',
-            'contract_id',
-            'contract',
-            'amendment_fullname',
-            'amendment_signdate',
-            'amendment_effectivedate',
-            'amendment_remarks'
-        ),
-        'hidden': {'amendment_id', 'contract_id'},
-        'readonly': {'amendment_id', 'contract'},
-    }
-
-class Clause(Base):
-    __tablename__ = 'clause'
-    clause_id: Mapped[int] = mapped_column(
-        Integer, 
-        primary_key=True, 
-        autoincrement=True)
-    amendment_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('amendment.amendment_id'))
-    clause_pos: Mapped[ClausePos] = mapped_column(
-        SqlEnum(ClausePos), 
-        default=ClausePos.M)
-    clause_ref: Mapped[str | None]
-    clause_type: Mapped[ClauseType] = mapped_column(
-        SqlEnum(ClauseType)
-    )
-    clause_text: Mapped[str | None]
-    clause_reviewcomments: Mapped[str | None]
-    clause_remarks: Mapped[str | None]
-    
-    amendment: Mapped['Amendment'] = relationship(
-        back_populates='clauses',
-        lazy='joined',
-        active_history=True,
-        info={'select_order': (Amendment.amendment_name,)}
-    )
-
-    contract: Mapped['Contract'] = relationship(
-        back_populates='clauses',
-        secondary=lambda: Amendment.__table__,
-        primaryjoin=lambda: Clause.amendment_id == Amendment.amendment_id,
-        secondaryjoin=lambda: Contract.contract_id == Amendment.contract_id,
-        viewonly=True,
-        lazy='select'
-    )
-
-    @hybrid_property
-    def _name(self) -> str: # type: ignore[override]
-        return f"{self.clause_type.name} #{self.clause_id}"
-    
-    @_name.expression
-    def _name(cls):
-        return (literal_column("clause_type") + ':' + 
-                ' #' + literal_column("clause_id")
-               ).cast(String)
-
-    key_info = {
-        'data': (
-            'clause_id',
-            'amendment',
-            'amendment_id',
-            'clause_type',
-            'clause_pos',
-            'clause_ref',
-            'clause_text',
-            'clause_reviewcomments',
-            'clause_remarks'  
-        ),
-        'hidden': { 'clause_id', 'amendment_id' },
-        'readonly': { 'clause_id', 'amendment' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
-        'translate': { '_name' }
-    }
-
-    __mapper_args__ = {
-        'polymorphic_on': clause_type,
-        'polymorphic_identity': ClauseType.CLAUSE
-    }
-
-class ClauseScope(Clause):
-    __tablename__ = 'clause_scope'
-    clause_id: Mapped[int] = mapped_column(
-        Integer,          
-        ForeignKey('clause.clause_id'),
-        primary_key=True)
-    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum(ClauseAction))
-    
-    new_scope_id: Mapped[int | None] = mapped_column(
-        ForeignKey('scope.scope_id')
-    )
-    old_scope_id: Mapped[int | None] = mapped_column(
-        ForeignKey('scope.scope_id'),
-    )
-
-    new_scope: Mapped['Scope'] = relationship(
-        foreign_keys=[new_scope_id],
-        lazy = 'selectin'
-    )
-
-    old_scope: Mapped['Scope'] = relationship(
-        foreign_keys=[old_scope_id],
-        lazy = 'selectin'
-    )
-
-    __mapper_args__ = {
-        'polymorphic_identity': ClauseType.CLAUSE_SCOPE
-    }
-
-    key_info = {
-        'data': (
-            'clause_id',
-            'amendment',
-            'amendment_id',
-            'clause_type',
-            'clause_pos',
-            'clause_ref',
-            'clause_text',
-            'clause_action',
-            'new_scope_id',
-            'new_scope',
-            'old_scope_id',
-            'old_scope',
-            'clause_reviewcomments',
-            'clause_remarks'  
-        ),
-        'hidden': { 'clause_id', 'amendment_id', 'new_scope_id', 'old_scope_id' },
-        'readonly': { 'clause_id', 'amendment', 'new_scope', 'old_scope' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
-        'translate': { '_name' }
-    }
-
-class ClauseEntity(Clause):
-    __tablename__ = 'clause_entity'
-    clause_id: Mapped[int] = mapped_column(
-        Integer,          
-        ForeignKey('clause.clause_id'),
-        primary_key=True)
-    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum(ClauseAction))
-    
-    new_entity_id: Mapped[int | None] = mapped_column(
-        ForeignKey('entity.entity_id')
-    )
-    old_entity_id: Mapped[int | None] = mapped_column(
-        ForeignKey('entity.entity_id'),
-    )
-
-    new_entity: Mapped['Entity'] = relationship(
-        foreign_keys=[new_entity_id],
-        lazy = 'selectin'
-    )
-
-    old_entity: Mapped['Entity'] = relationship(
-        foreign_keys=[old_entity_id],
-        lazy = 'selectin'
-    )
-
-    __mapper_args__ = {
-        'polymorphic_identity': ClauseType.CLAUSE_ENTITY
-    }
-
-    key_info = {
-        'data': (
-            'clause_id',
-            'amendment',
-            'amendment_id',
-            'clause_type',
-            'clause_pos',
-            'clause_ref',
-            'clause_text',
-            'clause_action',
-            'new_entity_id',
-            'new_entity',
-            'old_entity_id',
-            'old_entity',
-            'clause_reviewcomments',
-            'clause_remarks'  
-        ),
-        'hidden': { 'clause_id', 'amendment_id', 'new_entity_id', 'old_entity_id' },
-        'readonly': { 'clause_id', 'amendment', 'new_entity', 'old_entity' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
-        'translate': { '_name' }
-    }
-
-class ClauseExpiry(Clause):
-    __tablename__ = 'clause_expiry'
-    clause_id: Mapped[int] = mapped_column(
-        Integer,          
-        ForeignKey('clause.clause_id'),
-        primary_key=True)
-    expiry_type: Mapped[ExpiryType] = mapped_column(SqlEnum(ExpiryType))
-    expiry_date: Mapped[date | None] = mapped_column(Date)
-    applied_to_scope_id: Mapped[int | None] = mapped_column(
-        ForeignKey('scope.scope_id')
-    )
-    linked_to_contract_id: Mapped[int | None] = mapped_column(
-        ForeignKey('contract.contract_id')
-    )
-    linked_to_contract: Mapped['Contract'] = relationship(
-        lazy = 'selectin'
-    )
-
-    applied_to_scope: Mapped['Scope'] = relationship(
-        lazy = 'selectin'
-    )
-
-    __mapper_args__ = {
-        'polymorphic_identity': ClauseType.CLAUSE_EXPIRY
-    }
-
-    key_info = {
-        'data': (
-            'clause_id',
-            'amendment',
-            'amendment_id',
-            'clause_type',
-            'clause_pos',
-            'clause_ref',
-            'clause_text',
-            'applied_to_scope_id',
-            'expiry_type',
-            'expiry_date',
-            'linked_to_contract_id',
-            'linked_to_contract',
-            'applied_to_scope',
-            'clause_reviewcomments',
-            'clause_remarks'  
-        ),
-        'hidden': { 'clause_id', 'amendment_id', 'applied_to_scope_id', 'linked_to_contract_id' },
-        'readonly': { 'clause_id', 'amendment', 'applied_to_scope', 'linked_to_contract' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
-        'translate': { '_name' }
-    }
-
-class Entitygroup(Base):
-    __tablename__ = 'entitygroup'
-    entitygroup_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    entitygroup_name: Mapped[str]
-
-    _name = synonym('entitygroup_name')
-
-    entities: Mapped[list['Entity']] = relationship(
-        back_populates='entitygroup',
-        lazy='select'
-    )
-
-    key_info = {
-        'data': (
-            'entitygroup_id',
-            'entitygroup_name'
-        ),
-        'hidden': { 'entitygroup_id' },
-        'readonly': { 'entitygroup_id' }
-    }
-
-class Entity(Base):
-    __tablename__ = 'entity'
-    entity_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    entity_name: Mapped[str]
-    entity_fullname: Mapped[str | None]
-    entitygroup_id: Mapped[int] = mapped_column(ForeignKey('entitygroup.entitygroup_id'))
-    
-    _name = synonym('entity_name')
-
-    entitygroup: Mapped['Entitygroup'] = relationship(
-        back_populates='entities',
-        lazy='selectin',
-        info={'select_order': (Entitygroup.entitygroup_name,)},
-    )
-
-    key_info = {
-        'data': (
-            'entity_id',
-            'entity_name',
-            'entity_fullname',
-            'entitygroup_id',
-            'entitygroup'
-        ),
-        'hidden': { 'entity_id', 'entitygroup_id' },
-        'readonly': { 'entity_id', 'entitygroup' }
-    }
-
-class Scope(Base):
-    __tablename__ = 'scope'
-    scope_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    scope_name: Mapped[str]
-    
-    _name = synonym('scope_name')
-
-    key_info = {
-        'data': ( 'scope_id', 'scope_name' ),
-        'hidden': { 'scope_id' },
-        'readonly': { 'scope_id' }
-    }
-
-class ContractMAPContract(Base):
-    __tablename__ = 'contract__map__contract'
-    parent_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    child_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    parent_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[parent_contract_id],
-        lazy = 'selectin'
-    )
-    child_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[child_contract_id],
-        lazy = 'selectin'
-    )
-
-    key_info = {
-        'data': (
-            'parent_contract_id',
-            'parent_contract',
-            'child_contract_id',
-            'child_contract'
-        ),
-        'hidden': { 'parent_contract_id', 'child_contract_id' },
-        'readonly': { 'parent_contract', 'child_contract' }
-    }  
-
-class ContractLEGALMAPContract(Base):
-    __tablename__ = 'contract__legal_map__contract'
-    parent_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    child_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    parent_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[parent_contract_id],
-        lazy = 'selectin'
-    )
-    child_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[child_contract_id],
-        lazy = 'selectin'
-    )
-
-    key_info = {
-        'data': (
-            'parent_contract_id',
-            'parent_contract',
-            'child_contract_id',
-            'child_contract'
-        ),
-        'hidden': { 'parent_contract_id', 'child_contract_id' },
-        'readonly': { 'parent_contract', 'child_contract' }
-    }  
+def fetch_related_funcs(table_name: str, db_session: Session) -> dict[str, Any]:
+    """
+    :return: a dict of related functions for the table.
+    """
+    if table_name not in Base.func_map:
+        return dict()
+    func_inputs = dict()
+    for func_name, func_info in Base.func_map[table_name].items():
+        func_input = dict()
+        if func_info['func_type'] == 'instance':
+            func_input['_pks'] = (
+                'select', 
+                _(table_name, True),
+                '',
+                True,
+                fetch_select_list(Base.model_map[table_name], db_session)
+            )       
+        func_input.update({
+            param_name: (
+                param_info[0],
+                _(param_name, True),
+                '',
+                True
+            )
+            for param_name, param_info in func_info['input_types'].items()
+        })
+        func_inputs[func_name] = func_input
+    return func_inputs
