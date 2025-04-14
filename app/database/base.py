@@ -58,6 +58,23 @@ class Base(DeclarativeBase):
                    - the return type of set of string has no order.
     """
 
+    func_map: dict[str, Any]
+    """
+    A dictionary of functions that can be called from the database.
+
+    .. example::
+    ```python
+        func_map = {
+            'func_name': {
+                'func': function,
+                'input_types': (('file','ADCB_account_statement'),)
+                'param_types': (str),
+                # 'return_types': str assume all returns are string
+            }
+        }
+    ```
+    """
+
     def __init__(self, **kwargs: Any):
         """
         set default values for all new instances

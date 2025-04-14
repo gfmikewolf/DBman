@@ -1,9 +1,11 @@
-{#- app/base/templates/crud/view_record.jinja -#}
-{%- from 'macros/datadict-dbman.jinja' import DatadictDBMan -%}
+{#- app/base/templates/crud/view_record.jinja #}
+{%- from 'macros/datadict-dbman.jinja' import DatadictDBMan %}
+{%- from 'macros/form-entries-dbman.jinja' import FormEntriesDBMan %}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan %}
 {%- extends 'base.jinja' -%}
 
 {%- block head -%}
-  <meta name="modules" content="">
+  <meta name="modules" content="modal-alert,form-func">
 {%- endblock head -%}
 
 {#- @param for base.jinja - prev_page: redirect to upper level page -#}
@@ -19,7 +21,7 @@
           <div class="list-group text-center">
             <a  class="list-group-item list-group-item-action"
                 href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}">
-              {{- _('Modify the record') -}}
+              {{- _('Modify record') -}}
             </a>
             <a  href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
                 class="list-group-item list-group-item-action">
@@ -39,6 +41,45 @@
         </div>
       </div>
       <div class="col-md-4 p-3 d-none d-md-block dbman-independent-scroll">
+        <h5>{{- _('Related Functions') -}}</h5>
+        <div class="list-group list-group-flush" id="dbman-func-main">
+        {%- for func_name, func_input in ref_funcs.items() %}
+          {%- if func_input %}
+          <a  href="#collapse-func-{{ func_name }}"
+              data-dbman-toggle="db-func"
+              data-bs-toggle="collapse"
+              class="list-group-item list-group-item-action">
+            {{- _(func_name, True) -}}
+          </a>
+          <div class="collapse" id="collapse-func-{{ func_name }}">
+            <form method="post"
+                  data-dbman-toggle="db-func"
+                  enctype="multipart/form-data" 
+                  action="{{ url_for('base.crud.db_func', table_name=table_name, func_name=func_name) }}">
+              <div class="mt-1 card-body">
+                {{ FormEntriesDBMan(func_input) }}
+              </div>
+              <div class="mb-1 text-center">
+                <button type="submit" class="btn btn-sm btn-primary">
+                  {{ _('Execute') }}
+                </button>
+                <a  href="#collapse-func-{{ func_name }}"
+                    class="btn btn-sm btn-secondary"
+                    data-bs-toggle="collapse">
+                  {{- _('Cancel') -}}
+                </a>
+              </div>
+            </form>
+          </div>
+          {%- else %}
+          <button data-dbman-url="{{ url_for('base.crud.db_func', table_name=table_name, func_name=func_name) }}"
+                  class="list-group-item list-group-item-action"
+                  data-dbman-toggle="db-func">
+            {{- _(func_name, True) -}}
+          </button>
+          {%- endif %}
+        {%- endfor %}
+        </div>
         <h5>{{- _('Related Objects') -}}</h5>
         <div class="list-group list-group-flush">
         {%- for rel_key, tablename_url_name in ref_objects['single'].items() %}
@@ -131,3 +172,15 @@
     </div>
   </div>
 {%- endblock content -%}
+{%- block alert %}
+  {{ ModalDBMan(
+    name='main',
+    type='dbman-alert',
+    title=_('Alert'),
+    msgs={
+      'success': [_('Success'), _('Operation Successful')],
+      'error': [_('Error'), _('Operation Error')],
+      'warning_delete': [_('Alert'), _('_warning_delete')]
+    }
+  ) }}
+{%- endblock alert -%}

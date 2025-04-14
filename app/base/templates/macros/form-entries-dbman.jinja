@@ -51,6 +51,12 @@
             {{ 'required pattern=".*\S.*"' if tnvr_o[3] }}>
     {{- tnvr_o[2] -}}
   </textarea>
+  {% elif tnvr_o[0] == 'file' %}
+  <input name="{{ key }}"
+        type="file"
+        class="form-control"
+        id="{{- key -}}"
+        {{ 'required' if tnvr_o[3] }}>
   {%- else %}
   <input name="{{ key }}"
         type="text"

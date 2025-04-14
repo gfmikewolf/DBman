@@ -1,10 +1,24 @@
 # app/base/crud/utils.py
+
+__all__ = [
+    'fetch_instance',
+    'fetch_tabledata',
+    'fetch_viewable_value',
+    'fetch_json_viewer',
+    'fetch_model_viewer',
+    'fetch_tablename_url_name',
+    'fetch_related_objects',
+    'fetch_select_list',
+    'fetch_select_options',
+    'fetch_datajson_structure',
+    'fetch_modify_form_viewer',
+    'fetch_related_funcs'
+]
 from typing import Any
 from enum import Enum
 from flask import abort, url_for
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
-from app import base
 from app.utils.common import _
 from app.extensions import Base
 from app.database.base import DataJson
@@ -387,3 +401,32 @@ def fetch_modify_form_viewer(
         else:
             spec_data[key] = r
     return data, spec_data
+
+def fetch_related_funcs(table_name: str, db_session: Session) -> dict[str, Any]:
+    """
+    :return: a dict of related functions for the table.
+    """
+    if table_name not in Base.func_map:
+        return dict()
+    func_inputs = dict()
+    for func_name, func_info in Base.func_map[table_name].items():
+        func_input = dict()
+        if func_info['func_type'] == 'instance':
+            func_input['_pks'] = (
+                'select', 
+                _(table_name, True),
+                '',
+                True,
+                fetch_select_list(Base.model_map[table_name], db_session)
+            )       
+        func_input.update({
+            param_name: (
+                param_info[0],
+                _(param_name, True),
+                '',
+                True
+            )
+            for param_name, param_info in func_info['input_types'].items()
+        })
+        func_inputs[func_name] = func_input
+    return func_inputs

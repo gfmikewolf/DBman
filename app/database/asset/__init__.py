@@ -3,7 +3,6 @@ from ..base import Base
 
 # database models
 from .dbmodels import (
-    ExpenseType, 
     AssetType, 
     Manager, 
     Area, 
@@ -14,16 +13,13 @@ from .dbmodels import (
     BrokerageAccount,
     CryptoAccount,
     CashAccount,
-    LoanAccount
+    LoanAccount,
+    Expense,
+    BudgetMAPExpense,
+    Budget
 )
 
-# DataJson models
-
-# type
-
-
 Base.model_map = {
-    'expense_type': ExpenseType, 
     'asset_type': AssetType,
     'manager': Manager,
     'area': Area,
@@ -35,5 +31,23 @@ Base.model_map = {
     'crypto_account': CryptoAccount,
     'cash_account': CashAccount,
     'loan_account': LoanAccount,
-    'other_account': Account
+    'other_account': Account,
+    'expense': Expense,
+    'budget__map__expense': BudgetMAPExpense,
+    'budget': Budget
+}
+
+Base.func_map = {
+    'expense': {
+        'load_ADCB_account_statement': {
+            'func_type': 'class',
+            'input_types': {'ADCB_account_statement':('file', True)}
+        }
+    },
+    'budget': {
+        'update_budget': {
+            'func_type': 'class',
+            'input_types': {}
+        }
+    }
 }
