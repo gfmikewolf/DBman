@@ -14,11 +14,12 @@ __all__ = [
     'fetch_modify_form_viewer',
     'fetch_related_funcs'
 ]
+
 from typing import Any
 from enum import Enum
 from flask import abort, url_for
 from sqlalchemy import select, inspect
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, RelationshipProperty
 from app.utils.common import _
 from app.extensions import Base
 from app.database.base import DataJson
@@ -112,9 +113,11 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     if not hasattr(instance, key):
         value = ''
     property = getattr(instance, key, None)
-    if property is None or property == '' or (isinstance(property, (list, set, tuple, dict)) and len(property) == 0):
+    if property is None or property == '':
         value = ''
     elif isinstance(property, (list, set, tuple)):
+        if len(property) == 0:
+            return ''
         sample = next(iter(property))
         if isinstance(sample, Base):
             value = ', '.join(map(get_viewable_instance, property))
@@ -231,12 +234,12 @@ def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]
                     rel_prop, rel.entity.class_.__tablename__
             )
     
-    for key in instance.get_keys('list', 'set', 'tuple') - rs.keys() - rm.keys():
+    for key in instance.get_keys('list', 'set', 'tuple'):
         attrs = getattr(instance, key, None)
         if attrs and isinstance(attrs, (list, set, tuple)):
             sample = next(iter(attrs))
-            table_name = sample.__class__.__tablename__
             if isinstance(sample, Base):
+                table_name = sample.__class__.__tablename__
                 rm[_(key, True)] = [
                     fetch_tablename_url_name(attr_instance, table_name)
                     for attr_instance in attrs
