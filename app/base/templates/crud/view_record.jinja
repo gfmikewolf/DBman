@@ -41,15 +41,16 @@
         </div>
       </div>
       <div class="col-md-4 p-3 d-none d-md-block dbman-independent-scroll">
+        {%- if ref_funcs %}
         <h5>{{- _('Related Functions') -}}</h5>
         <div class="list-group list-group-flush" id="dbman-func-main">
-        {%- for func_name, func_input in ref_funcs.items() %}
-          {%- if func_input %}
+          {%- for func_name, func_input in ref_funcs.items() %}
+            {%- if func_input %}
           <a  href="#collapse-func-{{ func_name }}"
               data-dbman-toggle="db-func"
               data-bs-toggle="collapse"
               class="list-group-item list-group-item-action">
-            {{- _(func_name, True) -}}
+              {{- _(func_name, True) -}}
           </a>
           <div class="collapse" id="collapse-func-{{ func_name }}">
             <form method="post"
@@ -80,19 +81,23 @@
           {%- endif %}
         {%- endfor %}
         </div>
+        {%- endif %}
+        {%- if ref_objects['single'] %}
         <h5>{{- _('Related Objects') -}}</h5>
         <div class="list-group list-group-flush">
-        {%- for rel_key, tablename_url_name in ref_objects['single'].items() %}
+          {%- for rel_key, tablename_url_name in ref_objects['single'].items() %}
           <div class="list-group-item list-group-item-action">
             <span>{{- rel_key -}}:</span>
             <a href="{{ tablename_url_name[1] }}">
               {{- tablename_url_name[2] -}}
             </a>
           </div>
-        {%- endfor %}
+          {%- endfor %}
         </div>
+        {%- endif %}
+        {%- if ref_objects['multiple'] %}
         <div class="list-group list-group-flush mt-3">
-        {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
+          {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
           <a class="list-group-item list-group-item-action"
             href="#collapse-{{- list_name -}}"
             data-bs-toggle="collapse">
@@ -110,8 +115,9 @@
             {%- endfor -%}
             </div>
           </div>
-        {%- endfor %}
+          {%- endfor %}
         </div>
+        {%- endif%}
       </div>
     </div>
     <div class="row bg-light">
