@@ -34,3 +34,5 @@ Base.model_map = {
     'contract__map__contract': ContractMAPContract,
     'contract__legal_map__contract': ContractLEGALMAPContract
 }
+
+Base.func_map = {}
