@@ -1,9 +1,10 @@
 # app/database/contract/dbmodels.py
 from datetime import date
-from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, Column, Table, func, select
+from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, func, select, and_, not_
 from sqlalchemy.sql import literal_column
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy.ext.hybrid import hybrid_property
+
 from ..base import Base
 from .types import ClausePos, ClauseType, ClauseAction, ExpiryType
 
@@ -36,7 +37,7 @@ class Contract(Base):
     amendments: Mapped[list['Amendment']] = relationship(
         back_populates='contract', 
         lazy='select',
-        order_by=lambda: Amendment.amendment_name
+        order_by=lambda: Amendment.amendment_signdate
     )
     parent_contracts: Mapped[list['Contract']] = relationship(
         back_populates='child_contracts', 
@@ -70,8 +71,6 @@ class Contract(Base):
     clauses: Mapped[list['Clause']] = relationship(
         lazy='select',
         secondary=lambda: Amendment.__table__,
-        primaryjoin=lambda: Contract.contract_id == Amendment.contract_id,
-        secondaryjoin=lambda: Clause.amendment_id == Amendment.amendment_id,
         viewonly=True,
         order_by=lambda: Clause.clause_type
     )
@@ -80,6 +79,7 @@ class Contract(Base):
     def entities(self) -> set['Entity']: # type: ignore
         new_set = set()
         old_set = set()
+
         for amendment in self.amendments:
             for clause in amendment.clauses:
                 if clause.clause_type == ClauseType.CLAUSE_ENTITY:
