@@ -254,13 +254,12 @@ class Clause(Base):
 
     @hybrid_property
     def _name(self) -> str: # type: ignore[override]
-        return f"{self.clause_type.name}#{self.clause_id}"
+        return f"{self.clause_type.name} #{self.clause_id}"
     
     @_name.expression
     def _name(cls):
-        return (literal_column("clause_action") + ':' + 
-                literal_column("clause_type") + '#' + 
-                literal_column("clause_id")
+        return (literal_column("clause_type") + ':' + 
+                ' #' + literal_column("clause_id")
                ).cast(String)
 
     key_info = {
