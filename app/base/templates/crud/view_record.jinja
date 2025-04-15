@@ -96,16 +96,27 @@
         </div>
         {%- endif %}
         {%- if ref_objects['multiple'] %}
-        <div class="list-group list-group-flush mt-3">
-          {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
-          <a class="list-group-item list-group-item-action"
-            href="#collapse-{{- list_name -}}"
-            data-bs-toggle="collapse">
-            {{- list_name -}}
-          </a>
+        <div class="list-group list-group-flush">
+          {%- for list_name, tablename_url_name_add_list in ref_objects['multiple'].items() -%}
+          <div class="d-flex justify-content-between">
+            <a class="list-group-item list-group-item-action"
+              href="#collapse-{{- list_name -}}"
+              data-bs-toggle="collapse">
+              {{- list_name -}}
+            </a>
+            {%- if tablename_url_name_add_list[0][3] %}
+            <a href="{{ tablename_url_name_add_list[0][3] }}"
+              class="btn btn-outline-dark">
+              <i class="fa-solid fa-plus" 
+                data-bs-toggle="tooltip" 
+                data-bs-title="{{ _('Add Record') }}">
+              </i>
+            </a>
+            {%- endif %}
+          </div>
           <div class="collapse" id="collapse-{{- list_name -}}">
             <div class="list-group list-group-flush mt-3">
-            {%- for tablename_url_name in tablename_url_name_list %}
+            {%- for tablename_url_name in tablename_url_name_add_list %}
               <div class="list-group-item">
                 <span>{{- tablename_url_name[0] -}}:</span>
                 <a href="{{ tablename_url_name[1] }}">
@@ -139,7 +150,7 @@
                 </a>
               </li>
             {%- endfor %}
-            {%- for list_name, tablename_url_name_list in ref_objects['multiple'].items() -%}
+            {%- for list_name, tablename_url_name_add_list in ref_objects['multiple'].items() -%}
               <li class="dropdown-item">
                 <div class="dropstart">
                   <button type="button" class="btn dropdown-toggle" 
@@ -148,7 +159,7 @@
                   {{- list_name -}}
                   </button>
                   {#- ignore H021: -#}<ul class="dropdown-menu card-body" style="min-height:20vh; overflow-y:auto">
-                  {%- for tablename_url_name in tablename_url_name_list -%}
+                  {%- for tablename_url_name in tablename_url_name_add_list -%}
                     <li class="dropdown-item">
                       <span>{{- tablename_url_name[0] -}}:</span>
                       <a class="dropdown-item" 
