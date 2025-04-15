@@ -119,6 +119,10 @@
   word-wrap: normal;
 }
 
+textarea {
+  white-space: pre-wrap;
+}
+
 @media (max-width: 576px) {
   .dbman-fixed-fill {
     min-height: 300px;
