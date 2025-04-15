@@ -228,9 +228,21 @@ def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]
             if issubclass(sample_cls, Base):
                 sample_cls = sample_cls.get_polymorphic_base() or sample_cls
             table_name = sample_cls.__tablename__
-            rm[_(rel.key, True)] = [
-                fetch_tablename_url_name(ref_instance, table_name)
-                for ref_instance in instance_list ]
+            kwgs = {}
+            url_add = None
+            if rel.secondary is None:
+                for local_col, remote_col in zip(rel.local_columns, rel.remote_side):
+                    local_val = getattr(instance, local_col.name, None)
+                    if local_val is not None:
+                        kwgs[remote_col.name] = local_val 
+                url_add = url_for('base.crud.modify_record', table_name=table_name, pks='_new', **kwgs)
+            tuna = []
+            for ref_instance in instance_list:
+                tun = list(fetch_tablename_url_name(ref_instance, table_name))
+                if url_add:
+                    tun.append(url_add)
+                tuna.append(tun)
+            rm[_(rel.key, True)] = tuna
         else:
             rel_prop = getattr(instance, rel.key)
             if rel_prop is None:
@@ -345,7 +357,8 @@ def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[
 
 def fetch_modify_form_viewer(
         instance: Base, 
-        db_session: Session
+        db_session: Session,
+        initial_data: dict = dict()
     ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     :return: a dict of data for the modify form.
@@ -374,7 +387,8 @@ def fetch_modify_form_viewer(
         if key in instance.get_keys('modifiable')
     ]:
         is_required = key in instance.get_keys('required')
-        value = getattr(instance, key, None) or ''
+        
+        value = initial_data[key] if key in initial_data else getattr(instance, key, None) or ''
         
         if key in col_rel_map:
             name = _(col_rel_map[key], True)
