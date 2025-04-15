@@ -178,6 +178,7 @@ class Contract(Base):
         }
     }
 
+
 class Amendment(Base):
     __tablename__ = 'amendment'
     amendment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -187,7 +188,8 @@ class Amendment(Base):
     amendment_effectivedate: Mapped[date] = mapped_column(Date)
     amendment_remarks: Mapped[str | None] = mapped_column(String, info = {'longtext': True})
     contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'))
-    
+    amendment_number_huawei: Mapped[str | None]
+
     _name = synonym('amendment_name')
  
     contract: Mapped['Contract'] = relationship(
@@ -210,7 +212,8 @@ class Amendment(Base):
             'amendment_fullname',
             'amendment_signdate',
             'amendment_effectivedate',
-            'amendment_remarks'
+            'amendment_remarks',
+            'amendment_number_huawei'
         ),
         'hidden': {'amendment_id', 'contract_id'},
         'readonly': {'amendment_id', 'contract'},
@@ -493,12 +496,58 @@ class Scope(Base):
     scope_name: Mapped[str]
     
     _name = synonym('scope_name')
+    parent_scopes: Mapped[list['Scope']] = relationship(
+        back_populates='child_scopes', 
+        secondary=lambda: ScopeMAPScope.__table__,
+        primaryjoin=lambda: Scope.scope_id == ScopeMAPScope.child_scope_id,
+        secondaryjoin=lambda: Scope.scope_id == ScopeMAPScope.parent_scope_id,
+        lazy='select'
+    )
+    child_scopes: Mapped[list['Scope']] = relationship(
+        back_populates='parent_scopes', 
+        secondary=lambda: ScopeMAPScope.__table__,
+        primaryjoin=lambda: Scope.scope_id == ScopeMAPScope.parent_scope_id,
+        secondaryjoin=lambda: Scope.scope_id == ScopeMAPScope.child_scope_id,
+        lazy='select'
+    )
 
     key_info = {
-        'data': ( 'scope_id', 'scope_name' ),
+        'data': ( 'scope_id', 'scope_name', 'parent_scopes', 'child_scopes' ),
         'hidden': { 'scope_id' },
-        'readonly': { 'scope_id' }
+        'readonly': { 'scope_id', 'parent_scopes', 'child_scopes' }
     }
+
+class ScopeMAPScope(Base):
+    __tablename__ = 'scope__map__scope'
+    parent_scope_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('scope.scope_id'),
+        primary_key=True
+    )
+    child_scope_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('scope.scope_id'),
+        primary_key=True
+    )
+    parent_scope: Mapped['Scope'] = relationship(
+        foreign_keys=[parent_scope_id],
+        lazy = 'selectin'
+    )
+    child_scope: Mapped['Scope'] = relationship(
+        foreign_keys=[child_scope_id],
+        lazy = 'selectin'
+    )
+
+    key_info = {
+        'data': (
+            'parent_scope_id',
+            'parent_scope',
+            'child_scope_id',
+            'child_scope'
+        ),
+        'hidden': { 'parent_scope_id', 'child_scope_id' },
+        'readonly': { 'parent_scope', 'child_scope' }
+    }     
 
 class ContractMAPContract(Base):
     __tablename__ = 'contract__map__contract'
@@ -563,3 +612,6 @@ class ContractLEGALMAPContract(Base):
         'hidden': { 'parent_contract_id', 'child_contract_id' },
         'readonly': { 'parent_contract', 'child_contract' }
     }  
+
+Contract.scopes.fget.info = {'type': 'list'}
+Contract.entities.fget.info = {'type': 'list'}
