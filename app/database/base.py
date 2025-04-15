@@ -293,6 +293,10 @@ class Base(DeclarativeBase):
                     attr = getattr(cls, key)
                     if isinstance(attr, eval(info)):
                         info_keys.add(key)
+                    attr_type = getattr(attr, 'type', None)
+                    if attr_type is not None and hasattr(attr_type, 'python_type'):
+                        if issubclass(attr_type.python_type, eval(info)):
+                            info_keys.add(key)
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
             elif info in {'single_rel', 'multi_rel'}:

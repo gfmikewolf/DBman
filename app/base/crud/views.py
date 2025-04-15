@@ -45,13 +45,18 @@ def view_table(table_name: str) -> str:
     Model = Base.model_map[table_name]
     with db_session() as db_sess:
         tabledata = fetch_tabledata(Model, db_sess)
+    db_table_funcs = {}
+    for func, func_info in Base.func_map.get(table_name, {}).items():
+        if func_info['func_type'] == 'class':
+            db_table_funcs[func] = func_info
 
     return render_template(
         'crud/view_table.jinja',
         navigation = navigation.get_nav({'View table': '#'}), 
         table_names=Base.model_map.keys(), 
         table_name=table_name,
-        data=tabledata
+        data=tabledata,
+        db_table_funcs=db_table_funcs
     )
 
 def modify_record(table_name: str, pks: str) -> Any:
@@ -106,7 +111,7 @@ def view_record(table_name: str, pks: str) -> str:
         model = fetch_instance(table_name, pks, db_sess)
         basic_info = fetch_model_viewer(model, db_sess)
         ref_objects = fetch_related_objects(model, db_sess)
-        ref_funcs = fetch_related_funcs(table_name, db_sess)
+        ref_funcs = fetch_related_funcs(table_name, db_sess, 'instance')
 
     return render_template(
         'crud/view_record.jinja', 

@@ -57,12 +57,10 @@ class FormFuncMJ extends ContainerMJ {
     // Use the form's action as the URL. It will send the POST to the same page.
     const requestInit = {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: {}
     };
     if (inputs) {
-      requestInit.body = JSON.stringify(Object.fromEntries(inputs));  
+      requestInit.body = inputs;  
     } else {
       requestInit.method = 'GET';
     }

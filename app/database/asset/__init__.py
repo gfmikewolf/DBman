@@ -45,7 +45,7 @@ Base.func_map = {
         }
     },
     'budget': {
-        'update_budget': {
+        'update_budgets': {
             'func_type': 'class',
             'input_types': {}
         }

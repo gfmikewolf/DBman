@@ -407,7 +407,7 @@ def fetch_modify_form_viewer(
             spec_data[key] = r
     return data, spec_data
 
-def fetch_related_funcs(table_name: str, db_session: Session) -> dict[str, Any]:
+def fetch_related_funcs(table_name: str, db_session: Session, func_type: str = 'class') -> dict[str, Any]:
     """
     :return: a dict of related functions for the table.
     """
@@ -415,6 +415,8 @@ def fetch_related_funcs(table_name: str, db_session: Session) -> dict[str, Any]:
         return dict()
     func_inputs = dict()
     for func_name, func_info in Base.func_map[table_name].items():
+        if func_info['func_type'] != func_type:
+            continue
         func_input = dict()
         if func_info['func_type'] == 'instance':
             func_input['_pks'] = (

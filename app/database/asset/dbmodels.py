@@ -1,10 +1,9 @@
 import csv
 import io
 from typing import Any
-from flask import Response, jsonify, request
 from werkzeug.datastructures import FileStorage
 from sqlalchemy import Integer, String, Enum as SqlEnum, ForeignKey, delete, literal_column, Date, insert
-from datetime import date as python_date, datetime
+from datetime import date, datetime
 from sqlalchemy.orm import mapped_column, Mapped, synonym, relationship, Session
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
@@ -339,7 +338,7 @@ class Expense(Base):
     __tablename__ = 'expense'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    date: Mapped[python_date] = mapped_column(Date, default=python_date.today)
+    expense_date: Mapped[date] = mapped_column(Date, default=date.today)
     amount: Mapped[float] = mapped_column(default=0.0)
     currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'), default='AED')
     remarks: Mapped[str | None] = mapped_column(info={'longtext': True})
@@ -352,16 +351,16 @@ class Expense(Base):
     )
     @hybrid_property
     def _name(self) -> str: # type: ignore
-        return f'{self.date} {self.amount} {self.currency_code}'
+        return f'{self.expense_date} {self.amount} {self.currency_code}'
     
     @_name.expression
     def _name(cls):
-        return (literal_column("expense.date") + ' ' + literal_column("expense.amount") + ' ' + literal_column("expense.currency_code")).cast(String)
+        return (literal_column("expense.expense_date") + ' ' + literal_column("expense.amount") + ' ' + literal_column("expense.currency_code")).cast(String)
     
     key_info = {
         'data': (
             'id',
-            'date',
+            'expense_date',
             'amount',
             'currency_code',
             'currency',
@@ -383,7 +382,7 @@ class Expense(Base):
             if 'date' in row and row['date']:
                 try:
                     dt = datetime.strptime(row['date'], "%d/%m/%Y")
-                    data['date'] = dt.date()
+                    data['expense_date'] = dt.date()
                 except:
                     return {'success': False, 'error': 'Invalid date format'}
 
@@ -439,8 +438,8 @@ class Budget(Base):
     name: Mapped[str]
     keywords: Mapped[str | None] = mapped_column(info={'longtext': True})
     budget_total: Mapped[float] = mapped_column(default=0.0)
-    start_date: Mapped[python_date] = mapped_column(Date)
-    end_date: Mapped[python_date] = mapped_column(Date)
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
 
     _name = synonym('name')
 
@@ -465,7 +464,7 @@ class Budget(Base):
     }
 
     @classmethod
-    def update_budget(cls, db_session: Session) -> dict[str, Any]:
+    def update_budgets(cls, db_session: Session) -> dict[str, Any]:
         """
         Update BudgetMAPExpense table for each budget when an expense fits the
         keywords (comm-separated) of the budget and between the start_date and
@@ -473,8 +472,8 @@ class Budget(Base):
         """
         # Fetch all expenses
         expenses = db_session.query(Expense).filter(
-            Expense.date >= Budget.start_date,
-            Expense.date <= Budget.end_date
+            Expense.expense_date >= Budget.start_date,
+            Expense.expense_date <= Budget.end_date
         ).all()
         budgets = db_session.query(Budget).filter(
             Budget.keywords != None,
@@ -489,8 +488,7 @@ class Budget(Base):
                 if expense.remarks and any(keyword.lower() in expense.remarks.lower() for keyword in keywords):
                     new_mappings.append({'budget_id':budget.id, 'expense_id':expense.id})
         try:
-            db_session.execute(delete(BudgetMAPExpense))
-            db_session.execute(insert(BudgetMAPExpense).values(new_mappings))
+            db_session.execute(insert(BudgetMAPExpense).prefix_with("OR IGNORE").values(new_mappings))
             db_session.commit()
             return {'success': True, 'data': f'{len(new_mappings)} records inserted'}
         except Exception as e:

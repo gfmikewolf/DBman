@@ -62,5 +62,14 @@
     "amount": "金额",
     "expense": "费用",
     "load_adcb_account_statement": "加载ADCB对账单",
-    "adcb_account_statement": "ADCB对账单"
+    "adcb_account_statement": "ADCB对账单",
+    "budget": "预算",
+    "keywords": "关键词",
+    "start_date": "开始日期",
+    "end_date": "结束日期",
+    "update_budgets": "更新预算表",
+    "expenses": "费用",
+    "budget_total": "预算总额",
+    "budget__map__expense": "预算与费用映射",
+    "budgets": "预算"
 }
