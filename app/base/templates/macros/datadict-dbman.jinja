@@ -12,7 +12,7 @@
         <strong>{{- header -}}</strong>:
       </div>
       <div class="dbman-datadict-value">
-        {{- value -}}
+        {{- value|replace('\n', '<br>')|safe -}}
       </div>
     </div>
     {%- endfor %}
