@@ -67,8 +67,9 @@ def modify_record(table_name: str, pks: str) -> Any:
         instance = fetch_instance(table_name, pks, db_sess)
         polymorphic_key = instance.get_polymorphic_key()
         if request.method == 'GET':
+            initial_data = request.args.to_dict()
             viewer_original = fetch_model_viewer(instance, db_sess)
-            base_data, spec_data = fetch_modify_form_viewer(instance, db_sess)
+            base_data, spec_data = fetch_modify_form_viewer(instance, db_sess, initial_data)
             return render_template(
                 'crud/modify_record.jinja',
                 navigation = navigation.get_nav({'Modify record': '#'}), 
