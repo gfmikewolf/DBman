@@ -1,8 +1,9 @@
 # app/database/contract/dbmodels.py
-from datetime import date
-from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, func, select, and_, not_
+from datetime import date, datetime
+import logging
+from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, func, select
 from sqlalchemy.sql import literal_column
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, Session
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from ..base import Base
@@ -34,6 +35,56 @@ class Contract(Base):
             .scalar_subquery()
         )
     
+    @property
+    def contract_expirydate(self) -> date | None: # type: ignore
+        return self._get_contract_expirydate(set())
+    
+    def _get_contract_expirydate(self, visited: set[int], event_date: date = datetime.today()) -> date | None:
+        if self.contract_id in visited:
+            logging.error(f'Circular reference detected for contract id: {self.contract_id}')
+            return None
+        visited.add(self.contract_id)
+        db_sess = Session.object_session(self)
+        amendments = None
+        if db_sess is None:
+            logging.error('Session is required in calling contract_expirydate')
+            return None    
+        stmt = select(Amendment).join(Contract).where(
+            Amendment.amendment_signdate < event_date,
+            Amendment.contract_id == self.contract_id
+        ).order_by(Amendment.amendment_signdate.desc())
+        result = db_sess.execute(stmt)
+        amendments = result.scalars().all()
+        if not amendments:
+            return None
+        for amendment in amendments: # sorted by signdate.desc
+            for clause in amendment.clauses:
+                if isinstance(clause, ClauseExpiry):
+                    if clause.expiry_type == ExpiryType.FD:
+                        return clause.expiry_date
+                    elif clause.expiry_type == ExpiryType.LC:
+                        linked_contract = clause.linked_to_contract
+                        if linked_contract is None:
+                            logging.error(f'Clause id:{clause.clause_id} expiry type is LC but no contract is linked')
+                            return None
+                        return linked_contract._get_contract_expirydate(visited, event_date)
+                    elif clause.expiry_type == ExpiryType.LL:
+                        expiry_date = clause.expiry_date
+                        if expiry_date is None:
+                            logging.error(f'Clause id: {clause.clause_id} expiry type is LL but expiry_date is missing')
+                            return None
+                        for child_contract in self.child_contracts:
+                            child_expiry_date = child_contract._get_contract_expirydate(visited, event_date)
+                            if child_expiry_date is None:
+                                logging.error(f'Contract id: {child_contract.contract_id} missing expiry_date')
+                                return None
+                            if child_expiry_date > expiry_date:
+                                expiry_date = child_expiry_date
+                        return expiry_date
+                    else:
+                        logging.error(f'Clause id {clause.clause_id} wrong expiry_type {clause.expiry_type}')
+                        return None
+
     amendments: Mapped[list['Amendment']] = relationship(
         back_populates='contract', 
         lazy='select',
@@ -162,6 +213,7 @@ class Contract(Base):
             'contract_name',
             'contract_fullname',
             'contract_effectivedate',
+            'contract_expirydate',
             'contract_remarks',
             'contract_number_huawei',
             'entities',
@@ -173,6 +225,7 @@ class Contract(Base):
         'readonly': {
             'contract_id', 
             'contract_effectivedate',
+            'contract_expirydate',
             'entities',
             'scopes'
         }
