@@ -224,7 +224,10 @@ def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]
                 db_session.refresh(instance, attribute_names=[rel.key])
                 if len(instance_list) == 0:
                     continue
-            table_name = instance_list[0].__class__.__tablename__
+            sample_cls = instance_list[0].__class__
+            if issubclass(sample_cls, Base):
+                sample_cls = sample_cls.get_polymorphic_base() or sample_cls
+            table_name = sample_cls.__tablename__
             rm[_(rel.key, True)] = [
                 fetch_tablename_url_name(ref_instance, table_name)
                 for ref_instance in instance_list ]
