@@ -45,10 +45,12 @@ def view_table(table_name: str) -> str:
     Model = Base.model_map[table_name]
     with db_session() as db_sess:
         tabledata = fetch_tabledata(Model, db_sess)
+        ref_funcs = fetch_related_funcs(table_name, db_sess, 'class')
     db_table_funcs = {}
     for func, func_info in Base.func_map.get(table_name, {}).items():
         if func_info['func_type'] == 'class':
             db_table_funcs[func] = func_info
+        
 
     return render_template(
         'crud/view_table.jinja',
@@ -56,6 +58,7 @@ def view_table(table_name: str) -> str:
         table_names=Base.model_map.keys(), 
         table_name=table_name,
         data=tabledata,
+        ref_funcs=ref_funcs,
         db_table_funcs=db_table_funcs
     )
 
@@ -77,7 +80,7 @@ def modify_record(table_name: str, pks: str) -> Any:
                 viewer_original = viewer_original,
             )
         elif request.method == 'POST':
-            form_data = request.get_json()
+            form_data = request.form
             if not form_data:
                 return jsonify(success=False, error=_('No data provided')), 400
             if pks == '_new':
