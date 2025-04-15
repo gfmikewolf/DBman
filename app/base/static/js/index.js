@@ -7,7 +7,7 @@
 import { ModalAlertMJ } from './mj/modal-alert-mj.js';
 import { DatatableMJ } from './mj/datatable-mj.js';
 import { FormModifyMJ } from './mj/form-modify-mj.js';
-import { FormFuncMJ } from './mj/form-func-mj.js';
+import { DBFuncMJ } from './mj/db-func-mj.js';
 import { SelectpickerMJ } from './mj/selectpicker-mj.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -38,8 +38,8 @@ function initModules() {
       if (moduleNames.includes('form-modify')) {
         formModify = new FormModifyMJ('#dbman-modify-main', modalAlert);
       }
-      if (moduleNames.includes('form-func')) {
-        formFunc = new FormFuncMJ('#dbman-func-main', modalAlert);
+      if (moduleNames.includes('db-func')) {
+        formFunc = new DBFuncMJ('#db-func-main', modalAlert);
       }
     }
   }
