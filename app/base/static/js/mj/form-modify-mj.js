@@ -1,8 +1,6 @@
 // mj/form-modify-mj.js
 import { ContainerMJ } from './container-mj.js';
 import { ModalAlertMJ } from './modal-alert-mj.js';
-// import { DatajsonMJ } from './datajson-mj.js';
-import { createElement } from './utils-mj.js';
 import { getElement } from './utils-mj.js';
 
 class FormModifyMJ extends ContainerMJ {
@@ -151,10 +149,8 @@ class FormModifyMJ extends ContainerMJ {
     // Use the form's action as the URL. It will send the POST to the same page.
     fetch(this.container.action, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(Object.fromEntries(new FormData(this.container)))
+      headers: {},
+      body: new FormData(this.container)
     })
     .then(async response => {
       if (response.ok) {
