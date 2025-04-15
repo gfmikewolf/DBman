@@ -1,10 +1,11 @@
 {#- app/base/templates/crud/view_table.jinja -#}
 {%- from 'macros/datatable-dbman.jinja' import DatatableDBMan -%}
 {%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
+{%- from 'macros/form-entries-dbman.jinja' import FormEntriesDBMan %}
 {%- extends "base.jinja" -%}
 
 {%- block head -%}
-  <meta name="modules" content="modal-alert,datatable,form-func">
+  <meta name="modules" content="modal-alert,datatable,db-func">
 {%- endblock head -%}
 
 {#- @param for base.jinja - prev_page: redirect to upper level page -#}
@@ -39,8 +40,9 @@
           {%- endfor -%}
         </ul>
       </div>
+      
+      <div class="d-inline-block ms-3" id="db-func-main">
       {%- if db_table_funcs %}
-      <div class="d-inline-block ms-3">
         <span class="h5 me-1">
           {{- _('Functions') -}}:
         </span>
@@ -51,8 +53,9 @@
           {{- _(f, True) -}}
         </button>
         {%- endfor %}
-      </div>
       {%- endif %}
+      </div>
+      
     </div>
     <div class="row">
     {{- DatatableDBMan(
@@ -61,6 +64,26 @@
       data=data) 
     }}
     </div>
+  </div>
+  <div class="d-none" id="db-func-forms">
+  {%- for f, f_input in ref_funcs.items() %}
+    <form method="post"
+          data-dbman-toggle="db-func"
+          data-dbman-target="{{ f }}"
+          enctype="multipart/form-data" 
+          action="{{ url_for('base.crud.db_func', table_name=table_name, func_name=f) }}">
+      <div class="mt-1 card-body">
+        {{ FormEntriesDBMan(f_input) }}
+      </div>
+      <div class="mb-1 text-center">
+        <button type="submit" class="btn btn-sm btn-primary">
+          {{ _('Execute') }}
+        </button>
+      </div>
+      <div >
+      </div>
+    </form>
+  {%- endfor %}
   </div>
 {%- endblock content -%}
 
@@ -72,14 +95,15 @@
     msgs={
       'success': [_('Success'), _('Operation Successful')],
       'error': [_('Error'), _('Operation Error')],
-      'warning_delete': [_('Alert'), _('_warning_delete')]
+      'warning_delete': [_('Alert'), _('_warning_delete')],
+      'input_form': [_('Enter Parameters'), '']
     }
   ) }}
 {%- endblock alert -%}
 {%- block scripts -%}
 <script type="text/javascript">
 const fromTemplate = {
-  table_name: '{{ table_name }}'
+  table_name: '{{ table_name }}',
   db_table_funcs: {{ db_table_funcs }}
 }
 </script>
