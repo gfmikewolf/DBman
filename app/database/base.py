@@ -3,6 +3,7 @@
 __all__ = ['Base', 'DataJson']
 
 # python
+import inspect as python_inspect
 from typing import Any, Optional
 from datetime import date # in use eval('date')
 from enum import Enum # in use eval('Enum')
@@ -11,10 +12,10 @@ from abc import ABC, abstractmethod
 
 # sqlalchemy
 from sqlalchemy import delete, insert, inspect, update
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase
 
 # app
-from app import base
 from app.utils.common import args_to_dict
 from .utils import serialize_value, convert_value_by_python_type
 
@@ -290,13 +291,21 @@ class Base(DeclarativeBase):
             elif info in {'date', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'tuple' 'DataJson', 'Enum'}:
                 info_keys = set()
                 for key in cls.get_keys('data') - cls.get_keys('single_rel'):
-                    attr = getattr(cls, key)
+                    attr = python_inspect.getattr_static(cls, key)
                     if isinstance(attr, eval(info)):
                         info_keys.add(key)
-                    attr_type = getattr(attr, 'type', None)
-                    if attr_type is not None and hasattr(attr_type, 'python_type'):
-                        if issubclass(attr_type.python_type, eval(info)):
-                            info_keys.add(key)
+                    elif isinstance(attr, hybrid_property):
+                        fg = getattr(attr, 'fget', None)
+                        if fg:
+                            info_dict = getattr(fg, 'info', {})
+                            if info_dict.get('type') == info:
+                                info_keys.add(key)
+                    else:
+                        attr_type = getattr(attr, 'type', None)
+                        if attr_type is not None:
+                            python_type = getattr(attr_type, 'python_type', None)
+                            if python_type and issubclass(python_type, eval(info)):
+                                info_keys.add(key)
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
             elif info in {'single_rel', 'multi_rel'}:
