@@ -100,5 +100,6 @@
     "user_name": "用户名",
     "password": "密码",
     "login": "登录",
-    "login-free for 30 days": "30天内免登录"
+    "login-free for 30 days": "30天内免登录",
+    "or", "或"
 }
