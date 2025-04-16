@@ -51,15 +51,22 @@
             {{ 'required pattern=".*\S.*"' if tnvr_o[3] }}>
     {{- tnvr_o[2] -}}
   </textarea>
-  {% elif tnvr_o[0] == 'file' %}
+  {%- elif tnvr_o[0] == 'file' %}
   <input name="{{ key }}"
         type="file"
         class="form-control"
         id="{{- key -}}"
         {{ 'required' if tnvr_o[3] }}>
-  {% elif tnvr_o[0] == 'file-multiple' %}
+  {%- elif tnvr_o[0] == 'file-multiple' %}
   <input name="{{ key }}"
         type="file"
+        class="form-control"
+        id="{{- key -}}"
+        multiple
+        {{ 'required' if tnvr_o[3] }}>
+  {%- elif tnvr_o[0] == 'password' %}
+  <input name="{{ key }}"
+        type="password"
         class="form-control"
         id="{{- key -}}"
         multiple
