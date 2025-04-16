@@ -110,7 +110,10 @@ class Base(DeclarativeBase):
         if key not in cls.get_keys('modifiable'):
             raise AttributeError(f'Key {key} is not modifiable for {cls}')
         attr = getattr(cls, key)
-        attr_type = attr.type.python_type # assume all modifiable attributes are of type ColumnProperty
+        try:
+            attr_type = attr.type.python_type # assume all modifiable attributes are of type ColumnProperty
+        except:
+            return value
         return convert_value_by_python_type(value, attr_type)
     
     def update_data(self, data: str | dict | None = None, **kwargs: Any) -> None:
