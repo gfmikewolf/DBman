@@ -763,10 +763,6 @@ class UserMAPUserRole(Base):
     __tablename__ = 'user__map__user_role'
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.user_id'), primary_key=True)
     user_role_id: Mapped[int] = mapped_column(Integer, ForeignKey('user_role.user_role_id'), primary_key=True)
-    table_privilege: Mapped[dict] = mapped_column(JSON)
-    user: Mapped['User'] = relationship(overlaps='user_roles, users', lazy='selectin')
-    user_role: Mapped['UserRole'] = relationship(overlaps='users, user_roles', lazy='selectin')
-
     key_info = {
         'data': (
             'user_id',
