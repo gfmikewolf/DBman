@@ -1,7 +1,7 @@
 {
     "__filename__": "app/base/static/pagetext/locale_zh.json",
 	"__description__": "本文件包含应用程序页面的文本。_name是内置名称，无下划线表示英语原文不用翻译",
-    "_app_name": "龙瑾数据库管理",
+    "_app_name": "龙瑾数据管理平台",
     "_contract_man": "合同管理",
     "_crud": "数据库增删改查",
     "_enter_form_data": "输入记录数据 (*为必选项).",
@@ -96,5 +96,9 @@
     "unchanged": "未变化",
     "view": "查看",
     "viewed": "查看",
-    "views": "查看"
+    "views": "查看",
+    "user_name": "用户名",
+    "password": "密码",
+    "login": "登录",
+    "login-free for 30 days": "30天内免登录"
 }
