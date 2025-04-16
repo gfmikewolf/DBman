@@ -1,0 +1,24 @@
+{# /app/base/templates/login.jinja #}
+{% extends "base.jinja" %}
+{% set prev_page = '/' %}
+{% block content %}
+<div class="container mt-4">
+  <div class="row text-center">
+    <form action="{{ url_for('base.auth.login') }}">
+      <div class="card">
+        <div class="card-header">{{ _('Login') }}</div>
+        <div class="card-body">
+          <div class="input-group mb-3 flex-nowrap">
+            <label class="input-group-text" for="user_name" required>{{ _('user_name') }}</label>
+            <input name="user_name" id="user_name" class="form-control" type="text">
+            <label class="input-group-text" for="user_password" required>{{ _('password') }}</label>
+            <input name="user_name" id="user_name" class="form-control" type="password">
+            <button type="submit">{{ _('Login') }}</button>
+            <label class="input-group-text" for="login-free">{{ _('Login-free for 30 days') }}</label>
+            <input class="form-control" type="checkbox" id="login-free">
+          </div>  
+        </div>
+      </div>  
+    </form>
+</div>
+{% endblock content %}
