@@ -381,15 +381,18 @@ def fetch_modify_form_viewer(
     base_data_keys = instance.get_keys('polybase_data')
     col_rel_map = instance.get_col_rel_map()
     select_options = fetch_select_options(instance.__class__, db_session)
-
+    required_keys = instance.get_keys('required')
+    enum_keys = instance.get_keys('Enum')
+    date_keys = instance.get_keys('date')
+    longtext_keys = instance.get_keys('longtext')
+    datajson_keys = instance.get_keys('DataJson')
+    password_keys = instance.get_keys('password')
     for key in [
         key for key in instance.key_info['data'] 
         if key in instance.get_keys('modifiable')
     ]:
-        is_required = key in instance.get_keys('required')
-        
         value = initial_data[key] if key in initial_data else getattr(instance, key, None) or ''
-        
+        is_required = key in required_keys
         if key in col_rel_map:
             name = _(col_rel_map[key], True)
             tag = 'select'
@@ -397,24 +400,27 @@ def fetch_modify_form_viewer(
             r = (tag, name, str(value), is_required, options)
         else:
             name = _(key, True)
-            if key in instance.get_keys('Enum'):
+            if key in enum_keys:
                 tag = 'select'
                 if value:
                     value = value.name # type: ignore
                 options = select_options[key]
                 r = (tag, name, value, is_required, options)
             else:
-                if key in instance.get_keys('date'):
+                if key in date_keys:
                     tag = 'date'
                     try:
                         value = value.isoformat() # type: ignore
                     except:
                         value = ''
-                elif key in instance.get_keys('longtext'):
+                elif key in longtext_keys:
                     tag = 'textarea'
-                elif key in instance.get_keys('DataJson'):
+                elif key in datajson_keys:
                     tag = 'DataJson'
                     value = value.dumps() if value else ''
+                elif key in password_keys:
+                    tag = 'password'
+                    value = ''
                 else:
                     tag = 'text'
                 r = (tag, name, value, is_required)
