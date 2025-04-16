@@ -101,5 +101,6 @@
     "password": "密码",
     "login": "登录",
     "login-free for 30 days": "30天内免登录",
-    "or", "或"
+    "or", "或",
+    "anonymous": "匿名"
 }
