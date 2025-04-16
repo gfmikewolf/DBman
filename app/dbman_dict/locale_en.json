@@ -1,7 +1,7 @@
 {
 	"__filename__": "app/base/static/pagetext/locale_en.json",
 	"__description__": "keys starting with _ are for app internal use",
-	"_app_name": "MJ's DB Management",
+	"_app_name": "MJ's DB Management Platform",
 	"_to_prev_page": "Return to previous page",
 	"_to_homepage": "Homepage",
 	"_table_header": "Table Header",
