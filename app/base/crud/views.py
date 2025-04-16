@@ -9,7 +9,7 @@ from flask import (
 # sqlalchemy
 # app
 from app.utils.templates import PageNavigation
-from app.utils.common import _
+from app.utils.common import _, require_privilege
 from app.extensions import db_session, Base
 from .utils import (
     fetch_instance, 
@@ -30,7 +30,7 @@ navigation = PageNavigation ({
 navigation is a PageNavigation object that manages the navigation links for the CRUD views.
 It contains links to the homepage and the CRUD index page.
 """
-
+@require_privilege({'_all':'r'})
 def index() -> str:
     table_names = Base.model_map.keys()
     return render_template(
@@ -38,7 +38,7 @@ def index() -> str:
         table_names=table_names, 
         navigation=navigation.index
     )
-
+@require_privilege({'_all':'r'})
 def view_table(table_name: str) -> str:
     if table_name not in Base.model_map:
         abort(404)
@@ -62,6 +62,7 @@ def view_table(table_name: str) -> str:
         db_table_funcs=db_table_funcs
     )
 
+@require_privilege({'_all':'w'})
 def modify_record(table_name: str, pks: str) -> Any:
     with db_session() as db_sess:
         instance = fetch_instance(table_name, pks, db_sess)
@@ -97,6 +98,7 @@ def modify_record(table_name: str, pks: str) -> Any:
                 db_sess.rollback()
                 return jsonify(success=False, error=str(e)), 500
 
+@require_privilege({'_all':'w'})
 def delete_record(table_name: str, pks: str) -> Response | tuple[Response, int]:
     if request.method != 'DELETE':
         abort(404)
@@ -129,7 +131,7 @@ def view_record(table_name: str, pks: str) -> str:
             'View record': '#'
         })
     )
-
+@require_privilege({'_all':'w'})
 def db_func(table_name: str, func_name: str) -> Response | tuple[Response, int]:
     if not (table_name in Base.model_map and func_name in Base.func_map[table_name]):
         abort(404)
@@ -183,4 +185,3 @@ def db_func(table_name: str, func_name: str) -> Response | tuple[Response, int]:
         else:
             data = str(result_data)
     return jsonify(success=True, data=data), 200
-
