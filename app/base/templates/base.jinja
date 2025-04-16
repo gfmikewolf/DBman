@@ -51,7 +51,7 @@
         </nav>
       </div>
       <div class="fw-bold">
-        {{ _('user_name') }}:  {{ session['user_name'] }}  
+        {{ _('user_name') }}:  {{ session['user_name'] or _('Anonymous') }}  
       </div>
       {#- show bars button instead of navbar for narrow screen #}
       <button class="btn d-lg-none ms-auto" type="button" data-bs-toggle="offcanvas"
