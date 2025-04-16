@@ -1,6 +1,8 @@
 # app/__init__.py
 from flask import Flask, session, render_template, current_app
 from app.utils.common import _
+from app.extensions import Base, db_session
+from app.base.auth.privilege import Privilege
 
 def create_app():
 
@@ -14,6 +16,8 @@ def create_app():
 
     app.jinja_env.globals["_"] = _
 
+    app.config['_PRIV'] = Privilege()
+
     @app.errorhandler(404)
     def page_not_found(e):
         return render_template('error/404.jinja'), 404
@@ -22,5 +26,4 @@ def create_app():
     def init_session():
         if 'LANG' not in session:
             session['LANG'] = current_app.config['TRANSLATOR'].lang
-
     return app
