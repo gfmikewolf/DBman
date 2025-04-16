@@ -1,13 +1,19 @@
 # app/database/contract/dbmodels.py
 from datetime import date, datetime
 import logging
-from sqlalchemy import ForeignKey, Date, Integer, String, Enum as SqlEnum, func, select
+from sqlalchemy import (
+    ForeignKey, 
+    Date, Integer, String, Enum as SqlEnum, JSON,
+    func, 
+    select
+)
 from sqlalchemy.sql import literal_column
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, Session
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, Session, column_property
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from ..base import Base
 from .types import ClausePos, ClauseType, ClauseAction, ExpiryType
+import bcrypt
 
 class Contract(Base):
     __tablename__ = 'contract'
@@ -230,7 +236,6 @@ class Contract(Base):
             'scopes'
         }
     }
-
 
 class Amendment(Base):
     __tablename__ = 'amendment'
@@ -584,11 +589,13 @@ class ScopeMAPScope(Base):
     )
     parent_scope: Mapped['Scope'] = relationship(
         foreign_keys=[parent_scope_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        overlaps='parent_scopes, child_scopes'
     )
     child_scope: Mapped['Scope'] = relationship(
         foreign_keys=[child_scope_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        overlaps='parent_scopes, child_scopes'
     )
 
     key_info = {
@@ -616,11 +623,13 @@ class ContractMAPContract(Base):
     )
     parent_contract: Mapped['Contract'] = relationship(
         foreign_keys=[parent_contract_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        overlaps= 'parent_contracts, child_contracts'
     )
     child_contract: Mapped['Contract'] = relationship(
         foreign_keys=[child_contract_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        overlaps= 'parent_contracts, child_contracts'
     )
 
     key_info = {
@@ -648,11 +657,13 @@ class ContractLEGALMAPContract(Base):
     )
     parent_contract: Mapped['Contract'] = relationship(
         foreign_keys=[parent_contract_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        overlaps= 'legal_parent_contracts, legal_child_contracts'
     )
     child_contract: Mapped['Contract'] = relationship(
         foreign_keys=[child_contract_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        overlaps= 'legal_parent_contracts, legal_child_contracts'
     )
 
     key_info = {
@@ -665,6 +676,113 @@ class ContractLEGALMAPContract(Base):
         'hidden': { 'parent_contract_id', 'child_contract_id' },
         'readonly': { 'parent_contract', 'child_contract' }
     }  
+
+class User(Base):
+    __tablename__ = 'user'
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_password_hash: Mapped[str] = mapped_column(info={'password': True})
+    user_name: Mapped[str]
+    
+    user_roles: Mapped[list['UserRole']] = relationship(
+        back_populates='users',
+        secondary=lambda: UserMAPUserRole.__table__,
+        lazy='select'
+    )
+    
+    @property
+    def user_password(self):
+        return None
+    
+    @user_password.setter
+    def user_password(self, pw: str):
+        self.user_password_hash = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+    def check_password(self, raw_password: str) -> bool:
+        return bcrypt.checkpw(raw_password.encode(), self.user_password_hash.encode())
+
+    key_info = {
+        'data': (
+            'user_id',
+            'user_name',
+            'user_password',
+            'user_roles',
+            'user_password_hash'
+        ),
+        'hidden': {
+            'user_id',
+            'user_password',
+            'user_password_hash'
+        },
+        'readonly': {
+            'user_id',
+            'user_roles',
+            'user_password_hash'
+        },
+        'password': { 'user_password' }
+    }
+
+class UserRole(Base):
+    __tablename__ = 'user_role'
+    user_role_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_role_name: Mapped[str]
+    table_privilege: Mapped[dict] = mapped_column(JSON)
+    
+    users: Mapped[list['User']] = relationship(
+        back_populates='user_roles',
+        secondary=lambda: UserMAPUserRole.__table__,
+        lazy='select'
+    )
+
+    key_info = {
+        'data': (
+            'user_role_id',
+            'user_role_name',
+            'table_privilege',
+            'users'
+        ),
+        'hidden': {
+            'user_role_id'
+        },
+        'readonly': {
+            'user_role_id',
+            'users'
+        }
+    }
+
+class UserMAPUserRole(Base):
+    """
+    .. example::
+    ```python
+    table_privilege = {'contract': 'ramd', ...}
+    # r: read
+    # a: append
+    # m: modify
+    # d: delete
+    ```
+    """
+    __tablename__ = 'user__map__user_role'
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.user_id'), primary_key=True)
+    user_role_id: Mapped[int] = mapped_column(Integer, ForeignKey('user_role.user_role_id'), primary_key=True)
+    table_privilege: Mapped[dict] = mapped_column(JSON)
+    user: Mapped['User'] = relationship(overlaps='user_roles, users', lazy='selectin')
+    user_role: Mapped['UserRole'] = relationship(overlaps='users, user_roles', lazy='selectin')
+
+    key_info = {
+        'data': (
+            'user_id',
+            'user_role_id',
+            'user',
+            'user_role'
+        ),
+        'hidden': {
+            'user_id',
+            'user_role_id'
+        },
+        'readonly': {
+            'user',
+            'user_role'
+        }
+    }
 
 Contract.scopes.fget.info = {'type': 'list'}
 Contract.entities.fget.info = {'type': 'list'}
