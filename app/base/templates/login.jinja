@@ -11,15 +11,15 @@
       <div class="card-header text-center">{{ _('Login') }}</div>
       <div class="card-body">
         {%- if failed %}
-        <div class="text-danger mb-3 flex">{{ _('Username or password error') }}</div>
+        <div class="text-danger mt-2 mb-3 flex">{{ _('User_name or password error') }}</div>
         {%- endif %}
         <div class="input-group mb-3 flex">
           <label class="input-group-text" for="user_name" required>{{ _('user_name') }}</label>
           <input name="user_name" id="user_name" class="form-control" type="text">
         </div>
         <div class="input-group mb-3 flex">
-          <label class="input-group-text" for="user_password" required>{{ _('password') }}</label>
-          <input name="user_name" id="user_name" class="form-control" type="password">
+          <label class="input-group-text" for="password" required>{{ _('password') }}</label>
+          <input name="password" id="password" class="form-control" type="password">
         </div>
         <div class="mb-3 d-flex flex-nowrap justify-content-center">
           <button class="btn btn-primary" type="submit">{{ _('Login') }}</button>
