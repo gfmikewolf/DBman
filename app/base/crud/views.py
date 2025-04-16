@@ -144,8 +144,11 @@ def db_func(table_name: str, func_name: str) -> Response | tuple[Response, int]:
         if param_type_required[0] == 'file':
             if param in request.files:
                 files[param] = request.files[param]
+        elif param_type_required[0] == 'file-multiple':
+            files[param] = request.files.getlist(param)
         if param_type_required[1] and (param not in request.form and param not in request.files):
             return jsonify(success=False, error=_(f'Missing required parameter: {param}')), 400
+
     if func_info['func_type'] == 'instance':
         pks = request.form.get('_pks')
         if pks:
@@ -180,4 +183,4 @@ def db_func(table_name: str, func_name: str) -> Response | tuple[Response, int]:
         else:
             data = str(result_data)
     return jsonify(success=True, data=data), 200
-    
+

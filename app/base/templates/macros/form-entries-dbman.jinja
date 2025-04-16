@@ -57,6 +57,13 @@
         class="form-control"
         id="{{- key -}}"
         {{ 'required' if tnvr_o[3] }}>
+  {% elif tnvr_o[0] == 'file-multiple' %}
+  <input name="{{ key }}"
+        type="file"
+        class="form-control"
+        id="{{- key -}}"
+        multiple
+        {{ 'required' if tnvr_o[3] }}>
   {%- else %}
   <input name="{{ key }}"
         type="text"

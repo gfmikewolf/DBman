@@ -39,9 +39,9 @@ Base.model_map = {
 
 Base.func_map = {
     'expense': {
-        'load_ADCB_account_statement': {
+        'load_ADCB_account_statements': {
             'func_type': 'class',
-            'input_types': {'ADCB_account_statement':('file', True)}
+            'input_types': {'ADCB_account_statements':('file-multiple', True)}
         }
     },
     'budget': {

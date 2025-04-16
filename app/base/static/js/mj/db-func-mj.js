@@ -15,8 +15,7 @@ class DBFuncMJ extends ContainerMJ {
   _findElements(container, modalAlert) {
     super._findElements && super._findElements(container, modalAlert);
     this.buttons = this.container.querySelectorAll('button[data-dbman-toggle="db-func"]');
-    const formContainer = document.getElementById('db-func-forms');
-    this.forms = formContainer.querySelectorAll('form');
+    this.formContainer = document.getElementById('db-func-forms');
   }
 
   _initProperties(container, modalAlert) {
@@ -26,15 +25,16 @@ class DBFuncMJ extends ContainerMJ {
 
   _initFunctions(container, modalAlert) {
     super._initFunctions && super._initFunctions(container, modalAlert);
-    
     this.buttons.forEach((btn) => {
-      if (this.funcInfo['inputs']) {
+      const func_name = btn.dataset.dbmanName;
+      console.log();
+      if (Object.keys(this.funcInfo[func_name]['input_types']).length===0) {
         btn.addEventListener('click', () => {
-          this._showForm(btn.dataset.dbmanName, btn.dataset.dbmanUrl);
+          this._execute(btn.dataset.dbmanUrl, null)
         });
       } else {
         btn.addEventListener('click', () => {
-          this._execute(btn.dataset.dbmanUrl, null)
+          this._showForm(btn.dataset.dbmanName, btn.dataset.dbmanUrl);
         });
       }
     });
@@ -46,7 +46,7 @@ class DBFuncMJ extends ContainerMJ {
       msgKey: 'input_form',
       buttonTypes: ['acknowledge']
     });
-    this.modalAlert.modalBody.appendchild(form.cloneNode(true));
+    this.modalAlert.modalBody.appendChild(form.cloneNode(true));
     form = this.modalAlert.modalBody.querySelector('form');
     form.querySelector('button[type="submit"]').addEventListener('click', (e)=> {
       e.preventDefault();
@@ -56,14 +56,15 @@ class DBFuncMJ extends ContainerMJ {
           select.classList.add('is-invalid');
           return;
         }
-        // Add Bootstrap validation class to visually indicate the form has been validated
-        form.classList.add('was-validated');
-        if (!form.checkValidity()) {
-          return;            
-        }
-        this._execute(form.action, new FormData(form));
       });
+      // Add Bootstrap validation class to visually indicate the form has been validated
+      form.classList.add('was-validated');
+      if (!form.checkValidity()) {
+        return;            
+      }
+      this._execute(form.action, new FormData(form));
     });
+    this.modalAlert.show();
   }
 
   async _execute(url, inputs) {
@@ -105,6 +106,7 @@ class DBFuncMJ extends ContainerMJ {
       });
     }
     this.modalAlert.show(3000);
+    window.location.reload(true);
   }
 }
 

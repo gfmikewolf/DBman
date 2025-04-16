@@ -2,9 +2,16 @@ import csv
 import io
 from typing import Any
 from werkzeug.datastructures import FileStorage
-from sqlalchemy import Integer, String, Enum as SqlEnum, ForeignKey, delete, literal_column, Date, insert
+from sqlalchemy import (
+    Integer, String, Enum as SqlEnum, Date,
+    ForeignKey, 
+    func,
+    literal_column, insert, select
+)
 from datetime import date, datetime
-from sqlalchemy.orm import mapped_column, Mapped, synonym, relationship, Session
+from sqlalchemy.orm import (
+    mapped_column, Mapped, synonym, relationship, Session
+)
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
 from .types import AccountType, Gender
@@ -184,6 +191,10 @@ class BankAccount(Account):
 
     id: Mapped[int] = mapped_column(Integer, ForeignKey('account.id'), primary_key=True)
     organization_id: Mapped[int | None] = mapped_column(ForeignKey('organization.id'))
+    account_name: Mapped[str | None]
+    account_branch: Mapped[str | None]
+    debit_cards: Mapped[str | None]
+    credit_cards: Mapped[str | None]
     account_number: Mapped[str | None]
     IBAN: Mapped[str | None]
 
@@ -198,6 +209,10 @@ class BankAccount(Account):
             'owner',
             'currency_code',
             'currency',
+            'account_name',
+            'account_branch',
+            'debit_cards',
+            'credit_cards',
             'IBAN',
             'account_number',
             'organization_id',
@@ -372,39 +387,53 @@ class Expense(Base):
     }
 
     @classmethod
-    def load_ADCB_account_statement(cls, db_session: Session, ADCB_account_statement: FileStorage) -> dict[str, Any]:
-        stream = io.StringIO(ADCB_account_statement.stream.read().decode("utf-8"))
-        reader = csv.DictReader(stream, delimiter=',')
-        rows_to_insert = []
-
-        for row in reader:
-            data = {}
-            if 'date' in row and row['date']:
-                try:
-                    dt = datetime.strptime(row['date'], "%d/%m/%Y")
-                    data['expense_date'] = dt.date()
-                except:
-                    return {'success': False, 'error': 'Invalid date format'}
-
-            if 'remarks' in row:
-                data['remarks'] = row['remarks']
-            if 'amount' in row and row['amount']:
-                try:
-                    data['amount'] = float(row['amount'])
-                except:
-                    return {'success': False, 'error': 'Invalid amount format'}
-            rows_to_insert.append(data)
-
-        for data in rows_to_insert:
-            expense = Expense(**data)
-            db_session.add(expense)
-        try:    
+    def load_ADCB_account_statements(cls, db_session: Session, ADCB_account_statements: list[FileStorage]) -> dict[str, Any]:
+        total_rows = 0
+        for file in ADCB_account_statements:
+            file.stream.seek(0)
+            content = file.stream.read().decode("utf-8")
+            lines = content.splitlines()
+            if len(lines) < 10:
+                return {'success': False, 'error': 'CSV content does not have enough lines (less than 10 lines)'}
+            header_line = lines[7]
+            data_lines = lines[9:]
+            csv_data = "\n".join([header_line] + data_lines)
+            stream = io.StringIO(csv_data)
+            reader = csv.DictReader(stream, delimiter=',')
+            rows_to_insert = []
+            for row in reader:
+                data = {}
+                # 处理 Transaction Date 列——转换为 expense_date
+                if 'Transaction Date' in row and row['Transaction Date']:
+                    try:
+                        dt = datetime.strptime(row['Transaction Date'].strip('"'), "%d/%m/%Y")
+                        data['expense_date'] = dt.date()
+                    except Exception:
+                        return {'success': False, 'error': 'Invalid date format in row'}
+                else:
+                    continue
+                if 'Amount in AED' in row and row['Amount in AED']:
+                    try:
+                        amount = float(row['Amount in AED'].replace(',', '').strip('"'))
+                        if 'Cr/Dr' in row and row['Cr/Dr'].strip('"').upper() == "CR":
+                            amount = -amount
+                        data['amount'] = amount
+                    except Exception:
+                        return {'success': False, 'error': 'Invalid amount format in row'}
+                if 'Description' in row:
+                    data['remarks'] = row['Description'].strip('"')
+                rows_to_insert.append(data)
+            for data in rows_to_insert:
+                expense = Expense(**data)
+                db_session.add(expense)
+            total_rows += len(rows_to_insert)
+        try:
             db_session.commit()
-            return {'success': True, 'data': f'{len(rows_to_insert)} records inserted'}
+            return {'success': True, 'data': f'{total_rows} records inserted'}
         except Exception as e:
             db_session.rollback()
             return {'success': False, 'error': str(e)}
-        
+
 class BudgetMAPExpense(Base):
     __tablename__ = 'budget__map__expense'
     budget_id: Mapped[int] = mapped_column(ForeignKey('budget.id'), primary_key=True)
@@ -449,17 +478,33 @@ class Budget(Base):
         lazy='select',
     )
 
+    @hybrid_property
+    def expenses_total(self) -> float: # type: ignore
+        """
+        Calculate the total amount of expenses related to this budget.
+        """
+        return sum(expense.amount for expense in self.expenses)
+    
+    @expenses_total.expression
+    def expenses_total(cls):
+        """
+        SQL expression to calculate the total amount of expenses related to this budget.
+        """
+        return (select(func.sum(Expense.amount))
+                .where(Budget.id == cls.id)
+                .correlate_except(Expense)).label('expenses_total')
     key_info = {
         'data': (
             'id',
             'name',
             'keywords',
             'budget_total',
+            'expenses_total',
             'start_date',
             'end_date'
         ),
         'hidden': { 'id' },
-        'readonly': {'id' },
+        'readonly': {'id', 'expenses_total'},
         'translate': { '_name'}
     }
 
@@ -470,29 +515,27 @@ class Budget(Base):
         keywords (comm-separated) of the budget and between the start_date and
         end_date of the budget.
         """
-        # Fetch all expenses
-        expenses = db_session.query(Expense).filter(
-            Expense.expense_date >= Budget.start_date,
-            Expense.expense_date <= Budget.end_date
-        ).all()
         budgets = db_session.query(Budget).filter(
             Budget.keywords != None,
             Budget.keywords != '',
         ).all()
-
-        new_mappings = []
-
+        inserted_rows = 0
         for budget in budgets:
+            expenses = db_session.query(Expense).filter(
+                Expense.expense_date >= budget.start_date,
+                Expense.expense_date <= budget.end_date
+            ).all()
+            new_mappings = []
             keywords = [k.strip() for k in budget.keywords.split(",") if k.strip()] # type: ignore
             for expense in expenses:
                 if expense.remarks and any(keyword.lower() in expense.remarks.lower() for keyword in keywords):
                     new_mappings.append({'budget_id':budget.id, 'expense_id':expense.id})
-        try:
-            db_session.execute(insert(BudgetMAPExpense).prefix_with("OR IGNORE").values(new_mappings))
+            result = db_session.execute(insert(BudgetMAPExpense).prefix_with("OR IGNORE").values(new_mappings))
+            inserted_rows += result.rowcount
+        try:                
             db_session.commit()
-            return {'success': True, 'data': f'{len(new_mappings)} records inserted'}
+            return {'success': True, 'data': f'{inserted_rows} records inserted'}
         except Exception as e:
             db_session.rollback()
             return {'success': False, 'error': str(e)}
 
-        

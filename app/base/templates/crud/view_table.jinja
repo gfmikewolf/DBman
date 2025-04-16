@@ -40,7 +40,6 @@
           {%- endfor -%}
         </ul>
       </div>
-      
       <div class="d-inline-block ms-3" id="db-func-main">
       {%- if db_table_funcs %}
         <span class="h5 me-1">
@@ -48,6 +47,7 @@
         </span>
         {%- for f in db_table_funcs %}
         <button type="button" class="btn btn-sm btn-outline-dark"
+          data-dbman-toggle="db-func"
           data-dbman-url="{{ url_for('base.crud.db_func', table_name=table_name, func_name=f) }}"
           data-dbman-name="{{ f }}">
           {{- _(f, True) -}}
@@ -80,8 +80,6 @@
           {{ _('Execute') }}
         </button>
       </div>
-      <div >
-      </div>
     </form>
   {%- endfor %}
   </div>
@@ -102,9 +100,9 @@
 {%- endblock alert -%}
 {%- block scripts -%}
 <script type="text/javascript">
-const fromTemplate = {
+var fromTemplate = {
   table_name: '{{ table_name }}',
-  db_table_funcs: {{ db_table_funcs }}
+  db_table_funcs: {{ db_table_funcs|tojson|safe }}
 }
 </script>
 {%- endblock scripts -%}
