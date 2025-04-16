@@ -733,6 +733,19 @@ class UserRole(Base):
         lazy='select'
     )
 
+    def __add__(self, other: 'UserRole') -> 'UserRole':
+        if not isinstance(other, UserRole):
+            return NotImplemented
+        merged_priv = self.table_privilege or {}
+        for k, v in (other.table_privilege or {}).items():
+            if k in merged_priv:
+                merged_priv[k] = ''.join(sorted(set(merged_priv[k]) | set(v)))
+            else:
+                merged_priv[k] = v
+        merged = UserRole(user_role_name=f'{self.user_role_name}+{other.user_role_name}')
+        merged.table_privilege = merged_priv
+        return merged
+    
     key_info = {
         'data': (
             'user_role_id',
