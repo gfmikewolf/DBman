@@ -90,5 +90,11 @@
     "child_scope": "子交付范围",
     "parent_scopes": "母交付范围",
     "child_scopes": "子交付范围",
-    "amendment_number_huawei": "华为变更号"
+    "amendment_number_huawei": "华为变更号",
+    "user": "用户",
+    "user_role": "用户角色",
+    "user__map__user_role": "用户角色关系表",
+    "users": "用户",
+    "user_role_name": "用户角色名",
+    "table_privilege": "表格权限"
 }
