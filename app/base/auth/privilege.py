@@ -1,5 +1,3 @@
-# Removed unused import of 'false' from sqlalchemy
-
 class Privilege:
     privs: dict[str, str] = {}
     
