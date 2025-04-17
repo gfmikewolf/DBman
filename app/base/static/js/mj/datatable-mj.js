@@ -266,7 +266,7 @@ class DatatableMJ extends ContainerMJ {
       // 设置鼠标样式表示可点击
       header.style.cursor = 'pointer';
       // 初始排序顺序默认为升序
-      header.dataset.sortOrder = 'asc';
+      header.dataset.sortOrder = '';
       header.addEventListener('click', () => {
         // 切换排序顺序
         const currentSort = header.dataset.sortOrder;
