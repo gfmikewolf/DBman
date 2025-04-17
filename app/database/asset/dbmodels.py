@@ -1,42 +1,356 @@
 import csv
 import io
+from locale import currency
 from typing import Any
 from werkzeug.datastructures import FileStorage
 from sqlalchemy import (
-    Integer, String, Enum as SqlEnum, Date,
+    Float, Integer, String, Enum as SqlEnum, Date, JSON,
     ForeignKey, 
     func,
     literal_column, insert, select
 )
+import bcrypt
 from datetime import date, datetime
 from sqlalchemy.orm import (
-    mapped_column, Mapped, synonym, relationship, Session
+    mapped_column, Mapped, synonym, relationship, Session, aliased
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
-from .types import AccountType, Gender
+from .types import AccountType, Gender, AssetType, TransactionType
 
-class AssetType(Base):
-    __tablename__ = 'asset_type'
+class Asset(Base):
+    __tablename__ = 'asset'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str]
-    frequency: Mapped[int]
+    asset_type: Mapped[AssetType] = mapped_column(SqlEnum(AssetType))
+    owner_id: Mapped[int] = mapped_column(ForeignKey('person.id'))
+    owner: Mapped['Person'] = relationship(lazy='selectin')
+    currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'), default='AED')
+    currency: Mapped['Currency'] = relationship(lazy='selectin')
+    remarks: Mapped[str | None] = mapped_column(info={'longtext': True})
+    
+    _name = synonym('name')
+    
+    __mapper_args__ = {
+        'polymorphic_on': asset_type,
+        'polymorphic_identity': AssetType.O
+    }
 
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'currency_code'
+        ),
+        'hidden': { 'id', 'owner_id' },
+        'readonly': {'id', 'owner' }
+    }
+
+class AccountReceivable(Asset):
+    __tablename__ = 'account_receivable'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('asset.id'), primary_key=True)
+    amount: Mapped[float] = mapped_column(default=0.0)
+    due_date: Mapped[date] = mapped_column(Date, default=date.today)
+    
     _name = synonym('name')
 
     key_info = {
         'data': (
             'id',
-            'name'
+            'name',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'amount',
+            'currency_code',
+            'due_date',
+            'remarks'
         ),
-        'hidden': { 'id' },
-        'readonly': {'id'},
+        'hidden': { 'id', 'owner_id' },
+        'readonly': {'id', 'owner' },
         'translate': { '_name'}
     }
 
-class Manager(Base):
-    __tablename__ = 'manager'
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.AR,
+    }
+
+class Security(Asset):
+    __tablename__ = 'security'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('asset.id'), primary_key=True)
+    issuer_id: Mapped[int] = mapped_column(ForeignKey('organization.id'))
+    issuer: Mapped['Organization'] = relationship(lazy='selectin')
+
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'issuer_id',
+            'issuer',
+            'currency_code'
+        ),
+        'hidden': { 'id', 'owner_id', 'issuer_id' },
+        'readonly': {'id', 'owner', 'issuer' },
+        'translate': { '_name', 'issuer' }
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.S,
+    }
+
+class Stock(Security):
+    __tablename__ = 'stock'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('security.id'), primary_key=True)
+    unit_price: Mapped[float] = mapped_column(default=0.0)
+    shares: Mapped[int] = mapped_column(default=0)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey('organization.id'))
+    company: Mapped['Organization'] = relationship(lazy='selectin')
+    account_id: Mapped[int] = mapped_column(ForeignKey('brokerage_account.id'))
+
+    @hybrid_property
+    def market_value(self) -> float: # type: ignore
+        return self.unit_price * self.shares
+    
+    @market_value.expression
+    def market_value(cls):
+        return func.cast(func.mul(cls.unit_price, cls.shares), Float)
+
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'issuer_id',
+            'issuer',
+            'market_value',
+            'currency_code',
+            'unit_price',
+            'shares',
+            'company_id',
+            'company',
+            'account_id',
+            'account',
+            'remarks'
+        ),
+        'hidden': { 'id', 'owner_id', 'issuer_id', 'company_id', 'account_id' },
+        'readonly': {'id', 'owner', 'issuer', 'market_value', 'company', 'account' },
+        'translate': { '_name', 'issuer', 'company' }
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.S_S
+    }
+
+class PrivateStock(Stock):
+    __tablename__ = 'private_stock'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
+    days_to_liquidity: Mapped[int | None] = mapped_column(default=0)
+
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'issuer_id',
+            'issuer',
+            'market_value',
+            'currency_code',
+            'unit_price',
+            'shares',
+            'company_id',
+            'company',
+            'account_id',
+            'account',
+            'days_to_liquidity',
+            'remarks'
+        ),
+        'hidden': { 'id', 'owner_id', 'issuer_id', 'company_id', 'account_id' },
+        'readonly': {'id', 'owner', 'issuer', 'market_value', 'company', 'account' },
+        'translate': { '_name', 'issuer', 'company' }
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.S_S_PRI
+    }
+
+class PublicStock(Stock):
+    __tablename__ = 'public_stock'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
+    code: Mapped[str | None]
+
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'code',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'issuer_id',
+            'issuer',
+            'market_value',
+            'currency_code',
+            'unit_price',
+            'shares',
+            'company_id',
+            'company',
+            'account_id',
+            'account',
+            'remarks'
+        ),
+        'hidden': { 'id', 'owner_id', 'issuer_id', 'company_id', 'account_id' },
+        'readonly': {'id', 'owner', 'issuer', 'market_value', 'company', 'account' },
+        'translate': { '_name', 'issuer', 'company' }
+    }
+
+class Fund(Security):
+    __tablename__ = 'fund'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('security.id'), primary_key=True)
+    
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'issuer_id',
+            'issuer',
+            'currency_code',
+            'remarks'
+        ),
+        'hidden': { 'id', 'owner_id', 'issuer_id' },
+        'readonly': {'id', 'owner', 'issuer' },
+        'translate': { '_name', 'issuer' }
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.S_F
+    }
+
+class PrivateFund(Fund):
+    __tablename__ = 'private_stock'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
+    days_to_liquidity: Mapped[int | None] = mapped_column(default=0)
+
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'issuer_id',
+            'issuer',
+            'market_value',
+            'currency_code',
+            'unit_price',
+            'shares',
+            'company_id',
+            'company',
+            'account_id',
+            'account',
+            'days_to_liquidity',
+            'remarks'
+        ),
+        'hidden': { 'id', 'owner_id', 'issuer_id', 'company_id', 'account_id' },
+        'readonly': {'id', 'owner', 'issuer', 'market_value', 'company', 'account' },
+        'translate': { '_name', 'issuer', 'company' }
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.S_S_PRI
+    }
+
+class PublicFund(Stock):
+    __tablename__ = 'public_stock'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
+    code: Mapped[str | None]
+
+    key_info = {
+        'data': (
+            'id',
+            'name',
+            'code',
+            'asset_type',
+            'owner_id',
+            'owner',
+            'issuer_id',
+            'issuer',
+            'market_value',
+            'currency_code',
+            'unit_price',
+            'shares',
+            'company_id',
+            'company',
+            'account_id',
+            'account',
+            'remarks'
+        ),
+        'hidden': { 'id', 'owner_id', 'issuer_id', 'company_id', 'account_id' },
+        'readonly': {'id', 'owner', 'issuer', 'market_value', 'company', 'account' },
+        'translate': { '_name', 'issuer', 'company' }
+    }
+
+class Transaction(Base):
+    __tablename__ = 'transaction'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    transaction_date: Mapped[date] = mapped_column(Date, default=date.today)
+    transaction_type: Mapped[TransactionType] = mapped_column(SqlEnum(TransactionType))
+    account_id: Mapped[int] = mapped_column(ForeignKey('account.id'))
+    amount: Mapped[float] = mapped_column(default=0.0)
+    currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'), default='AED')
+    remarks: Mapped[str | None] = mapped_column(info={'longtext': True})
+
+    currency: Mapped['Currency'] = relationship(lazy='selectin')
+
+    @property
+    def _name(self):
+        return f'{self.transaction_date}:{self.transaction_type}:{self.amount}{self.currency_code}'
+
+    key_info = {
+        'data': (
+            'id',
+            'transaction_date',
+            'transaction_type',
+            'account_id',
+            'account',
+            'amount',
+            'currency_code'
+            'remarks'
+        ),
+        'hidden': {'id', 'currency_code'},
+        'readonly': {'id'},
+        'translate': { '_name' }
+    }
+
+    __mapper_args__ = {
+        'polymorphic_on': transaction_type,
+        'polymorphic_identity': TransactionType.S
+    }
+
+class Person(Base):
+    __tablename__ = 'person'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str]
@@ -92,7 +406,7 @@ class Area(Base):
         ),
         'hidden': {'id', 'currency_code'},
         'readonly': {'id', 'currency'},
-        'translate': { '_name'}
+        'translate': { '_name', 'name' }
     }
 
 class Currency(Base):
@@ -101,6 +415,7 @@ class Currency(Base):
     code: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str | None]
     symbol: Mapped[str | None]
+    exchange_rate_usd: Mapped[float] = mapped_column(default=1.0)
 
     _name = synonym('code')
 
@@ -116,7 +431,7 @@ class Currency(Base):
             'symbol'
         ),
         'readonly': {'area'},
-        'translate': { '_name' }
+        'translate': { '_name', 'name' }
     }
 
 class Organization(Base):
@@ -148,8 +463,8 @@ class Account(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nickname: Mapped[str]
-    owner_id: Mapped[int] = mapped_column(ForeignKey('manager.id'))
-    owner: Mapped['Manager'] = relationship(lazy='selectin')
+    owner_id: Mapped[int] = mapped_column(ForeignKey('person.id'))
+    owner: Mapped['Person'] = relationship(lazy='selectin')
     account_type: Mapped[AccountType] = mapped_column(SqlEnum(AccountType))
     currency_code: Mapped[str | None] = mapped_column(ForeignKey('currency.code'))
     parent_id: Mapped[int | None] = mapped_column(ForeignKey('account.id'))
@@ -438,8 +753,8 @@ class BudgetMAPExpense(Base):
     __tablename__ = 'budget__map__expense'
     budget_id: Mapped[int] = mapped_column(ForeignKey('budget.id'), primary_key=True)
     expense_id: Mapped[int] = mapped_column(ForeignKey('expense.id'), primary_key=True)
-    budget: Mapped['Budget'] = relationship(lazy='selectin')
-    expense: Mapped['Expense'] = relationship(lazy='selectin')
+    budget: Mapped['Budget'] = relationship(lazy='selectin', overlaps='expenses,budgets')
+    expense: Mapped['Expense'] = relationship(lazy='selectin', overlaps='expenses,budgets')
     
     @hybrid_property
     def _name(self) -> str: # type: ignore
@@ -467,6 +782,7 @@ class Budget(Base):
     name: Mapped[str]
     keywords: Mapped[str | None] = mapped_column(info={'longtext': True})
     budget_total: Mapped[float] = mapped_column(default=0.0)
+    currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'), default='AED')
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date] = mapped_column(Date)
 
@@ -477,22 +793,63 @@ class Budget(Base):
         secondary='budget__map__expense',
         lazy='select',
     )
+    currency: Mapped['Currency'] = relationship(lazy='selectin')
 
     @hybrid_property
-    def expenses_total(self) -> float: # type: ignore
+    def expenses_total(self) -> float:  # type: ignore
         """
-        Calculate the total amount of expenses related to this budget.
+        先按每种支出币种累加 amount，再按汇率一次性换算为预算币种。
         """
-        return sum(expense.amount for expense in self.expenses)
-    
+        # 按币种累加
+        sums: dict[str, float] = {}
+        for exp in self.expenses:
+            sums.setdefault(exp.currency_code, 0.0)
+            sums[exp.currency_code] += exp.amount
+
+        target_rate = self.currency.exchange_rate_usd
+        total = 0.0
+        # 按币种汇率换算
+        rates_map = {e.currency_code: e.currency.exchange_rate_usd for e in self.expenses}
+        for currency_code, amt in sums.items():
+            if currency_code == self.currency_code:
+                total += amt
+            else:
+                rate = rates_map[currency_code]
+                total += amt * target_rate / rate
+        return total
+
     @expenses_total.expression
     def expenses_total(cls):
         """
-        SQL expression to calculate the total amount of expenses related to this budget.
+        SQL 先按币种分组求和，再按汇率转换并求总和。
         """
-        return (select(func.sum(Expense.amount))
-                .where(Budget.id == cls.id)
-                .correlate_except(Expense)).label('expenses_total')
+        exp_curr = aliased(Currency)
+        bud_curr = aliased(Currency)
+        # 子查询：按币种分组求和
+        sub = (
+            select(
+                Expense.currency_code.label('cc'),
+                func.sum(Expense.amount).label('sum_amt'),
+            )
+            .join(BudgetMAPExpense, BudgetMAPExpense.expense_id == Expense.id)
+            .where(BudgetMAPExpense.budget_id == cls.id)
+            .group_by(Expense.currency_code)
+            .subquery()
+        )
+        # 主查询：连接币种表，按汇率换算并求总和
+        expr = (
+            select(
+                func.coalesce(
+                    func.sum(sub.c.sum_amt / exp_curr.exchange_rate_usd * bud_curr.exchange_rate_usd),
+                    0.0
+                )
+            )
+            .select_from(sub)
+            .join(exp_curr, sub.c.cc == exp_curr.code)
+            .join(bud_curr, bud_curr.code == cls.currency_code)
+        )
+        return expr.scalar_subquery()
+
     key_info = {
         'data': (
             'id',
@@ -500,12 +857,14 @@ class Budget(Base):
             'keywords',
             'budget_total',
             'expenses_total',
+            'currency_code',
+            'currency',
             'start_date',
             'end_date'
         ),
         'hidden': { 'id' },
-        'readonly': {'id', 'expenses_total'},
-        'translate': { '_name'}
+        'readonly': {'id', 'expenses_total', 'currency'},
+        'translate': { '_name', 'currency', 'name'}
     }
 
     @classmethod
@@ -539,3 +898,119 @@ class Budget(Base):
             db_session.rollback()
             return {'success': False, 'error': str(e)}
 
+
+class User(Base):
+    __tablename__ = 'user'
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_password_hash: Mapped[str] = mapped_column(info={'password': True})
+    user_name: Mapped[str]
+    
+    user_roles: Mapped[list['UserRole']] = relationship(
+        back_populates='users',
+        secondary=lambda: UserMAPUserRole.__table__,
+        lazy='select'
+    )
+    
+    @property
+    def user_password(self):
+        return None
+    
+    @user_password.setter
+    def user_password(self, pw: str):
+        self.user_password_hash = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+    def check_password(self, raw_password: str) -> bool:
+        return bcrypt.checkpw(raw_password.encode(), self.user_password_hash.encode())
+
+    key_info = {
+        'data': (
+            'user_id',
+            'user_name',
+            'user_password',
+            'user_roles',
+            'user_password_hash'
+        ),
+        'hidden': {
+            'user_id',
+            'user_password',
+            'user_password_hash'
+        },
+        'readonly': {
+            'user_id',
+            'user_roles',
+            'user_password_hash'
+        },
+        'password': { 'user_password' }
+    }
+
+class UserRole(Base):
+    __tablename__ = 'user_role'
+    user_role_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_role_name: Mapped[str]
+    table_privilege: Mapped[dict] = mapped_column(JSON)
+    
+    users: Mapped[list['User']] = relationship(
+        back_populates='user_roles',
+        secondary=lambda: UserMAPUserRole.__table__,
+        lazy='select'
+    )
+
+    def __add__(self, other: 'UserRole') -> 'UserRole':
+        if not isinstance(other, UserRole):
+            return NotImplemented
+        merged_priv = self.table_privilege or {}
+        for k, v in (other.table_privilege or {}).items():
+            if k in merged_priv:
+                merged_priv[k] = ''.join(sorted(set(merged_priv[k]) | set(v)))
+            else:
+                merged_priv[k] = v
+        merged = UserRole(user_role_name=f'{self.user_role_name}+{other.user_role_name}')
+        merged.table_privilege = merged_priv
+        return merged
+    
+    key_info = {
+        'data': (
+            'user_role_id',
+            'user_role_name',
+            'table_privilege',
+            'users'
+        ),
+        'hidden': {
+            'user_role_id'
+        },
+        'readonly': {
+            'user_role_id',
+            'users'
+        }
+    }
+
+class UserMAPUserRole(Base):
+    """
+    .. example::
+    ```python
+    table_privilege = {'contract': 'ramd', ...}
+    # r: read
+    # a: append
+    # m: modify
+    # d: delete
+    ```
+    """
+    __tablename__ = 'user__map__user_role'
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.user_id'), primary_key=True)
+    user_role_id: Mapped[int] = mapped_column(Integer, ForeignKey('user_role.user_role_id'), primary_key=True)
+    key_info = {
+        'data': (
+            'user_id',
+            'user_role_id',
+            'user',
+            'user_role'
+        ),
+        'hidden': {
+            'user_id',
+            'user_role_id'
+        },
+        'readonly': {
+            'user',
+            'user_role'
+        }
+    }

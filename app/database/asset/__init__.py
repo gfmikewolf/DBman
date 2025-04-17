@@ -16,7 +16,10 @@ from .dbmodels import (
     LoanAccount,
     Expense,
     BudgetMAPExpense,
-    Budget
+    Budget,
+    User,
+    UserRole,
+    UserMAPUserRole
 )
 
 Base.model_map = {
@@ -34,7 +37,10 @@ Base.model_map = {
     'other_account': Account,
     'expense': Expense,
     'budget__map__expense': BudgetMAPExpense,
-    'budget': Budget
+    'budget': Budget,
+    'user': User,
+    'user_role': UserRole,
+    'user__map__user_role': UserMAPUserRole
 }
 
 Base.func_map = {

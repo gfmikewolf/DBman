@@ -21,39 +21,39 @@
 
 
 /* 固定前两列 */
-.dbman-datatable-table {
-  thead.sticky-top {
-    z-index: 2; /* 确保表头在其他内容之上 */
-  }
-  th:nth-child(1),
-  td:nth-child(1),
-  th:nth-child(2),
-  td:nth-child(2) {
-    position: sticky;
-    background-color: white; /* 覆盖其下的内容 */
-    z-index: 1; /* 确保列在其他内容之上 */
-  }
+.dbman-datatable-table thead.sticky-top {
+  z-index: 2; /* 确保表头在其他内容之上 */
+}
 
-  th:nth-child(1),
-  td:nth-child(1) {
-    left: 0; /* 固定第一列的位置 */
-    min-width: 22px; /* 设置最小宽度 */
-    width: 22px; /* 设置固定宽度 */
-    text-align: center; /* 文本居中 */
-    padding-left: 5px;
-  }
+.dbman-datatable-table th:nth-child(1), td:nth-child(1), th:nth-child(2), td:nth-child(2) {
+  position: sticky;
+  background-color: white; /* 覆盖其下的内容 */
+  z-index: 1; /* 确保列在其他内容之上 */
+}
 
-  th:nth-child(2),
-  td:nth-child(2) {
-    left: 22px; /* 固定第二列的位置 */
-    min-width: 50px; /* 设置最小宽度 */
-    width: 50px; /* 设置固定宽度 */
-  }
+.dbman-datatable-table th:nth-child(1), td:nth-child(1) {
+  left: 0; /* 固定第一列的位置 */
+  min-width: 22px; /* 设置最小宽度 */
+  width: 22px; /* 设置固定宽度 */
+  text-align: center; /* 文本居中 */
+  padding-left: 5px;
+}
 
-  th:nth-child(n+3),
-  td:nth-child(n+3) {
-    width: auto; /* 其他列宽度自适应 */
-  }
+.dbman-datatable-table th:nth-child(2), td:nth-child(2) {
+  left: 22px; /* 固定第二列的位置 */
+  min-width: 50px; /* 设置最小宽度 */
+  width: 50px; /* 设置固定宽度 */
+}
+
+.dbman-datatable-table th:nth-child(n+3), td:nth-child(n+3) {
+  width: auto; /* 其他列宽度自适应 */
+}
+
+.dbman-datatable-table th[data-sort-order="asc"]::after {
+  content: "▲";
+}
+.dbman-datatable-table th[data-sort-order="desc"]::after {
+  content: "▼";
 }
 
 /* 确保下拉菜单具有更高的 z-index */

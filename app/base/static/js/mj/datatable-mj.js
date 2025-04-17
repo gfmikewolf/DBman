@@ -42,6 +42,7 @@ class DatatableMJ extends ContainerMJ {
     this._initSearch();
     this._initDownloadCSV();
     this._initDeleteRecord();
+    this._initSorting();
   }
 
   _initRowCheck() {
@@ -253,6 +254,54 @@ class DatatableMJ extends ContainerMJ {
       this.modalAlert.update({
         msgKey: 'error',
         buttonTypes: ['acknowledge']
+      });
+    });
+  }
+
+  // 在 DatatableMJ 类中增加排序初始化方法
+  _initSorting() {
+    // 选择所有带 data-dbman-sn 属性且未隐藏的表头单元格
+    const headers = this.table.querySelectorAll('th[data-dbman-sn]:not(.d-none)');
+    headers.forEach((header) => {
+      // 设置鼠标样式表示可点击
+      header.style.cursor = 'pointer';
+      // 初始排序顺序默认为升序
+      header.dataset.sortOrder = 'asc';
+      header.addEventListener('click', () => {
+        // 切换排序顺序
+        const currentSort = header.dataset.sortOrder;
+        const newSort = currentSort === 'asc' ? 'desc' : 'asc';
+        header.dataset.sortOrder = newSort;
+        
+        const colId = header.dataset.dbmanSn;
+        const tbody = this.table.querySelector('tbody');
+        // 获取 tbody 内所有行作为数组
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        // 对行进行排序
+        rows.sort((a, b) => {
+          const cellA = a.querySelector(`td[data-dbman-sn="${colId}"]`);
+          const cellB = b.querySelector(`td[data-dbman-sn="${colId}"]`);
+          const valA = cellA ? cellA.textContent.trim() : '';
+          const valB = cellB ? cellB.textContent.trim() : '';
+          
+          // 如果两边都是 ISO 日期格式，则直接用字母（字典）排序
+          const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+          if (isoDatePattern.test(valA) && isoDatePattern.test(valB)) {
+            return newSort === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          }
+          
+          // 尝试转成数字比较
+          const numA = parseFloat(valA.replace(/,/g, ''));
+          const numB = parseFloat(valB.replace(/,/g, ''));
+          if (!isNaN(numA) && !isNaN(numB)) {
+            return newSort === 'asc' ? numA - numB : numB - numA;
+          } else {
+            return newSort === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          }
+        });
+        // 清空 tbody 并追加排序后的行
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
       });
     });
   }

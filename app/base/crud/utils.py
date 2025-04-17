@@ -15,6 +15,7 @@ __all__ = [
     'fetch_related_funcs'
 ]
 
+from glob import translate
 from typing import Any
 from enum import Enum
 from flask import abort, url_for
@@ -112,6 +113,7 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     """
     if not hasattr(instance, key):
         value = ''
+    translate_keys = instance.get_keys('translate')
     property = getattr(instance, key, None)
     if property is None or property == '':
         value = ''
@@ -123,14 +125,20 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
             value = ', '.join(map(get_viewable_instance, property))
         else:
             value = ', '.join(map(str, property))
+            if key in translate_keys:
+                value = _(value, True) 
     elif isinstance(property, Enum):
         value = _(property.value, True)
     elif isinstance(property, Base):
         value = get_viewable_instance(property)
     elif isinstance(property, DataJson):
         value = fetch_json_viewer(property, mode='compact', db_session=db_session)
+    elif isinstance(property, float):
+        value = f'{property:,.2f}'
     else:
         value = str(property)
+        if key in translate_keys:
+            value = _(value, True)
     return value
 
 def fetch_json_viewer(
@@ -387,6 +395,7 @@ def fetch_modify_form_viewer(
     longtext_keys = instance.get_keys('longtext')
     datajson_keys = instance.get_keys('DataJson')
     password_keys = instance.get_keys('password')
+    
     for key in [
         key for key in instance.key_info['data'] 
         if key in instance.get_keys('modifiable')
