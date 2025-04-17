@@ -6,7 +6,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 # app
 from config import Config
-from .models import Base
+from .models import Base, table_map
 
 __all__ = ['engine', 'db_session', 'Base']
 

@@ -12,7 +12,7 @@ class Gender(Enum):
     M = 'Male'
     F = 'Female'
 
-class TransactionType(Enum):
+class AccountTransactionType(Enum):
     A = 'asset transaction'
     T = 'transfer'
     S = 'self transaction'

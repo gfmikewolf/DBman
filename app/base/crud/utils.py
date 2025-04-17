@@ -111,13 +111,11 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     """
     :return: a string representation of the value of the key in the instance.
     """
-    if not hasattr(instance, key):
-        value = ''
-    translate_keys = instance.get_keys('translate')
-    property = getattr(instance, key, None)
+    property = getattr(instance, key, None) # type: ignore
     if property is None or property == '':
-        value = ''
-    elif isinstance(property, (list, set, tuple)):
+        return ''
+    translate_keys = instance.get_keys('translate')
+    if isinstance(property, (list, set, tuple)):
         if len(property) == 0:
             return ''
         sample = next(iter(property))

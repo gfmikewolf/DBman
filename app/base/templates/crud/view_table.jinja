@@ -14,48 +14,50 @@
 {%- block content %}
   <div class="container-fluid">
     <div class="d-flex mt-1 mb-2 align-items-center">
-      <span class="h5 me-1">
-        {{- _('Table') -}}:
+      <span class="h5 me-2">
+        {{- _('Table') -}}: {{ _(table_name, True) }}
       </span>
-      <div class="dropdown d-inline">
+      {%- for table_category, table_names in table_map.items() %}
+      <div class="dropdown mx-1">
         <button type="button"
-          data-bs-toggle="dropdown" 
+          data-bs-toggle="dropdown"
+          data-bs-auto-close="outside" 
           class="btn btn-sm btn-outline-dark dropdown-toggle">
-          {{- _(table_name, True) -}}
+          {{- _(table_category, True) -}}
         </button>
         <ul class="dropdown-menu">
-          {%- for tn in table_names -%}
-            <li>
-              {%- if tn == table_name -%}
-                {%- set dd_active = 'active' -%}
-                {%- set dd_url = '#' -%}
-              {%- else -%}
-                {%- set dd_active = '' -%}
-                {%- set dd_url = url_for('base.crud.view_table', table_name=tn) -%}
-              {%- endif -%}
-              <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
-                {{- _(tn, True) -}}
-              </a>
-            </li>
-          {%- endfor -%}
+        {%- for tn in table_names %}
+          <li>
+            {%- if tn == table_name %}
+              {%- set dd_active = 'active' %}
+              {%- set dd_url = '#' %}
+            {%- else -%}
+              {%- set dd_active = '' %}
+              {%- set dd_url = url_for('base.crud.view_table', table_name=tn) %}
+            {%- endif -%}
+            <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
+              {{- _(tn, True) -}}
+            </a>
+          </li>
+        {%- endfor -%}
         </ul>
       </div>
-      <div class="d-inline-block ms-3" id="db-func-main">
-      {%- if db_table_funcs %}
-        <span class="h5 me-1">
-          {{- _('Functions') -}}:
-        </span>
-        {%- for f in db_table_funcs %}
-        <button type="button" class="btn btn-sm btn-outline-dark"
-          data-dbman-toggle="db-func"
-          data-dbman-url="{{ url_for('base.crud.db_func', table_name=table_name, func_name=f) }}"
-          data-dbman-name="{{ f }}">
-          {{- _(f, True) -}}
-        </button>
-        {%- endfor %}
-      {%- endif %}
-      </div>
-      
+      {%- endfor -%}
+    </div>
+    <div class="d-inline-block ms-3" id="db-func-main">
+    {%- if db_table_funcs %}
+      <span class="h5 me-1">
+        {{- _('Functions') -}}:
+      </span>
+      {%- for f in db_table_funcs %}
+      <button type="button" class="btn btn-sm btn-outline-dark"
+        data-dbman-toggle="db-func"
+        data-dbman-url="{{ url_for('base.crud.db_func', table_name=table_name, func_name=f) }}"
+        data-dbman-name="{{ f }}">
+        {{- _(f, True) -}}
+      </button>
+      {%- endfor %}
+    {%- endif %}
     </div>
     <div class="row">
     {{- DatatableDBMan(
@@ -83,7 +85,7 @@
     </form>
   {%- endfor %}
   </div>
-{%- endblock content -%}
+{%- endblock content %}
 
 {%- block alert %}
   {{ ModalDBMan(

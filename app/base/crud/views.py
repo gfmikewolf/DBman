@@ -10,7 +10,7 @@ from flask import (
 # app
 from app.utils.templates import PageNavigation
 from app.utils.common import _, require_privilege
-from app.extensions import db_session, Base
+from app.extensions import db_session, Base, table_map
 from .utils import (
     fetch_instance, 
     fetch_model_viewer, 
@@ -32,10 +32,9 @@ It contains links to the homepage and the CRUD index page.
 """
 @require_privilege({'_all':'r'})
 def index() -> str:
-    table_names = Base.model_map.keys()
     return render_template(
         'crud/index.jinja',  
-        table_names=table_names, 
+        table_map=table_map, 
         navigation=navigation.index
     )
 @require_privilege({'_all':'r'})
@@ -55,7 +54,7 @@ def view_table(table_name: str) -> str:
     return render_template(
         'crud/view_table.jinja',
         navigation = navigation.get_nav({'View table': '#'}), 
-        table_names=Base.model_map.keys(), 
+        table_map=table_map, 
         table_name=table_name,
         data=tabledata,
         ref_funcs=ref_funcs,

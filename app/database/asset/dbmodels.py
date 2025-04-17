@@ -16,7 +16,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
-from .types import AccountType, Gender, AssetType, TransactionType
+from .types import AccountType, Gender, AssetType, AccountTransactionType
 
 class Asset(Base):
     __tablename__ = 'asset'
@@ -194,6 +194,9 @@ class PublicStock(Stock):
     id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
     code: Mapped[str | None]
 
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.S_S_PUB
+    }
     key_info = {
         'data': (
             'id',
@@ -246,9 +249,9 @@ class Fund(Security):
     }
 
 class PrivateFund(Fund):
-    __tablename__ = 'private_stock'
+    __tablename__ = 'private_fund'
 
-    id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('fund.id'), primary_key=True)
     days_to_liquidity: Mapped[int | None] = mapped_column(default=0)
 
     key_info = {
@@ -277,15 +280,18 @@ class PrivateFund(Fund):
     }
 
     __mapper_args__ = {
-        'polymorphic_identity': AssetType.S_S_PRI
+        'polymorphic_identity': AssetType.S_F_PRI
     }
 
-class PublicFund(Stock):
-    __tablename__ = 'public_stock'
+class PublicFund(Fund):
+    __tablename__ = 'public_fund'
 
-    id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('fund.id'), primary_key=True)
     code: Mapped[str | None]
 
+    __mapper_args__ = {
+        'polymorphic_identity': AssetType.S_F_PUB
+    }
     key_info = {
         'data': (
             'id',
@@ -311,12 +317,12 @@ class PublicFund(Stock):
         'translate': { '_name', 'issuer', 'company' }
     }
 
-class Transaction(Base):
-    __tablename__ = 'transaction'
+class AccountTransaction(Base):
+    __tablename__ = 'account_transaction'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     transaction_date: Mapped[date] = mapped_column(Date, default=date.today)
-    transaction_type: Mapped[TransactionType] = mapped_column(SqlEnum(TransactionType))
+    transaction_type: Mapped[AccountTransactionType] = mapped_column(SqlEnum(AccountTransactionType))
     account_id: Mapped[int] = mapped_column(ForeignKey('account.id'))
     amount: Mapped[float] = mapped_column(default=0.0)
     currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'), default='AED')
@@ -346,7 +352,37 @@ class Transaction(Base):
 
     __mapper_args__ = {
         'polymorphic_on': transaction_type,
-        'polymorphic_identity': TransactionType.S
+        'polymorphic_identity': AccountTransactionType.S
+    }
+
+class AccountTransfer(AccountTransaction):
+    __tablename__ = 'account_transfer'
+
+    id: Mapped[int] = mapped_column(Integer, ForeignKey('account_transaction.id'), primary_key=True)
+    from_account_id: Mapped[int] = mapped_column(ForeignKey('account.id'))
+    to_account_id: Mapped[int] = mapped_column(ForeignKey('account.id'))
+
+    from_account: Mapped['Account'] = relationship(lazy='selectin', foreign_keys=[from_account_id])
+    to_account: Mapped['Account'] = relationship(lazy='selectin', foreign_keys=[to_account_id])
+
+    key_info = {
+        'data': (
+            'id',
+            'transaction_date',
+            'transaction_type',
+            'from_account_id',
+            'from_account',
+            'to_account_id',
+            'to_account',
+            'amount',
+            'currency_code'
+        ),
+        'hidden': {'id', 'currency_code', 'from_account_id', 'to_account_id'},
+        'readonly': {'id', 'from_account', 'to_account'}
+    }
+
+    __mapper_args__ = {
+        'polymorphic_identity': AccountTransactionType.T
     }
 
 class Person(Base):
@@ -467,10 +503,14 @@ class Account(Base):
     owner: Mapped['Person'] = relationship(lazy='selectin')
     account_type: Mapped[AccountType] = mapped_column(SqlEnum(AccountType))
     currency_code: Mapped[str | None] = mapped_column(ForeignKey('currency.code'))
+    balance: Mapped[float] = mapped_column(default=0.0)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey('account.id'))
     
-    parent_account: Mapped['Account'] = relationship(lazy='selectin', remote_side=[id])
-    
+    parent_account: Mapped['Account'] = relationship(
+        back_populates='child_accounts',
+        lazy='selectin', 
+        remote_side=[id]
+    )
     child_accounts: Mapped[list['Account']] = relationship(
         back_populates='parent_account',
         lazy='select'
@@ -488,18 +528,33 @@ class Account(Base):
             'owner_id',
             'owner',
             'currency_code',
-            'currency',
+            'balance',
+            'balance_total',
             'parent_id',
             'parent_account',
+            'child_accounts'
         ),
-        'hidden': {'id', 'owner_id', 'currency_code', 'parent_id'},
-        'readonly': {'id', 'owner', 'currency', 'parent_account'}
+        'hidden': {'id', 'owner_id', 'parent_id'},
+        'readonly': {'id', 'owner', 'parent_account', 'child_accounts'}
     }
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.OTHER_ACCOUNT,
         'polymorphic_on': account_type
     }
+
+    @property
+    def balance_total(self) -> dict[str, float]:
+        total = dict()
+        total[self.currency_code] = self.balance
+        for child_account in self.child_accounts:
+            child_balance = child_account.balance_total
+            for key, value in child_balance.items():
+                if key in total:
+                    total[key] += value
+                else:
+                    total[key] = value
+        return total
 
 class BankAccount(Account):
     __tablename__ = 'bank_account'
@@ -523,7 +578,7 @@ class BankAccount(Account):
             'owner_id',
             'owner',
             'currency_code',
-            'currency',
+            'balance',
             'account_name',
             'account_branch',
             'debit_cards',
@@ -533,10 +588,11 @@ class BankAccount(Account):
             'organization_id',
             'organization',
             'parent_id',
-            'parent_account'
+            'parent_account',
+            'child_accounts'
         ),
-        'hidden': {'id', 'owner_id', 'organization_id', 'currency_code', 'parent_id'},
-        'readonly': {'id', 'owner', 'organization', 'currency', 'parent_account'}
+        'hidden': {'id', 'owner_id', 'organization_id', 'parent_id'},
+        'readonly': {'id', 'owner', 'organization', 'currency', 'parent_account', 'child_accounts'}
     }
 
     __mapper_args__ = {
@@ -567,6 +623,25 @@ class CashAccount(Account):
         ),
         'hidden': {'id', 'owner_id', 'currency_code', 'area_code', 'parent_id'},
         'readonly': {'id', 'owner', 'currency', 'location', 'parent_account'}
+    }
+
+    key_info = {
+        'data': (
+            'id',
+            'nickname',
+            'account_type',
+            'owner_id',
+            'owner',
+            'currency_code',
+            'balance',
+            'area_code',
+            'location',
+            'parent_id',
+            'parent_account',
+            'child_accounts'
+        ),
+        'hidden': {'id', 'owner_id', 'area_code', 'parent_id'},
+        'readonly': {'id', 'owner', 'location', 'currency', 'parent_account', 'child_accounts'}
     }
 
     __mapper_args__ = {
@@ -605,6 +680,26 @@ class BrokerageAccount(Account):
         'polymorphic_identity': AccountType.BROKERAGE_ACCOUNT,
     }
 
+    key_info = {
+        'data': (
+            'id',
+            'nickname',
+            'account_type',
+            'owner_id',
+            'owner',
+            'organization_id',
+            'organization',
+            'account_number',
+            'currency_code',
+            'balance',
+            'parent_id',
+            'parent_account',
+            'child_accounts'
+        ),
+        'hidden': {'id', 'owner_id', 'parent_id', 'organization_id'},
+        'readonly': {'id', 'owner', 'parent_account', 'child_accounts'}
+    }
+    
 class CryptoAccount(Account):
     __tablename__ = 'crypto_account'
 
@@ -618,14 +713,15 @@ class CryptoAccount(Account):
             'account_type',
             'owner_id',
             'owner',
-            'currency_code',
-            'currency',
             'account_number',
+            'currency_code',
+            'balance',
             'parent_id',
-            'parent_account'
+            'parent_account',
+            'child_accounts'
         ),
-        'hidden': {'id', 'owner_id', 'currency_code', 'parent_id'},
-        'readonly': {'id', 'owner', 'currency', 'parent_account'}
+        'hidden': {'id', 'owner_id', 'parent_id'},
+        'readonly': {'id', 'owner', 'parent_account', 'child_accounts'}
     }
 
     __mapper_args__ = {
@@ -649,15 +745,16 @@ class LoanAccount(Account):
             'owner_id',
             'owner',
             'currency_code',
-            'currency',
+            'balance',
             'account_number',
             'organization_id',
             'organization',
             'parent_id',
-            'parent_account'
+            'parent_account',
+            'child_accounts'
         ),
-        'hidden': {'id', 'owner_id', 'organization_id', 'currency_code', 'parent_id'},
-        'readonly': {'id', 'owner', 'organization', 'currency', 'parent_account'}
+        'hidden': {'id', 'owner_id', 'organization_id', 'parent_id'},
+        'readonly': {'id', 'owner', 'organization', 'currency', 'parent_account', 'child_accounts'}
     }
 
     __mapper_args__ = {
@@ -897,7 +994,6 @@ class Budget(Base):
         except Exception as e:
             db_session.rollback()
             return {'success': False, 'error': str(e)}
-
 
 class User(Base):
     __tablename__ = 'user'
