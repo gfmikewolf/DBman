@@ -17,6 +17,8 @@ class ClauseType(Enum):
     CLAUSE_ENTITY = 'entity'
     CLAUSE_SCOPE = 'scope'
     CLAUSE_EXPIRY = 'expiry'
+    CLAUSE_TERMINATION = 'termination'
+    CLAUSE_CUSTOMER_LIST = 'customer list'
 
 class ClausePos(Enum):
     """
