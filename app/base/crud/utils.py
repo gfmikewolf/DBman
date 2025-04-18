@@ -50,7 +50,6 @@ def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
     if instance is None:
         abort(404)
     return instance
-
 def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
     """
     :return: a select statement for all rows in the table.
@@ -91,13 +90,11 @@ def fetch_tabledata(Model: type[Base], db_session: Session) -> dict[str, Any]:
         )
 
     return table_dict
-
 def get_viewable_instance_name(instance: Base) -> str:
     if '_name' in instance.get_keys('translate'):
         return _(instance._name, True) # type: ignore
     else:
         return instance._name # type: ignore
-
 def get_viewable_instance(instance: Base) -> str:
     pks = ','.join([str(getattr(instance, pk.key)) for pk in instance.__mapper__.primary_key])
     url = url_for(
@@ -106,7 +103,6 @@ def get_viewable_instance(instance: Base) -> str:
         pks=pks
     )
     return f'<a href="{url}">{get_viewable_instance_name(instance)}</a>' # type: ignore
-
 def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
     """
     :return: a string representation of the value of the key in the instance.
@@ -138,7 +134,6 @@ def fetch_viewable_value(instance: Base, key: str, db_session: Session) -> str:
         if key in translate_keys:
             value = _(value, True)
     return value
-
 def fetch_json_viewer(
         datajson_obj: DataJson, 
         mode:str = 'compact', 
@@ -187,7 +182,6 @@ def fetch_json_viewer(
         if mode == 'compact':
             entries.append(f'{_(key, True)}: {value}')
     return ', '.join(entries)
-
 def fetch_model_viewer(instance: Base, db_session: Session, header_list: list[str] | None = None):
     if header_list is None:
         header_list = instance.get_headers()
@@ -195,7 +189,6 @@ def fetch_model_viewer(instance: Base, db_session: Session, header_list: list[st
         _(header, True): fetch_viewable_value(instance, header, db_session) 
         for header in header_list
     }
-
 def fetch_tablename_url_name(instance: Base, table_name: str) -> tuple[str, str, str]:
     """
     :return: an url linking to the instance and string representation of the instance name.
@@ -210,7 +203,6 @@ def fetch_tablename_url_name(instance: Base, table_name: str) -> tuple[str, str,
         pks=pks
     )
     return (_(table_name, True), url, name)
-
 def fetch_related_objects(instance: Base, db_session: Session) -> dict[str, Any]:
     """
     :return: a dict of related objects for the instance.
