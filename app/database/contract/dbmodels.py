@@ -1,6 +1,7 @@
 # app/database/contract/dbmodels.py
-from datetime import date, datetime
+from bdb import effective
 import logging
+from datetime import date, datetime
 from sqlalchemy import (
     ForeignKey, 
     Date, Integer, String, Enum as SqlEnum,
@@ -75,7 +76,7 @@ class Contract(Base):
         for amendment in amendments: # sorted by signdate.desc
             for clause in amendment.clauses:
                 if isinstance(clause, ClauseExpiry):
-                    if clause.expiry_type == ExpiryType.FD:
+                    if clause.expiry_type == ExpiryType.FD and clause.applied_to_scope is None:
                         return clause.expiry_date
                     elif clause.expiry_type == ExpiryType.LC:
                         linked_contract = clause.linked_to_contract
@@ -422,13 +423,13 @@ class ClauseScope(Clause):
 
     @property
     def _name(self) -> str:
-        basic_name = super()._name
+        nm = super()._name
         if self.clause_action == ClauseAction.A:
-            return basic_name + f' +[{self.new_scope._name}]'
+            return nm + f' +[{self.new_scope._name}]'
         elif self.clause_action == ClauseAction.R:
-            return basic_name + f' -[{self.old_scope._name}]'
+            return nm + f' -[{self.old_scope._name}]'
         elif self.clause_action == ClauseAction.U:
-            return basic_name + f' +[{self.new_scope._name}] -[{self.old_scope._name}]'
+            return nm + f' +[{self.new_scope._name}] -[{self.old_scope._name}]'
         else:
             return 'Wrong clause action type'
 
@@ -476,13 +477,13 @@ class ClauseEntity(Clause):
     )
     @property
     def _name(self) -> str:
-        basic_name = super()._name
+        nm = super()._name
         if self.clause_action == ClauseAction.A:
-            return basic_name + f' +[{self.new_entity._name}]'
+            return nm + f' +[{self.new_entity._name}]'
         elif self.clause_action == ClauseAction.R:
-            return basic_name + f' -[{self.old_entity._name}]'
+            return nm + f' -[{self.old_entity._name}]'
         elif self.clause_action == ClauseAction.U:
-            return basic_name + f' +[{self.new_entity._name}] -[{self.old_entity._name}]'
+            return nm + f' +[{self.new_entity._name}] -[{self.old_entity._name}]'
         else:
             return 'Wrong clause action type'
     __mapper_args__ = {
@@ -568,6 +569,64 @@ class ClauseExpiry(Clause):
         'readonly': { 'clause_id', 'amendment', 'applied_to_scope', 'linked_to_contract' },
         'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' }
     }
+class ClauseCustomerList(Clause):
+    __tablename__ = 'clause_customer_list'
+    effective_date: Mapped[date | None] = mapped_column(Date)
+    clause_id: Mapped[int] = mapped_column(
+        Integer,          
+        ForeignKey('clause.clause_id'),
+        primary_key=True)
+    new_customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey('entity.entity_id')
+    )
+    old_customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey('entity.entity_id'),
+    )
+    new_customer: Mapped['Entity'] = relationship(
+        foreign_keys=[new_customer_id],
+        lazy = 'selectin'
+    )
+    old_customer: Mapped['Entity'] = relationship(
+        foreign_keys=[old_customer_id],
+        lazy = 'selectin'
+    )
+    @property
+    def _name(self) -> str:
+        nm = super()._name
+        if self.clause_action == ClauseAction.A:
+            return nm + f' +[{self.new_customer._name}]'
+        elif self.clause_action == ClauseAction.R:
+            return nm + f' -[{self.old_customer._name}]'
+        elif self.clause_action == ClauseAction.U:
+            return nm + f' +[{self.new_customer._name}] -[{self.old_customer._name}]'
+        else:
+            return 'Wrong clause action type'
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_CUSTOMER_LIST
+    }  
+    key_info = {
+        'data': (
+            'clause_id',
+            'amendment',
+            'amendment_id',
+            'clause_action',
+            'clause_type',
+            'clause_pos',
+            'clause_ref',
+            'clause_text',
+            'effective_date',
+            'new_customer_id',
+            'new_customer',
+            'old_customer_id',
+            'old_customer',
+            'clause_reviewcomments',
+            'clause_remarks'  
+        ),
+        'hidden': { 'clause_id', 'amendment_id', 'new_customer_id', 'old_customer_id' },
+        'readonly': { 'clause_id', 'amendment', 'new_customer', 'old_customer' },
+        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
+        'translate': { '_name' }
+    } 
 class Entitygroup(Base):
     __tablename__ = 'entitygroup'
     entitygroup_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
