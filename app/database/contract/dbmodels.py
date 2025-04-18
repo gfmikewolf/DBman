@@ -3,17 +3,15 @@ from datetime import date, datetime
 import logging
 from sqlalchemy import (
     ForeignKey, 
-    Date, Integer, String, Enum as SqlEnum, JSON,
+    Date, Integer, String, Enum as SqlEnum,
     func, 
     select
 )
-from sqlalchemy.sql import literal_column
-from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, Session, column_property
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym, Session
 from sqlalchemy.ext.hybrid import hybrid_property
-
+from app.utils.common import _
 from ..base import Base
 from .types import ClausePos, ClauseType, ClauseAction, ExpiryType
-import bcrypt
 
 class Contract(Base):
     __tablename__ = 'contract'
@@ -43,9 +41,20 @@ class Contract(Base):
     
     @property
     def contract_expirydate(self) -> date | None: # type: ignore
-        return self._get_contract_expirydate(set())
+        stmt = select(ClauseTermination.termination_date).join(Amendment)
+        stmt = stmt.order_by(Amendment.amendment_effectivedate.desc())
+        stmt = stmt.where(ClauseTermination.contract_id==self.contract_id)
+        db_sess = Session.object_session(self)
+        if db_sess is None:
+            logging.error('Session is required in calling contract_expirydate')
+            return None
+        t_date = db_sess.scalars(stmt).first()
+        if t_date:
+            return t_date
+        else:
+            return self._fetch_contract_expirydate(set())
     
-    def _get_contract_expirydate(self, visited: set[int], event_date: date = datetime.today()) -> date | None:
+    def _fetch_contract_expirydate(self, visited: set[int], event_date: date = datetime.today()) -> date | None:
         if self.contract_id in visited:
             logging.error(f'Circular reference detected for contract id: {self.contract_id}')
             return None
@@ -73,14 +82,14 @@ class Contract(Base):
                         if linked_contract is None:
                             logging.error(f'Clause id:{clause.clause_id} expiry type is LC but no contract is linked')
                             return None
-                        return linked_contract._get_contract_expirydate(visited, event_date)
+                        return linked_contract._fetch_contract_expirydate(visited, event_date)
                     elif clause.expiry_type == ExpiryType.LL:
                         expiry_date = clause.expiry_date
                         if expiry_date is None:
                             logging.error(f'Clause id: {clause.clause_id} expiry type is LL but expiry_date is missing')
                             return None
                         for child_contract in self.child_contracts:
-                            child_expiry_date = child_contract._get_contract_expirydate(visited, event_date)
+                            child_expiry_date = child_contract._fetch_contract_expirydate(visited, event_date)
                             if child_expiry_date is None:
                                 logging.error(f'Contract id: {child_contract.contract_id} missing expiry_date')
                                 return None
@@ -236,7 +245,6 @@ class Contract(Base):
             'scopes'
         }
     }
-
 class Amendment(Base):
     __tablename__ = 'amendment'
     amendment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -276,7 +284,6 @@ class Amendment(Base):
         'hidden': {'amendment_id', 'contract_id'},
         'readonly': {'amendment_id', 'contract'},
     }
-
 class Clause(Base):
     __tablename__ = 'clause'
     clause_id: Mapped[int] = mapped_column(
@@ -286,6 +293,10 @@ class Clause(Base):
     amendment_id: Mapped[int] = mapped_column(
         Integer, 
         ForeignKey('amendment.amendment_id'))
+    clause_action: Mapped[ClauseAction] = mapped_column(
+        SqlEnum(ClauseAction), 
+        default=ClauseAction.A
+    )
     clause_pos: Mapped[ClausePos] = mapped_column(
         SqlEnum(ClausePos), 
         default=ClausePos.M)
@@ -313,21 +324,16 @@ class Clause(Base):
         lazy='select'
     )
 
-    @hybrid_property
-    def _name(self) -> str: # type: ignore[override]
-        return f"{self.clause_type.name} #{self.clause_id}"
-    
-    @_name.expression
-    def _name(cls):
-        return (literal_column("clause_type") + ':' + 
-                ' #' + literal_column("clause_id")
-               ).cast(String)
+    @property
+    def _name(self) -> str:
+        return _(self.clause_type.name, True)
 
     key_info = {
         'data': (
             'clause_id',
             'amendment',
             'amendment_id',
+            'clause_action',
             'clause_type',
             'clause_pos',
             'clause_ref',
@@ -337,22 +343,61 @@ class Clause(Base):
         ),
         'hidden': { 'clause_id', 'amendment_id' },
         'readonly': { 'clause_id', 'amendment' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
-        'translate': { '_name' }
+        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' }
     }
 
     __mapper_args__ = {
         'polymorphic_on': clause_type,
         'polymorphic_identity': ClauseType.CLAUSE
     }
+class ClauseTermination(Clause):
+    __tablename__ = 'clause_termination'
+    clause_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey('clause.clause_id'),
+        primary_key=True
+    )
+    contract_id: Mapped[int | None] = mapped_column(ForeignKey('contract.contract_id'))
+    termination_date: Mapped[date] = mapped_column(Date)
 
+    contract: Mapped[Contract] = relationship(lazy='selectin')
+
+    @property
+    def _name(self) -> str:
+        return super()._name + ': ' + _('Contract', True) + '[' + self.contract._name + '] @ ' + f'{self.termination_date}'
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_TERMINATION
+    }
+
+    key_info = {
+        'data': (
+            'clause_id',
+            'amendment',
+            'amendment_id',
+            'clause_action',
+            'clause_type',
+            'clause_pos',
+            'clause_ref',
+            'clause_text',
+            'clause_reviewcomments',
+            'clause_remarks',
+            'contract_id',
+            'contract',
+            'termination_date'
+        ),
+        'hidden': { 'clause_id', 'amendment_id', 'contract_id' },
+        'readonly': { 'clause_id', 'amendment', 'contract' },
+        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
+        'translate': { }
+    }
 class ClauseScope(Clause):
     __tablename__ = 'clause_scope'
     clause_id: Mapped[int] = mapped_column(
         Integer,          
         ForeignKey('clause.clause_id'),
         primary_key=True)
-    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum(ClauseAction))
+    
     
     new_scope_id: Mapped[int | None] = mapped_column(
         ForeignKey('scope.scope_id')
@@ -375,16 +420,28 @@ class ClauseScope(Clause):
         'polymorphic_identity': ClauseType.CLAUSE_SCOPE
     }
 
+    @property
+    def _name(self) -> str:
+        basic_name = super()._name
+        if self.clause_action == ClauseAction.A:
+            return basic_name + f' +[{self.new_scope._name}]'
+        elif self.clause_action == ClauseAction.R:
+            return basic_name + f' -[{self.old_scope._name}]'
+        elif self.clause_action == ClauseAction.U:
+            return basic_name + f' +[{self.new_scope._name}] -[{self.old_scope._name}]'
+        else:
+            return 'Wrong clause action type'
+
     key_info = {
         'data': (
             'clause_id',
             'amendment',
             'amendment_id',
+            'clause_action',
             'clause_type',
             'clause_pos',
             'clause_ref',
             'clause_text',
-            'clause_action',
             'new_scope_id',
             'new_scope',
             'old_scope_id',
@@ -397,46 +454,50 @@ class ClauseScope(Clause):
         'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
         'translate': { '_name' }
     }
-
 class ClauseEntity(Clause):
     __tablename__ = 'clause_entity'
     clause_id: Mapped[int] = mapped_column(
         Integer,          
         ForeignKey('clause.clause_id'),
         primary_key=True)
-    clause_action: Mapped[ClauseAction] = mapped_column(SqlEnum(ClauseAction))
-    
     new_entity_id: Mapped[int | None] = mapped_column(
         ForeignKey('entity.entity_id')
     )
     old_entity_id: Mapped[int | None] = mapped_column(
         ForeignKey('entity.entity_id'),
     )
-
     new_entity: Mapped['Entity'] = relationship(
         foreign_keys=[new_entity_id],
         lazy = 'selectin'
     )
-
     old_entity: Mapped['Entity'] = relationship(
         foreign_keys=[old_entity_id],
         lazy = 'selectin'
     )
-
+    @property
+    def _name(self) -> str:
+        basic_name = super()._name
+        if self.clause_action == ClauseAction.A:
+            return basic_name + f' +[{self.new_entity._name}]'
+        elif self.clause_action == ClauseAction.R:
+            return basic_name + f' -[{self.old_entity._name}]'
+        elif self.clause_action == ClauseAction.U:
+            return basic_name + f' +[{self.new_entity._name}] -[{self.old_entity._name}]'
+        else:
+            return 'Wrong clause action type'
     __mapper_args__ = {
         'polymorphic_identity': ClauseType.CLAUSE_ENTITY
     }
-
     key_info = {
         'data': (
             'clause_id',
             'amendment',
             'amendment_id',
+            'clause_action',
             'clause_type',
             'clause_pos',
             'clause_ref',
             'clause_text',
-            'clause_action',
             'new_entity_id',
             'new_entity',
             'old_entity_id',
@@ -449,7 +510,6 @@ class ClauseEntity(Clause):
         'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
         'translate': { '_name' }
     }
-
 class ClauseExpiry(Clause):
     __tablename__ = 'clause_expiry'
     clause_id: Mapped[int] = mapped_column(
@@ -476,11 +536,21 @@ class ClauseExpiry(Clause):
         'polymorphic_identity': ClauseType.CLAUSE_EXPIRY
     }
 
+    @property
+    def _name(self) -> str:
+        nm = f'{super()._name}: '
+        nm += _(self.expiry_type.value, True) + ': '
+        if self.expiry_type in {ExpiryType.FD, ExpiryType.LL}:
+            return nm + f'{self.expiry_date}'
+        else:
+            return nm + f'⇄{self.linked_to_contract._name}'
+
     key_info = {
         'data': (
             'clause_id',
             'amendment',
             'amendment_id',
+            'clause_action',
             'clause_type',
             'clause_pos',
             'clause_ref',
@@ -496,10 +566,8 @@ class ClauseExpiry(Clause):
         ),
         'hidden': { 'clause_id', 'amendment_id', 'applied_to_scope_id', 'linked_to_contract_id' },
         'readonly': { 'clause_id', 'amendment', 'applied_to_scope', 'linked_to_contract' },
-        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' },
-        'translate': { '_name' }
+        'longtext': { 'clause_text', 'clause_reviewcomments', 'clause_remarks' }
     }
-
 class Entitygroup(Base):
     __tablename__ = 'entitygroup'
     entitygroup_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -518,9 +586,9 @@ class Entitygroup(Base):
             'entitygroup_name'
         ),
         'hidden': { 'entitygroup_id' },
-        'readonly': { 'entitygroup_id' }
+        'readonly': { 'entitygroup_id' },
+        'translate': { 'entitygroup_name' }
     }
-
 class Entity(Base):
     __tablename__ = 'entity'
     entity_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -545,9 +613,9 @@ class Entity(Base):
             'entitygroup'
         ),
         'hidden': { 'entity_id', 'entitygroup_id' },
-        'readonly': { 'entity_id', 'entitygroup' }
+        'readonly': { 'entity_id', 'entitygroup' },
+        'translate': { '_name', 'entity_name' }
     }
-
 class Scope(Base):
     __tablename__ = 'scope'
     scope_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -572,9 +640,9 @@ class Scope(Base):
     key_info = {
         'data': ( 'scope_id', 'scope_name', 'parent_scopes', 'child_scopes' ),
         'hidden': { 'scope_id' },
-        'readonly': { 'scope_id', 'parent_scopes', 'child_scopes' }
+        'readonly': { 'scope_id', 'parent_scopes', 'child_scopes' },
+        'translate': { '_name', 'scope_name' }
     }
-
 class ScopeMAPScope(Base):
     __tablename__ = 'scope__map__scope'
     parent_scope_id: Mapped[int] = mapped_column(
@@ -608,7 +676,6 @@ class ScopeMAPScope(Base):
         'hidden': { 'parent_scope_id', 'child_scope_id' },
         'readonly': { 'parent_scope', 'child_scope' }
     }     
-
 class ContractMAPContract(Base):
     __tablename__ = 'contract__map__contract'
     parent_contract_id: Mapped[int] = mapped_column(
@@ -642,7 +709,6 @@ class ContractMAPContract(Base):
         'hidden': { 'parent_contract_id', 'child_contract_id' },
         'readonly': { 'parent_contract', 'child_contract' }
     }  
-
 class ContractLEGALMAPContract(Base):
     __tablename__ = 'contract__legal_map__contract'
     parent_contract_id: Mapped[int] = mapped_column(
@@ -676,122 +742,6 @@ class ContractLEGALMAPContract(Base):
         'hidden': { 'parent_contract_id', 'child_contract_id' },
         'readonly': { 'parent_contract', 'child_contract' }
     }  
-
-class User(Base):
-    __tablename__ = 'user'
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_password_hash: Mapped[str] = mapped_column(info={'password': True})
-    user_name: Mapped[str]
-    
-    user_roles: Mapped[list['UserRole']] = relationship(
-        back_populates='users',
-        secondary=lambda: UserMAPUserRole.__table__,
-        lazy='select'
-    )
-    
-    @property
-    def user_password(self):
-        return None
-    
-    @user_password.setter
-    def user_password(self, pw: str):
-        self.user_password_hash = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
-
-    def check_password(self, raw_password: str) -> bool:
-        return bcrypt.checkpw(raw_password.encode(), self.user_password_hash.encode())
-
-    key_info = {
-        'data': (
-            'user_id',
-            'user_name',
-            'user_password',
-            'user_roles',
-            'user_password_hash'
-        ),
-        'hidden': {
-            'user_id',
-            'user_password',
-            'user_password_hash'
-        },
-        'readonly': {
-            'user_id',
-            'user_roles',
-            'user_password_hash'
-        },
-        'password': { 'user_password' }
-    }
-
-class UserRole(Base):
-    __tablename__ = 'user_role'
-    user_role_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_role_name: Mapped[str]
-    table_privilege: Mapped[dict] = mapped_column(JSON)
-    
-    users: Mapped[list['User']] = relationship(
-        back_populates='user_roles',
-        secondary=lambda: UserMAPUserRole.__table__,
-        lazy='select'
-    )
-
-    def __add__(self, other: 'UserRole') -> 'UserRole':
-        if not isinstance(other, UserRole):
-            return NotImplemented
-        merged_priv = self.table_privilege or {}
-        for k, v in (other.table_privilege or {}).items():
-            if k in merged_priv:
-                merged_priv[k] = ''.join(sorted(set(merged_priv[k]) | set(v)))
-            else:
-                merged_priv[k] = v
-        merged = UserRole(user_role_name=f'{self.user_role_name}+{other.user_role_name}')
-        merged.table_privilege = merged_priv
-        return merged
-    
-    key_info = {
-        'data': (
-            'user_role_id',
-            'user_role_name',
-            'table_privilege',
-            'users'
-        ),
-        'hidden': {
-            'user_role_id'
-        },
-        'readonly': {
-            'user_role_id',
-            'users'
-        }
-    }
-
-class UserMAPUserRole(Base):
-    """
-    .. example::
-    ```python
-    table_privilege = {'contract': 'ramd', ...}
-    # r: read
-    # a: append
-    # m: modify
-    # d: delete
-    ```
-    """
-    __tablename__ = 'user__map__user_role'
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.user_id'), primary_key=True)
-    user_role_id: Mapped[int] = mapped_column(Integer, ForeignKey('user_role.user_role_id'), primary_key=True)
-    key_info = {
-        'data': (
-            'user_id',
-            'user_role_id',
-            'user',
-            'user_role'
-        ),
-        'hidden': {
-            'user_id',
-            'user_role_id'
-        },
-        'readonly': {
-            'user',
-            'user_role'
-        }
-    }
 
 Contract.scopes.fget.info = {'type': 'list'}
 Contract.entities.fget.info = {'type': 'list'}
