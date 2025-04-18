@@ -6,20 +6,23 @@ __all__ = [
 from ..base import Base
 
 # database models
-from .dbmodels import Contract, ScopeMAPScope, UserMAPUserRole, UserRole
-from .dbmodels import Amendment
-from .dbmodels import Clause
-from .dbmodels import Entity
-from .dbmodels import Entitygroup
-from .dbmodels import Scope
-from .dbmodels import ClauseScope
-from .dbmodels import ClauseEntity
-from .dbmodels import ClauseExpiry
-from .dbmodels import ContractMAPContract
-from .dbmodels import ContractLEGALMAPContract
-from .dbmodels import User
-from .dbmodels import UserRole
-from .dbmodels import UserMAPUserRole
+from .dbmodels import (
+    ClauseCustomerList,
+    Contract,
+    ScopeMAPScope,
+    Amendment,
+    Clause,
+    Entity,
+    Entitygroup,
+    Scope,
+    ClauseScope,
+    ClauseEntity,
+    ClauseCustomerList,
+    ClauseExpiry,
+    ClauseTermination,
+    ContractMAPContract,
+    ContractLEGALMAPContract
+)
 
 # type
 from .types import ClauseAction, ClausePos, ClauseType
@@ -33,13 +36,37 @@ Base.model_map = {
     'entitygroup': Entitygroup,
     'clause_expiry': ClauseExpiry,
     'clause_entity': ClauseEntity,
+    'clause_customer_list': ClauseCustomerList,
     'clause_scope': ClauseScope,
+    'clause_termination': ClauseTermination,
     'contract__map__contract': ContractMAPContract,
     'contract__legal_map__contract': ContractLEGALMAPContract,
-    'scope__map__scope': ScopeMAPScope,
-    'user': User,
-    'user_role': UserRole,
-    'user__map__user_role': UserMAPUserRole
+    'scope__map__scope': ScopeMAPScope
 }
 
 Base.func_map = {}
+
+table_map = {
+    'basic': {
+        'contract',
+        'amendment',
+        'entity',
+        'entitygroup',
+        'scope',
+        'scope__map__scope',
+        'clause',
+        'contract__map__contract',
+        'contract__legal_map__contract'
+    },
+    'entity clauses': {
+        'clause_entity',
+        'clause_customer_list'
+    },
+    'scope clauses': {
+        'clause_scope'
+    },
+    'duration clauses': {
+        'clause_expiry',
+        'clause_termination'
+    }
+}
