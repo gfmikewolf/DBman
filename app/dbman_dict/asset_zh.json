@@ -122,5 +122,5 @@
     "management": "管理",
     "transaction": "交易",
     "balance": "余额",
-    "balance_total": "总余额"
+    "cur_balance_total": "当前总余额"
 }

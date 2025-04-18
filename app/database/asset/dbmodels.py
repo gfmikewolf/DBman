@@ -1,6 +1,5 @@
 import csv
 import io
-from locale import currency
 from typing import Any
 from werkzeug.datastructures import FileStorage
 from sqlalchemy import (
@@ -459,6 +458,12 @@ class Currency(Base):
         back_populates='currency',
         lazy='selectin')
 
+    def get_ex_rate(self, date: date | None = None) -> float:
+        if date:
+            # search website for historical exchange rate
+            pass
+        return self.exchange_rate_usd
+    
     key_info = {
         'data': (
             'code',
@@ -529,7 +534,7 @@ class Account(Base):
             'owner',
             'currency_code',
             'balance',
-            'balance_total',
+            'cur_balance_total',
             'parent_id',
             'parent_account',
             'child_accounts'
@@ -542,19 +547,21 @@ class Account(Base):
         'polymorphic_identity': AccountType.OTHER_ACCOUNT,
         'polymorphic_on': account_type
     }
-
-    @property
-    def balance_total(self) -> dict[str, float]:
-        total = dict()
-        total[self.currency_code] = self.balance
+    
+    from .types import Amounts
+    def _fetch_total_amounts(self, ex_date: date | None = None) -> Amounts:
+        from .types import Amounts
+        if self.currency_code:
+            amounts = Amounts({(self.balance, self.currency)})
+        else:
+            amounts = Amounts(set())
         for child_account in self.child_accounts:
-            child_balance = child_account.balance_total
-            for key, value in child_balance.items():
-                if key in total:
-                    total[key] += value
-                else:
-                    total[key] = value
-        return total
+            amounts += child_account._fetch_total_amounts()
+        return amounts
+    
+    @property
+    def cur_balance_total(self) -> str:
+        return str(self._fetch_total_amounts())
 
 class BankAccount(Account):
     __tablename__ = 'bank_account'
