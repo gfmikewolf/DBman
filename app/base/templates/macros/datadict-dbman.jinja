@@ -1,0 +1,20 @@
+{# app/base/templates/macros/datadict-dbman.jinja #}
+{%- macro DatadictDBMan(
+      name='main',
+      id='dbman-datadict-' + name,
+      data={}
+    )
+%}
+  <div class="dbman-datadict" id="{{- id -}}">
+  {%- for header, value in data.items() %}
+    <div class="dbman-datadict-row">
+      <div class="dbman-datadict-key">
+        <strong>{{- header -}}</strong>:
+      </div>
+      <div class="dbman-datadict-value">
+        {{- value|replace('\n', '<br>')|safe -}}
+      </div>
+    </div>
+    {%- endfor %}
+  </div>
+{%- endmacro -%}

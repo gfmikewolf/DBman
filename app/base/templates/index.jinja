@@ -1,0 +1,39 @@
+{# /app/base/templates/index.jinja #}
+{#  base.jinja中需要的参数：
+    prev_page: 返回上一页的链接
+#}
+{% extends "base.jinja" %}
+{% set prev_page = None %}
+{% block content %}
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-6 col-sm-12">
+      <div class="card">
+        <div class="card-header">{{ _('Apps') }}</div>
+        <div class="card-body">
+          <div class="list-group">
+            <a href="{{ url_for('base.crud.index') }}"
+            class="list-group-item list-group-item-action">
+            {{ _('DataBase CRUD') }}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-sm-12">
+    <div class="card">
+      <div class="card-header">{{ _('Dashboard') }}</div>
+      <div class="card-body">
+        <div class="list-group">
+        {%- for name, url in dashboards.items() %}
+          <a href="{{- url -}}"
+          class="list-group-item list-group-item-action">
+          {{- _(name, True) -}}
+          </a>
+        {%- endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}

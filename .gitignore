@@ -169,3 +169,23 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# backup files
+*_backup.json
+
+# prettier
+.prettierrc
+.prettierrc.json
+.prettierrc.yaml
+.prettierrc.yml
+.prettierrc.js
+.prettierrc.cjs
+
+env.development
+env.production
+
+# MS Visual Studio Code
+.vscode/
+
+# open source modules
+node_modules/

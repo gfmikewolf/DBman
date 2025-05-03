@@ -1,0 +1,78 @@
+{#- app/base/templates/macros/modal-mj.jinja -#}
+{%- from 'macros/dragger-dbman.jinja' import DraggerDBMan -%}
+
+{%- macro ModalDBMan(
+  name='main',
+  id=type + '-' + name,
+  type='dbman-alert',
+  title='modal-title',
+  headers=[],
+  msgs=dict()
+) -%}
+{#- Valid types for modal -#}
+{%- set valid_types = ('dbman-datatable-config', 'dbman-alert') -%}
+{#- Only render if type in valid_types -#}
+{%- if type in valid_types -%}
+<div class="modal fade" id="{{ id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{- title -}}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+      {%- if type == 'dbman-datatable-config' -%}
+        {{- DraggerDBMan(name='main',
+                    type='card', 
+                    title=_('_table_header'), 
+                    headers=headers
+        ) -}}
+      {%- endif %}
+      </div>
+      <div class="modal-footer">
+      {%- if type == 'dbman-alert' %}
+        <button type="button" 
+          class="btn btn-sm btn-outline-dark" 
+          data-bs-dismiss="modal" 
+          data-dbman-toggle="acknowledge">
+          {{- _('Confirm') -}}
+        </button>
+      {%- endif -%}
+      {%- if type == 'dbman-datatable-config' -%}
+        <button type="button" 
+          class="btn btn-sm btn-outline-dark" 
+          data-dbman-toggle="restore-default">
+          {{- _('Restore Default') -}}
+        </button>
+        <button type="button" 
+          class="btn btn-sm btn-outline-dark" 
+          data-dbman-toggle="save-changes">
+          {{- _('Save Changes') -}}
+        </button>
+      {%- endif %}
+        <button type="button" 
+          class="btn btn-sm btn-outline-dark d-none" 
+          data-dbman-toggle="confirm">
+          {{- _('Confirm') -}}
+        </button>
+        <button type="button" 
+          class="btn btn-sm btn-outline-dark d-none" 
+          data-bs-dismiss="modal" 
+          data-dbman-toggle="cancel">
+          {{- _('Cancel') -}}
+        </button>
+      </div>
+    </div>
+  </div>
+  <div data-dbman-msgs class="d-none">
+    {%- for key in msgs %}
+    <span class="d-none" 
+      data-dbman-key="{{ key|lower }}" 
+      data-dbman-title="{{ msgs[key][0] }}">
+      {{- msgs[key][1] -}}
+    </span>
+    {%- endfor %}
+  </div>
+</div>
+{%- endif -%}
+{%- endmacro -%}

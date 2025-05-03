@@ -1,0 +1,168 @@
+/* app/base/static/css/styles.css */
+
+/* z-index 分层规则：
+   下拉菜单：3
+   固定表头: 2
+   固定表列: 1
+*/
+.collapse,
+.collapse.show,
+.collapsing {
+  transition: none !important;
+  height: auto !important;
+}
+
+.left-tooltip .tooltip-inner {
+  text-align: left;
+}
+/* 滚动容器样式 */
+.table-responsive {
+  max-height: calc(100vh - 200px);
+  background-color: white; /* 覆盖其下的内容 */
+  overflow-x: auto;
+  overflow-y: auto;
+  position: relative; /* 确保子元素的定位相对于此元素 */
+  border: 1px solid #ddd; /* 可选：添加边框以限制内容范围 */
+  box-sizing: border-box ; /* 确保边框和内边距不会影响宽度 */
+  padding-left: 0;
+}
+
+/* 固定前两列 */
+.dbman-datatable-table thead.sticky-top {
+  z-index: 2; /* 确保表头在其他内容之上 */
+}
+
+.dbman-datatable-table th:nth-child(1), td:nth-child(1), th:nth-child(2), td:nth-child(2) {
+  position: sticky;
+  background-color: white; /* 覆盖其下的内容 */
+  z-index: 1; /* 确保列在其他内容之上 */
+}
+
+.dbman-datatable-table th:nth-child(1), td:nth-child(1) {
+  left: 0; /* 固定第一列的位置 */
+  min-width: 22px; /* 设置最小宽度 */
+  width: 22px; /* 设置固定宽度 */
+  text-align: center; /* 文本居中 */
+  padding-left: 5px;
+}
+
+.dbman-datatable-table th:nth-child(2), td:nth-child(2) {
+  left: 22px; /* 固定第二列的位置 */
+  min-width: 50px; /* 设置最小宽度 */
+  width: 50px; /* 设置固定宽度 */
+}
+
+.dbman-datatable-table th:nth-child(n+3), td:nth-child(n+3) {
+  width: auto; /* 其他列宽度自适应 */
+}
+
+/* 升序显示向上箭头 */
+.dbman-datatable-table th[data-sort-order="asc"]::after {
+  content: "▲";
+}
+
+/* 降序显示向下箭头 */
+.dbman-datatable-table th[data-sort-order="desc"]::after {
+  content: "▼";
+}
+
+/* 确保下拉菜单具有更高的 z-index */
+.dropdown-menu {
+  z-index: 3; /* 高于固定表头 */
+}
+
+/* 下拉菜单项字体大小 */
+.dropdown-item {
+  font-size: smaller;
+}
+
+/* 侧边导航栏宽度 */
+#offcanvas-navigation {
+  width: 250px;
+}
+
+.mj-selectpicker {
+  position: relative;
+  display: flex;
+  flex: 1;
+}
+  
+.mj-selectpicker input {
+  flex: 1;
+  z-index: 2;
+}
+  
+.mj-selectpicker select {
+  flex: 1;
+}
+
+.dbman-datadict-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0; /* 上下内边距 */
+}
+  
+.dbman-datadict-key {
+  width: 100%;
+  margin-top: 0.5rem;
+  text-align: left;
+  padding-right: 0;
+  border-bottom: #ddd 1px solid;
+}
+
+.dbman-datadict-value {
+  width: 100%;
+  text-align: left;
+  padding-right: 0;
+}
+
+.dbman-fixed-fill {
+  min-height: 500px;
+  max-height: calc(100vh - 50px);
+  overflow-x: hidden;
+}
+
+.dbman-independent-scroll {
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  word-wrap: normal;
+}
+
+textarea {
+  white-space: pre-wrap;
+}
+
+a.dbman-link {
+  text-underline-offset: 0.5rem;
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color .15s ease-in-out;
+}
+a.dbman-link:hover,
+a.dbman-link:focus {
+  text-decoration-color: currentColor;
+  opacity: .75;
+}
+
+.collapse-toggle .icon-plus,
+.collapse-toggle .icon-minus {
+  display: inline-flex;
+  justify-content: left;
+  align-items: center;
+  width: 1em;
+  margin-right: 0.5em;
+}
+.collapse-toggle .icon-minus { display: none; }
+.collapse-toggle:not(.collapsed) .icon-plus { display: none; }
+.collapse-toggle:not(.collapsed) .icon-minus { display: inline-flex; }
+
+@media (max-width: 576px) {
+  .dbman-fixed-fill {
+    min-height: 300px;
+    max-height: calc(100vh - 250px);
+  }
+  .dbman-independent-scroll {
+    height: calc(100vh - 300px);
+  }
+}

@@ -1,0 +1,28 @@
+{#- dashboard/simple-viewer.jinja #}
+{%- from 'macros/related-objects-dbman.jinja' import RelatedObjects %}
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="keywords" content="database, management, efficiency, productivity">
+  <meta name="author" content="Xiaolong Liu">
+  <link rel="stylesheet" href="{{ url_for('base.static', filename='css/bootstrap/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('base.static', filename='css/font-awesome-all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('base.static', filename='css/index.css') }}">
+</head>
+<body>
+  <h4>{{ name }}</h4>
+  <hr>
+  <div class="lh-lg">
+    {{ description }}
+  </div>
+  <div class="lh-lg mb-2">
+  {%- for k, v in entries.items() %}
+    <strong>{{ k }}</strong>: {{ v|replace('\n', '<br>')|safe }} <br>
+  {%- endfor %}
+  </div>
+  {{ RelatedObjects(related_objects, modifiable=False) }}
+  <script src="{{ url_for('base.static', filename='js/bootstrap/bootstrap.bundle.min.js') }}"></script>
+  <script type="module" src="{{ url_for('base.static', filename='js/index.js') }}"></script>
+</body>
+</html>

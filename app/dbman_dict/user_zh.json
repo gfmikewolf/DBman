@@ -1,0 +1,14 @@
+{
+    "child": "子类",
+    "parent": "母类",
+    "user": "用户",
+    "user__map__user_role": "用户-角色关系表",
+    "user_name": "用户名",
+    "user_password": "用户密码",
+    "user_password_hash": "密码哈希",
+    "user_role": "用户角色",
+    "user_role__map__user_role": "角色继承关系表",
+    "user_role_name": "用户角色名",
+    "user_roles": "用户角色",
+    "users": "用户"
+}

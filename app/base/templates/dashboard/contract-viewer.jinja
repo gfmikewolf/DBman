@@ -1,0 +1,49 @@
+{#- app/base/templates/dashboard/view_contracts.jinja #}
+{% from 'macros/related-objects-dbman.jinja' import RelatedObjects %}
+{%- extends 'base.jinja' -%}
+
+{%- block head -%}
+  <meta name="modules" content="">
+{%- endblock head -%}
+
+{#- @param for base.jinja - prev_page: redirect to upper level page -#}
+{%- set prev_page = '/' -%}
+{%- block content %}
+  <div class="container-fluid">
+    <div class="row p-3 dbman-fixed-fill mx-auto">
+      <aside class="col-md-2 p-3 d-none d-md-block dbman-independent-scroll">
+      {%- if data['contracts'] %}
+        <div class="list-group">
+          <h5>{{ _('Contracts', True) }}</h5>
+      {%- endif %}
+      {%- for contract_name, url, is_active in data['contracts'] %}
+          <a href="{{ url }}" class="list-group-item list-group-item-action{{ ' active' if is_active else '' }}">{{ contract_name }}</a>
+      {%- endfor %}
+      {%- if data['contracts'] %}
+        </div>
+      {%- endif %}
+      </aside>
+      <main class="col-12 col-md-6 p-3 border dbman-independent-scroll">
+        {%- set contract = data['contract'] %}
+        <h4>{{ contract['name'] }}</h4>
+        <hr>
+        <div class="lh-lg">
+          <strong>{{ _('Contract Fullname: ', True) }}</strong>{{ contract['fullname'] }}<br>
+          <strong>{{ _('Huawei Contract Number: ', True) }}</strong><span id="contract-number-huawei">{{ contract['contract_number_huawei'] }}</span>
+          <button type="button" class="btn btn-sm" 
+            data-dbman-toggle="copy" data-dbman-target="contract-number-huawei" data-dbman-msg="{{ _('copied') }}">
+            <i class="fa-solid fa-copy"></i>
+          </button><br>
+          <strong>{{ _('signed between: ', True) }}</strong>{{ contract['entities'] }} @ {{ contract['signdate'] }}<br>
+          <strong>{{ _('effective duration: ', True) }}</strong>{{ contract['effectivedate'] }} - {{ contract['expirydate'] }}<br>
+          {{ contract['scopes'] }}
+          <div class="mt-3">
+          {{ RelatedObjects(contract['related_objects'], modifiable=False, target='right-frame') }}
+          </div>
+        </div>
+      </main>
+      <iframe id="right-frame" name="right-frame" class="col-md-4 p-3 d-none border d-md-block dbman-independent-scroll">
+      </iframe>
+    </div>
+  </div>
+{%- endblock content -%}

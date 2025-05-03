@@ -1,0 +1,92 @@
+{#- app/base/templates/base.jinja -#}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="keywords" content="database, management, efficiency, productivity">
+  <meta name="author" content="Xiaolong Liu">
+  <link rel="stylesheet" href="{{ url_for('base.static', filename='css/bootstrap/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('base.static', filename='css/font-awesome-all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('base.static', filename='css/index.css') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('base.static', filename='svg/mj.svg') }}">
+  {%- block head -%}
+  {%- endblock head %}
+  <title>
+  {%- block title -%}
+  {{- _("_app_name") -}}
+  {%- endblock title -%}
+  </title>
+</head>
+<body>
+  <div class="container-fluid d-flex flex-column">
+  {%- block navbar %}
+    <div class="row row-cols-auto align-items-center justify-content-between">
+      <div class="d-flex align-items-center">
+        <div class="button-container d-flex align-items-center">
+          {%- if prev_page %}
+          <a href="{{ prev_page }}" data-dbman-toggle="prev-page" class="btn"><i class="fa fa-arrow-up"></i></a>
+          <a href="{{ url_for('base.index') }}" class="btn"><i class="fa fa-house"></i></a>
+          {%- endif -%}
+          {%- if session.get('LANG') == 'en' %}
+          <a href="{{ url_for('base.set_lang', lang='zh') }}" class="btn">简中</a>
+          {%- else %}
+          <a href="{{ url_for('base.set_lang', lang='en') }}" class="btn">En</a>
+          {%- endif %}
+        </div>
+        {#- navbar for wide screen #}
+        <nav class="d-none d-lg-block">
+          <ol class="breadcrumb mb-0 justify-content-start align-items-center">
+            {%- for nav_level in navigation -%}
+            {%- if loop.last %}
+            <li class="breadcrumb-item active">{{- _(nav_level) -}}</li>
+            {%- else %}
+            <li class="breadcrumb-item">
+              <a href="{{ navigation[nav_level] }}">{{- _(nav_level) -}}</a>
+            </li>
+            {%- endif -%}
+            {%- endfor %}
+          </ol>
+        </nav>
+      </div>
+      <div class="fw-bold">
+        {%- if session['USER_NAME'] != '_anonymous' %}
+        <a class="dbman-link" href="{{ url_for('base.auth.app_login') }}" target="_blank">{{ _('Login') }}</a>
+        {%- endif %}
+        {{ _('user_name') }}:  {{ session['USER_NAME'] or _('anonymous') }}  
+      </div>
+      {#- show bars button instead of navbar for narrow screen #}
+      <button class="btn d-lg-none ms-auto" type="button" data-bs-toggle="offcanvas"
+        data-bs-target="#offcanvas-navigation">
+        <i class="fa fa-bars"></i>
+      </button>
+    </div>
+    {#- show offcanvas instead of navbar for narrow screen #}
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas-navigation">
+      <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="offcanvasNavigationLabel">{{ _("Navigation") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+      </div>
+      <div class="offcanvas-body">
+        <nav class="nav flex-column">
+          {%- for nav_level in navigation %}
+          <a class="nav-link{{ ' disabled' if loop.last else '' }}" href="{{ navigation[nav_level] }}">
+            {{- _(nav_level) -}}</a>
+          {%- endfor %}
+        </nav>
+      </div>
+    </div>
+  {%- endblock navbar %}
+    <div class="row flex-fill">
+    {%- block content %}
+    {%- endblock content %}
+    </div>
+  </div>
+  {%- block alert -%}
+  {%- endblock alert %}
+  <script src="{{ url_for('base.static', filename='js/bootstrap/bootstrap.bundle.min.js') }}"></script>
+  {%- block scripts -%}
+  {%- endblock scripts %}
+  <script type="module" src="{{ url_for('base.static', filename='js/index.js') }}"></script>
+</body>
+</html>

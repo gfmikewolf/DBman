@@ -1,0 +1,107 @@
+{#- app/base/templates/crud/view_record.jinja #}
+{%- from 'macros/datadict-dbman.jinja' import DatadictDBMan %}
+{%- from 'macros/related-objects-dbman.jinja' import RelatedObjects %}
+{%- from 'macros/form-entries-dbman.jinja' import FormEntriesDBMan %}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan %}
+{%- extends 'base.jinja' -%}
+
+{%- block head -%}
+  <meta name="modules" content="modal-alert,form-func">
+{%- endblock head -%}
+
+{#- @param for base.jinja - prev_page: redirect to upper level page -#}
+{%- set prev_page = url_for('base.crud.view_table', table_name=table_name) -%}
+{%- block content %}
+  <div class="container-fluid">
+    <div class="row p-3 dbman-fixed-fill mx-auto">
+      <div class="col-md-2 p-3 d-none d-md-block dbman-independent-scroll text-center">
+        <div class="card">
+          <div class="card-header text-center">
+            {{- _('Related Actions') -}}
+          </div>
+          <div class="list-group text-center">
+            <a  class="list-group-item list-group-item-action"
+                href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}">
+              {{- _('Modify record') -}}
+            </a>
+            <a  href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
+                class="list-group-item list-group-item-action">
+              {{- _('View table') -}}
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-12 col-md-6 p-3 border dbman-independent-scroll">
+        <h5>[{{ _(table_name, True) }}]{{ _('Basic Information') -}}</h5>
+        <div>
+        {{- DatadictDBMan(
+              name='basic',
+              data=basic_info,
+            ) 
+        -}}
+        </div>
+      </div>
+      <div class="col-md-4 p-3 d-none d-md-block dbman-independent-scroll">
+        {%- if related_funcs %}
+        <h5>{{- _('Related Functions') -}}</h5>
+        <div class="list-group list-group-flush" id="dbman-func-main">
+          {%- for func_name, func_input in related_funcs.items() %}
+            {%- if func_input %}
+          <a  href="#collapse-func-{{ func_name }}"
+              data-dbman-toggle="db-func"
+              data-bs-toggle="collapse"
+              class="list-group-item list-group-item-action">
+              {{- _(func_name, True) -}}
+          </a>
+          <div class="collapse" id="collapse-func-{{ func_name }}">
+            <form method="post"
+                  data-dbman-toggle="db-func"
+                  enctype="multipart/form-data" 
+                  action="{{ url_for('base.crud.db_func', table_name=table_name, func_name=func_name) }}">
+              <div class="mt-1 card-body">
+                {{ FormEntriesDBMan(func_input) }}
+              </div>
+              <div class="mb-1 text-center">
+                <button type="submit" class="btn btn-sm btn-primary">
+                  {{ _('Execute') }}
+                </button>
+                <a  href="#collapse-func-{{ func_name }}"
+                    class="btn btn-sm btn-secondary"
+                    data-bs-toggle="collapse">
+                  {{- _('Cancel') -}}
+                </a>
+              </div>
+            </form>
+          </div>
+          {%- else %}
+          <button data-dbman-url="{{ url_for('base.crud.db_func', table_name=table_name, func_name=func_name) }}"
+                  class="list-group-item list-group-item-action"
+                  data-dbman-toggle="db-func">
+            {{- _(func_name, True) -}}
+          </button>
+          {%- endif %}
+        {%- endfor %}
+        </div>
+        {%- endif %}
+        {{ RelatedObjects(related_objects) }}
+      </div>
+    </div>
+    <div class="row bg-light">
+      <nav id="navbar-view" class="navbar navbar-expand-lg navbar-light p-3 d-md-none">
+        <div class="navbar-brand"></div>
+      </nav>
+    </div>
+  </div>
+{%- endblock content -%}
+{%- block alert %}
+  {{ ModalDBMan(
+    name='main',
+    type='dbman-alert',
+    title=_('Alert'),
+    msgs={
+      'success': [_('Success'), _('Operation Successful')],
+      'error': [_('Error'), _('Operation Error')],
+      'warning_delete': [_('Alert'), _('_warning_delete')]
+    }
+  ) }}
+{%- endblock alert -%}

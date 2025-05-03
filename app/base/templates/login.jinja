@@ -1,0 +1,40 @@
+{# /app/base/templates/login.jinja #}
+{% extends "base.jinja" %}
+{% set prev_page = '/' %}
+{% block content %}
+<div class="container mt-4">
+  <div class="row">
+  <div class="col-md-2"></div>  
+  <div class="col-md-8">
+    <div class="card">
+    <form action="{{ url_for('base.auth.app_login') }}" method="post">
+      <div class="card-header text-center">{{ _('Login') }}</div>
+      <div class="card-body">
+        {%- if failed %}
+        <div class="text-danger mt-2 mb-3 flex">{{ _('User_name or password error') }}</div>
+        {%- endif %}
+        <div class="input-group mb-3 flex">
+          <label class="input-group-text" for="user_name" required>{{ _('user_name') }}</label>
+          <input name="user_name" id="user_name" class="form-control" type="text">
+        </div>
+        <div class="input-group mb-3 flex">
+          <label class="input-group-text" for="password" required>{{ _('password') }}</label>
+          <input name="password" id="password" class="form-control" type="password">
+        </div>
+        <div class="mb-3 d-flex flex-nowrap justify-content-center">
+          <button class="btn btn-primary" type="submit">{{ _('Login') }}</button>
+          <div class="form-check mx-2">
+            <input class="form-check-input" type="checkbox" value="" id="login-free">
+            <label class="form-check-label" for="login-free">
+              {{- _('Login-free for 30 days') }}
+            </label>
+          </div>
+        </div>  
+      </div>
+    </form>
+    </div>
+  </div>  
+  <div class="col-md-2"></div>
+  </div>
+</div>
+{% endblock content %}

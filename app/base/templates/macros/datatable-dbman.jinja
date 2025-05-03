@@ -1,0 +1,183 @@
+{#- app/base/templates/macros/dbman-datatable.jinja -#}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan %}
+{#- depends on Bootstrap 5, Font Awesome 6
+    @param name - string, table name, default is 'main'
+    @param data - dict, keyed by headers, data, pks, fields_datajson, ref_map, ref_pks, etc.
+    @return - a datatable with functions like search, delete, modify etc.
+
+    selectors:
+    - container: #dbman-datatable-{{ name }}
+    - table: .dbman-datatable-table
+    - modal config: #dbman-datatable-modal-config-{{ name }}
+    - download CSV button: [data-dbman-toggle="download-csv"]
+    
+    - check-all input: [data-dbman-toggle="check-all"]
+    - check-item input: [data-dbman-toggle="check-item"]
+    
+    - table search block: .dbman-datatable-search
+      - search input: [type="search"]
+      - no-filter button: [data-dbman-toggle="no-filter"]
+      - search button: [data-dbman-toggle="search"]
+
+    - batch delete button: [data-dbman-toggle="batch-delete"]
+    - modify button: [data-dbman-toggle="modify-record"] 
+    - delete button: [data-dbman-toggle="delete-record"]
+      - delete url is stored in data-dbman-url attribute
+      - a warning prompt message is requested to confirm deletion
+
+    table construct:
+    - data columns are tagged with data-dbman-sn="index(starting from 1) of header in headers"
+
+    data construct:
+    - data['headers'] - list of headers
+    - data['data'] - list of data rows
+    - data['pks'] - list of primary keys joined by comma
+
+-#}
+{%- macro DatatableDBMan(
+      table_name=none,
+      name='main',
+      data=dict()
+    ) 
+-%}
+<div class="container-fluid dbman-datatable" id="dbman-datatable-{{ name }}">
+  <div class="row">
+    <div class="col col-12 d-flex justify-content-between">
+      <div class="btn-group me-1 d-flex" role="group">
+        {#- button to toggle table config modal #}
+        <button class="btn btn-sm btn-outline-dark" 
+          data-bs-toggle="modal"
+          data-bs-target="#dbman-datatable-config-{{ name }}">
+          <i class="fa-solid fa-gear" 
+            data-bs-toggle="tooltip" 
+            data-bs-title="{{ _('_table_config') }}">
+          </i>
+        </button>
+      </div>
+      {#- button group for download, batch delete #}
+      <div class="btn-group me-1 d-flex" role="group">
+        <button class="btn btn-sm btn-outline-dark" data-dbman-toggle="download-csv">
+          <i class="fa-solid fa-download" 
+            data-bs-toggle="tooltip" 
+            data-bs-title="{{ _('Download') }}">
+          </i>
+        </button>
+        <button class="btn btn-sm btn-outline-dark" data-dbman-toggle="batch-delete">
+          <i class="fa-solid fa-trash" 
+            data-bs-toggle="tooltip" 
+            data-bs-title="{{ _('Batch Delete') }}">
+          </i>
+        </button>
+      </div>
+      {#- search input and buttons for no-filter and search #}
+      <div class="input-group input-group-sm cols-auto dbman-datatable-search" role="group">
+        <input name="datatable-search-input" 
+          class="form-control form-control-sm" 
+          type="search" 
+          placeholder="🔍">
+        <button class="btn btn-sm btn-outline-dark d-none" 
+          data-dbman-toggle="no-filter">
+          <i class="fa-solid fa-filter-circle-xmark" 
+            data-bs-toggle="tooltip"
+            data-bs-title="{{ _('Remove Filter') }}">
+          </i>
+        </button>
+        <button class="btn btn-sm btn-outline-dark" 
+          data-dbman-toggle="search" 
+          data-bs-toggle="tooltip" 
+          data-bs-title="{{ _('Search') }}">
+          <i class="fa-solid fa-search"></i>
+        </button>
+      </div>
+      {#- button for adding a record, at the right top for convenience 
+        - pks='_new' stands for adding a record #}
+      <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks='_new') }}"
+        class="btn btn-sm btn-outline-dark">
+        <i class="fa-solid fa-plus" 
+          data-bs-toggle="tooltip" 
+          data-bs-title="{{ _('Add Record') }}">
+        </i>
+      </a>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col col-12">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm dbman-datatable-table">
+          <thead class="sticky-top">
+            <tr class="align-items-center">
+              <th>
+                <input class="form-check-input" 
+                  data-dbman-toggle="check-all" 
+                  type="checkbox" 
+                  id="check-all">
+              </th>
+              <th>{{ _('Actions') }}</th>
+              {%- for header in data['headers'] %}
+                <th data-dbman-sn="{{ loop.index }}">
+                  {#- translate header by specific dictionary -#}
+                  {{- header -}}
+                </th>
+              {%- endfor %}
+            </tr>
+          </thead>
+          <tbody>
+          {%- for row in data['data'] %}
+            {%- set row_number = loop.index0 %} {#- for nested loop use -#}
+            {%- set pks = data['pks'][row_number] %}
+            <tr class="align-items-top">
+              <td>
+                <input class="form-check-imput" 
+                  data-dbman-toggle="check-item" 
+                  type="checkbox" 
+                  value="{{ pks }}" 
+                  id="check-{{ pks }}">
+              </td>
+              <td>
+                <div class="btn-group" role="group">
+                  <a href="{{ url_for('base.crud.modify_record', table_name=table_name, pks=pks) }}"
+                    class="btn btn-sm btn-outline-dark">
+                    <i class="fa-solid fa-edit" 
+                      data-bs-toggle="tooltip"
+                      data-bs-title="{{ _('Modify') }}">
+                    </i>
+                  </a>
+                  <button
+                    class="btn btn-sm btn-outline-dark"
+                    data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, pks=pks) }}"
+                    data-dbman-toggle="delete-record"
+                    data-bs-toggle="tooltip"
+                    data-bs-title="{{ _('Delete') }}">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                  <a href="{{ url_for('base.crud.view_record', table_name=table_name, pks=pks) }}"
+                    class="btn btn-sm btn-outline-dark">
+                    <i class="fa-solid fa-ellipsis" 
+                      data-bs-toggle="tooltip"
+                      data-bs-title="{{ _('View') }}">
+                    </i>
+                  </a>
+                </div>
+              </td>
+              {%- for header in data['headers'] %}
+                {%- set col_number = loop.index0 %}
+                {%- set value = row[col_number] %}
+              <td data-dbman-sn="{{ loop.index }}">
+                {{- value -}}
+              </td>
+              {%- endfor %}
+            </tr>
+            {%- endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {{- ModalDBMan(
+    name=name,
+    type='dbman-datatable-config',
+    title=_('_table_config'),
+    headers=data['headers']
+  ) }}  
+</div>
+{%- endmacro %}

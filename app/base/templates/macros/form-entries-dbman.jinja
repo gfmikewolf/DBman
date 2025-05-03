@@ -1,0 +1,87 @@
+{%- macro FormEntriesDBMan( data = dict() ) %}
+{%- for key, tnvr_o in data.items() %}
+<div class="input-group mb-3 flex-nowrap">
+  <label class="input-group-text" for="{{ key }}">
+    {{- tnvr_o[1] -}}
+  {%- if tnvr_o[3] -%}
+    <div class="text-danger">*</div>
+  {%- endif -%}
+  </label>
+  {%- if tnvr_o[0] == 'date' %}
+  <input  name="{{ key }}"
+          type="date"
+          class="form-control"
+          id="{{ key }}"
+          value="{{- tnvr_o[2] -}}"
+          {{ 'required' if tnvr_o[3] }}>
+  {%- elif tnvr_o[0] == 'select' -%}
+    {%- set options = tnvr_o[4] -%}
+    {%- set is_long_options = options|length > 5 -%}
+    {%- if is_long_options %}
+  <div class="mj-selectpicker">
+    <input  type="search" class="form-control" placeholder="🔍" id="{{ key }}-search">
+    {%- endif %}
+  <select name="{{ key }}"
+          class="form-select"
+          id="{{ key }}"
+          {{ 'required' if tnvr_o[3] }}>
+    <option value="" {{ 'selected' if tnvr_o[2] == None or tnvr_o[2] == '' }} {{ 'hidden' if tnvr_o[3] }}>/</option>
+    {%- for option in options %}
+    <option value="{{- option[0] -}}" {{ 'selected' if tnvr_o[2] == option[0] }}>
+      {{- option[1] -}}
+    </option>
+    {%- endfor %}
+  </select>
+    {%- if is_long_options %}
+  </div>
+    {%- endif -%}
+  {%- elif tnvr_o[0] == 'DataJson' %}
+  <textarea id="{{ key }}" name="{{ key }}" class="form-control" 
+            row="3" value='{{ tnvr_o[2] }}' readonly>
+    {{- tnvr_o[2] -}}
+  </textarea>
+</div>
+<div>
+  <div id="dbman-datajson-{{ key }}" class="dbman-datajson"></div>
+  {%- elif tnvr_o[0] == 'textarea' %}
+  <textarea name="{{ key }}"
+            id="{{- key -}}"
+            class="form-control"
+            rows="{{- 3 if tnvr_o[2] is none or tnvr_o[2] == '' else ((tnvr_o[2]|length)/40)|round|int + 1 -}}"
+            {{ 'required pattern=".*\S.*"' if tnvr_o[3] }}>
+    {{- tnvr_o[2] -}}
+  </textarea>
+  {%- elif tnvr_o[0] == 'file' %}
+  <input name="{{ key }}"
+        type="file"
+        class="form-control"
+        id="{{- key -}}"
+        {{ 'required' if tnvr_o[3] }}>
+  {%- elif tnvr_o[0] == 'file-multiple' %}
+  <input name="{{ key }}"
+        type="file"
+        class="form-control"
+        id="{{- key -}}"
+        multiple
+        {{ 'required' if tnvr_o[3] }}>
+  {%- elif tnvr_o[0] == 'password' %}
+  <input name="{{ key }}"
+        type="password"
+        class="form-control"
+        id="{{- key -}}"
+        multiple
+        {{ 'required' if tnvr_o[3] }}>
+  {%- else %}
+  <input name="{{ key }}"
+        type="text"
+        class="form-control"
+        id="{{- key -}}"
+        value="{{- tnvr_o[2] -}}"
+        {{ 'required pattern=".*\S.*"' if tnvr_o[3] }}>
+    <div class="invalid-feedback">
+      {{- _('Please enter a meaningful string') -}}
+    </div>
+  {%- endif %}
+</div>
+{%- endfor %}
+{%- endmacro %}

@@ -1,0 +1,76 @@
+{#- macros/related-objects-dbman.jinja #}
+{%- macro RelatedObjects(related_objects, modifiable=True, target=none) %}
+{%- if related_objects['single'] or related_objects['multiple'] %}
+<h5>{{- _('Related Objects') -}}</h5>
+<div class="list-group list-group-flush">
+  {%- for rel_key, tablename_url_name in related_objects['single'].items() %}
+  {%- set tablename, url, name = tablename_url_name %}
+  <div class="list-group-item list-group-item-action">
+    <span>{{- rel_key -}}:</span>
+    <a href="{{ url }}" class="dbman-link"{{ ' target="'+target+'"' if target else '' }}>
+      {{- name -}}
+    </a>
+  </div>
+  {%- endfor %}
+</div>
+{%- endif %}
+{%- if related_objects['multiple'] %}
+<div class="list-group list-group-flush">
+  {%- for list_name, list_data in related_objects['multiple'].items() -%}
+  <div class="d-flex justify-content-between">
+    <a class="list-group-item list-group-item-action"
+      href="#collapse-{{- list_name -}}"
+      data-bs-toggle="collapse">
+      {{- list_name -}}
+    </a>
+    {%- set polyid_ids_map, tablename_url_names, url_add = list_data %}
+    {%- if url_add and modifiable %}
+    <a href="{{ url_add }}"
+      class="btn btn-outline-dark"{{ ' target="'+target+'"' if target else '' }}>
+      <i class="fa-solid fa-plus" 
+        data-bs-toggle="tooltip" 
+        data-bs-title="{{ _('Add Record') }}">
+      </i>
+    </a>
+    {%- endif %}
+  </div>
+  <div class="collapse" id="collapse-{{- list_name -}}">
+    {%- if polyid_ids_map %}
+      {%- for tablename, ids in polyid_ids_map.items() %}
+    <div class="list-group list-group-flush mt-1 w-100">
+        {%- if polyid_ids_map|length > 1 %}
+      <a class="list-group-item list-group-item-action"
+        href="#collapse-poly-{{ tablename }}"
+        data-bs-toggle="collapse">
+        {{- _(tablename, True) -}}
+      </a>
+      <div class="collapse" id="collapse-poly-{{ tablename }}">
+        {%- endif %}
+        {%- for id in ids %}
+          {%- set sub_tn, url, name = tablename_url_names[id] %}
+        <div class="list-group-item">
+          <span>{{ sub_tn }}:</span>
+          <a href="{{ url }}" class="dbman-link"{{ ' target="'+target+'"' if target else '' }}>
+            {{- name -}}
+          </a>
+        </div>
+        {%- endfor %}
+        {%- if polyid_ids_map|length > 1 %}
+      </div>
+        {%- endif %}
+    </div>
+      {%- endfor %}
+    {%- else %}
+    <div class="list-group list-group-flush mt-1 w-100">
+      {%- for item in tablename_url_names %}
+      <div class="list-group-item">
+        {{- item -}}
+      </div>
+      {%- endfor %}
+    </div>
+    {%- endif %}
+  </div>
+  {%- endfor -%}
+</div>
+{%- endif %}
+{%- endmacro %}

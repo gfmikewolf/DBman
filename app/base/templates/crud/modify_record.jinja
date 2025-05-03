@@ -1,0 +1,118 @@
+{#- app/base/templates/crud/modify_record.jinja -#}
+{#-
+  @params:
+    table_name,
+    pks: str = comma joined primary keys,
+    data: base data for polymorphic table, full data for non-polymorphic
+    spec_data: spec data for polymorphic table, empty dict for non-polymorphic
+    polymorphic_key: str = polymorphic key for polymorphic table, empty string for non-polymorphic
+    viewer_original: dict = original data viewer
+-#}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
+{%- from 'macros/datadict-dbman.jinja' import DatadictDBMan -%}
+{%- from 'macros/form-entries-dbman.jinja' import FormEntriesDBMan -%}
+{%- extends "base.jinja" -%}
+{%- set prev_page = url_for('base.crud.view_table', table_name=table_name) -%}
+{%- block head %}
+  <meta name="modules" content="form-modify,modal-alert">
+{%- endblock head -%}
+{%- block content %}
+<div class="container-fluid">
+  <form method="post" id="dbman-modify-main" class="needs-validation" novalidate>
+    <div class="row mt-2 dbman-fixed-fill">
+      <div class="col col-md-2 d-none d-md-block dbman-independent-scroll">
+        <div class="card">
+          <div class="card-header text-center">
+            {{- _('Related Actions') -}}
+          </div>
+          <div class="list-group text-center">
+            <button type="submit" class="list-group-item list-group-item-action">
+              {{- _('Save Changes') -}}
+            </button>
+            <button
+              class="list-group-item list-group-item-action"
+              data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, pks=pks) }}"
+              data-dbman-toggle="delete-record">
+              <span class="text-danger">{{ _('Delete') }}</span>
+            </button>
+            {%- if pks and pks != '_new' %}
+            <a  href="{{ url_for('base.crud.view_record', table_name=table_name, pks=pks) }}"
+                class="list-group-item list-group-item-action">
+              {{- _('View Details') -}}
+            </a>
+            {%- endif %}
+            <a  href="{{ url_for('base.crud.view_table', table_name=table_name) }}"
+                class="list-group-item list-group-item-action">
+              {{- _('Cancel') -}}
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="col col-sm-12 col-md-6 mx-auto dbman-independent-scroll">
+        <div class="card">
+          <div class="card-header">
+            {{- _('_enter_form_data') -}}
+          </div>
+          <div class="card-body">
+            <div id="base-data">
+              {{ FormEntriesDBMan(data=data) }}
+            </div>
+            <div id="extended-data">
+              {{ FormEntriesDBMan(data=spec_data) }}
+            </div>
+          </div>
+        </div>
+        <div class="list-group list-group-horizontal d-md-none">
+          <a href="{{- url_for('base.crud.view_table', table_name=table_name) -}}"
+            class="list-group-item list-group-item-action">
+            {{- _('Cancel') -}}
+          </a>
+          <button
+            class="list-group-item list-group-item-action"
+            data-dbman-url="{{ url_for('base.crud.delete_record', table_name=table_name, pks=pks) }}"
+            data-dbman-toggle="delete-record">
+            {{ _('Delete') }}
+          </button>
+          <button type="submit" class="list-group-item list-group-item-action">
+            {{- _('Save Changes') -}}
+          </button>
+        </div>
+      </div>
+      <div class="col col-md-4 d-none d-md-block dbman-independent-scroll">
+      {%- if viewer_original %}
+      <div class="card">
+          <div class="card-header text-center">
+            {{- _('Original Data') -}}
+          </div>
+          <div class="card-body p-3">
+            {{ DatadictDBMan(name='orginal', data=viewer_original) }}
+          </div>
+        </div>
+      </div>
+      {%- endif %}
+    </div>
+  </form>
+</div>
+{%- endblock content -%}
+{%- block alert -%}
+  {{- ModalDBMan(
+    name='main',
+    type='dbman-alert',
+    title=_('Alert'),
+    msgs={
+      'success': [_('Success'), _('Operation Successful. In 3 seconds, redirecting to View Table')],
+      'error': [_('Error'), _('Operation Error')],
+      'warning_delete': [_('Alert'), _('_warning_delete')],
+      'nochange': [_('Records unchanged'), _('Cannot find any changes.')]
+    }
+  ) -}}
+{%- endblock alert -%}
+{%- block scripts -%}
+<script>
+  var fromTemplate = {
+    table_name: '{{ table_name }}',
+    polymorphic_key: '{{ polymorphic_key }}',
+    poly_base_identity: '{{ poly_base_identity }}'
+  }
+</script>
+{%- endblock scripts -%}

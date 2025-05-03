@@ -1,0 +1,30 @@
+{
+  "name": "dbman",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gfmikewolf/DBman.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/gfmikewolf/DBman/issues"
+  },
+  "homepage": "https://github.com/gfmikewolf/DBman#readme",
+  "description": "",
+  "dependencies": {
+    "bootstrap": "^5.3.3",
+    "bootstrap-select": "^1.13.18",
+    "jquery": "^3.7.1",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1"
+  }
+}

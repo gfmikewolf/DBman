@@ -1,0 +1,117 @@
+{#- app/base/templates/crud/view_table.jinja -#}
+{%- from 'macros/datatable-dbman.jinja' import DatatableDBMan -%}
+{%- from 'macros/modal-dbman.jinja' import ModalDBMan -%}
+{%- from 'macros/form-entries-dbman.jinja' import FormEntriesDBMan %}
+{%- extends "base.jinja" -%}
+
+{%- block head -%}
+  <meta name="modules" content="modal-alert,datatable,db-func">
+{%- endblock head -%}
+
+{#- @param for base.jinja - prev_page: redirect to upper level page -#}
+{%- set prev_page = url_for('base.crud.index') -%}
+
+{%- block content %}
+  <div class="container-fluid">
+    <div class="d-flex mt-1 mb-2 align-items-center">
+      <span class="h5 me-2">
+        {{- _('Table') -}}: {{ _(table_name, True) }}
+      </span>
+      {%- for table_category, table_names in table_map.items() %}
+      <div class="dropdown mx-1">
+        <button type="button"
+          data-bs-toggle="dropdown"
+          data-bs-auto-close="outside" 
+          class="btn btn-sm btn-light dropdown-toggle">
+          {{- _(table_category, True) -}}
+        </button>
+        <ul class="dropdown-menu">
+        {%- for tn in table_names %}
+          <li>
+            {%- if tn == table_name %}
+              {%- set dd_active = 'active' %}
+              {%- set dd_url = '#' %}
+            {%- else -%}
+              {%- set dd_active = '' %}
+              {%- set dd_url = url_for('base.crud.view_table', table_name=tn) %}
+            {%- endif -%}
+            <a class="dropdown-item {{ dd_active }}" data-dbman-viewtable="{{ tn }}" href="{{ dd_url }}">
+              {{- _(tn, True) -}}
+            </a>
+          </li>
+        {%- endfor -%}
+        </ul>
+      </div>
+      {%- endfor -%}
+    </div>
+    {%- if related_funcs %}
+    <hr class="my-2"/>
+    {%- endif %}
+    <div class="d-flex mt-1 mb-2 align-items-center{{ ' d-none' if not related_funcs else '' }}"
+      id="db-func-main">
+      {%- if related_funcs %}
+      <span class="h5 me-2">
+        {{- _('Functions') -}}:
+      </span>
+        {%- for f in db_table_funcs %}
+      <button type="button" class="btn btn-sm btn-primary"
+        data-dbman-toggle="db-func"
+        data-dbman-url="{{ url_for('base.crud.db_func', table_name=table_name, func_name=f) }}"
+        data-dbman-name="{{ f }}">
+          {{- _(f, True) -}}
+      </button>
+        {%- endfor %}
+      {%- endif %}
+    </div>
+    {%- if related_funcs %}
+    <hr class="my-2"/>
+    {%- endif %}
+    <div class="row">
+    {{- DatatableDBMan(
+      table_name=table_name, 
+      name='main', 
+      data=data) 
+    }}
+    </div>
+  </div>
+  <div class="d-none" id="db-func-forms">
+  {%- for f, f_input in related_funcs.items() %}
+    <form method="post"
+          data-dbman-toggle="db-func"
+          data-dbman-target="{{ f }}"
+          enctype="multipart/form-data" 
+          action="{{ url_for('base.crud.db_func', table_name=table_name, func_name=f) }}">
+      <div class="mt-1 card-body">
+        {{ FormEntriesDBMan(f_input) }}
+      </div>
+      <div class="mb-1 text-center">
+        <button type="submit" class="btn btn-sm btn-primary">
+          {{ _('Execute') }}
+        </button>
+      </div>
+    </form>
+  {%- endfor %}
+  </div>
+{%- endblock content %}
+
+{%- block alert %}
+  {{ ModalDBMan(
+    name='main',
+    type='dbman-alert',
+    title=_('Alert'),
+    msgs={
+      'success': [_('Success'), _('Operation Successful')],
+      'error': [_('Error'), _('Operation Error')],
+      'warning_delete': [_('Alert'), _('_warning_delete')],
+      'input_form': [_('Enter Parameters'), '']
+    }
+  ) }}
+{%- endblock alert -%}
+{%- block scripts -%}
+<script type="text/javascript">
+var fromTemplate = {
+  table_name: '{{ table_name }}',
+  db_table_funcs: {{ db_table_funcs|tojson|safe }}
+}
+</script>
+{%- endblock scripts -%}
