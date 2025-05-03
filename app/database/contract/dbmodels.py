@@ -237,7 +237,7 @@ class Amendment(Base):
         back_populates='amendments', 
         lazy='selectin',
         info={
-            'order_by': lambda: Contract.contract_name
+            'order_by': (Contract.contract_name,)
         }
     )
 
@@ -265,6 +265,209 @@ class Amendment(Base):
         'viewable_list': {'clauses'},
         'longtext': {'amendment_remarks'}
     }
+
+class Entitygroup(Base):
+    __tablename__ = 'entitygroup'
+    entitygroup_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    entitygroup_name: Mapped[str]
+
+    entities: Mapped[list['Entity']] = relationship(
+        back_populates='entitygroup',
+        lazy='select'
+    )
+
+    def __str__(self):
+        return self.entitygroup_name
+    
+    key_info = {
+        'data': [
+            'entitygroup_name'
+        ],
+        'translate': { '_self', 'entitygroup_name' }
+    }
+
+class Entity(Base):
+    __tablename__ = 'entity'
+    entity_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    entity_name: Mapped[str]
+    entity_fullname: Mapped[str | None]
+    entity_address: Mapped[str | None]
+    remarks: Mapped[str | None]
+    entitygroup_id: Mapped[int] = mapped_column(ForeignKey('entitygroup.entitygroup_id'))
+
+    entitygroup: Mapped['Entitygroup'] = relationship(
+        back_populates='entities',
+        lazy='selectin',
+        info={'order_by': (Entitygroup.entitygroup_name,)},
+    )
+    def __str__(self):
+        return self.entity_name
+    
+    key_info = {
+        'data': [
+            'entity_name',
+            'entity_fullname',
+            'entitygroup_id',
+            'entitygroup',
+            'entity_address'
+        ],
+        'hidden': {'entitygroup_id'},
+        'readonly': {'entitygroup'},
+        'longtext': {'entity_address', 'entity_fullname'},
+        'translate': {'_self', 'entity_name'}
+    }
+
+class Scope(Base):
+    __tablename__ = 'scope'
+    scope_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scope_name: Mapped[str]
+    remarks: Mapped[str | None]
+    
+    parent_scopes: Mapped[list['Scope']] = relationship(
+        back_populates='child_scopes', 
+        secondary=lambda: ScopeMAPScope.__table__,
+        primaryjoin=lambda: Scope.scope_id == ScopeMAPScope.child_scope_id,
+        secondaryjoin=lambda: Scope.scope_id == ScopeMAPScope.parent_scope_id,
+        lazy='select'
+    )
+    child_scopes: Mapped[list['Scope']] = relationship(
+        back_populates='parent_scopes', 
+        secondary=lambda: ScopeMAPScope.__table__,
+        primaryjoin=lambda: Scope.scope_id == ScopeMAPScope.parent_scope_id,
+        secondaryjoin=lambda: Scope.scope_id == ScopeMAPScope.child_scope_id,
+        lazy='select'
+    )
+    
+    def __str__(self):
+        return self.scope_name
+    
+    key_info = {
+        'data': ['scope_name', 'parent_scopes', 'child_scopes', 'remarks'],
+        'readonly': {'parent_scopes', 'child_scopes'},
+        'longtext': {'remarks'},
+        'translate': {'_self', 'scope_name'}
+    }
+
+class ScopeMAPScope(Base):
+    __tablename__ = 'scope__map__scope'
+    parent_scope_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('scope.scope_id'),
+        primary_key=True
+    )
+    child_scope_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('scope.scope_id'),
+        primary_key=True
+    )
+    parent_scope: Mapped['Scope'] = relationship(
+        foreign_keys=[parent_scope_id],
+        lazy = 'selectin',
+        overlaps='parent_scopes, child_scopes'
+    )
+    child_scope: Mapped['Scope'] = relationship(
+        foreign_keys=[child_scope_id],
+        lazy = 'selectin',
+        overlaps='parent_scopes, child_scopes'
+    )
+
+    key_info = {
+        'data': [
+            'parent_scope_id',
+            'parent_scope',
+            'child_scope_id',
+            'child_scope'
+        ],
+        'hidden': { 'parent_scope_id', 'child_scope_id' },
+        'readonly': { 'parent_scope', 'child_scope' }
+    }     
+class ContractMAPContract(Base):
+    __tablename__ = 'contract__map__contract'
+    parent_contract_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    child_contract_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    parent_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[parent_contract_id],
+        lazy = 'selectin',
+        overlaps= 'parent_contracts, child_contracts'
+    )
+    child_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[child_contract_id],
+        lazy = 'selectin',
+        overlaps= 'parent_contracts, child_contracts'
+    )
+    def __str__(self):
+        return f'{self.child_contract} ∈ {self.parent_contract}'
+    key_info = {
+        'data': [
+            'parent_contract_id',
+            'parent_contract',
+            'child_contract_id',
+            'child_contract'
+        ],
+        'hidden': { 'parent_contract_id', 'child_contract_id' },
+        'readonly': { 'parent_contract', 'child_contract' }
+    }  
+class ContractLEGALMAPContract(Base):
+    __tablename__ = 'contract__legal_map__contract'
+    parent_contract_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    child_contract_id: Mapped[int] = mapped_column(
+        Integer, 
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    parent_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[parent_contract_id],
+        lazy = 'selectin',
+        overlaps= 'legal_parent_contracts, legal_child_contracts'
+    )
+    child_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[child_contract_id],
+        lazy = 'selectin',
+        overlaps= 'legal_parent_contracts, legal_child_contracts'
+    )
+
+    def __str__(self):
+        return f'{self.child_contract} ∈ {self.parent_contract}'
+    key_info = {
+        'data': [
+            'parent_contract_id',
+            'parent_contract',
+            'child_contract_id',
+            'child_contract'
+        ],
+        'hidden': { 'parent_contract_id', 'child_contract_id' },
+        'readonly': { 'parent_contract', 'child_contract' }
+    }  
+class UserMAPScope(Base):
+    __tablename__ = 'user__map__scope'
+    user_id: Mapped[int] = mapped_column(ForeignKey('user.user_id'), primary_key=True)
+    scope_id: Mapped[int] = mapped_column(ForeignKey('scope.scope_id'), primary_key=True)
+    from ..user import User
+    user: Mapped['User'] = relationship(lazy='selectin')
+    scope: Mapped['Scope'] = relationship(lazy='selectin')
+    def __str__(self) -> str:
+        return f'{self.user}:{self.scope}'
+    key_info = {
+        'data': ['user_id', 'user', 'scope_id', 'scope'],
+        'hidden': {'user_id', 'scope_id'},
+        'readonly': {'user', 'scope'}
+    }
+class UserRoleMAPContract(Base):
+    __tablename__ = 'user_role__map__contract'
+    user_role_id: Mapped[int] = mapped_column(ForeignKey('user_role.user_role_id'), primary_key=True)
+    contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'), primary_key=True)
 
 class Clause(Base):
     __tablename__ = 'clause'
@@ -300,7 +503,7 @@ class Clause(Base):
         back_populates='clauses',
         lazy='selectin',
         info={
-            'order_by': lambda: Amendment.amendment_effectivedate
+            'order_by': Amendment.amendment_signdate
         }
     )   
     contract: Mapped['Contract'] = relationship(
@@ -599,206 +802,3 @@ class ClauseCommercialIncentive(Clause):
         'precondition',
         'offer'
     ] # type: ignore
-class Entitygroup(Base):
-    __tablename__ = 'entitygroup'
-    entitygroup_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    entitygroup_name: Mapped[str]
-
-    def __str__(self):
-        return self.entitygroup_name
-
-    entities: Mapped[list['Entity']] = relationship(
-        back_populates='entitygroup',
-        lazy='selectin'
-    )
-
-    key_info = {
-        'data': [
-            'entitygroup_id',
-            'entitygroup_name'
-        ],
-        'hidden': { 'entitygroup_id' },
-        'readonly': { 'entitygroup_id' },
-        'translate': { '_self', 'entitygroup_name' }
-    }
-class Entity(Base):
-    __tablename__ = 'entity'
-    entity_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    entity_name: Mapped[str]
-    entity_fullname: Mapped[str | None]
-    entity_address: Mapped[str | None]
-    entitygroup_id: Mapped[int] = mapped_column(ForeignKey('entitygroup.entitygroup_id'))
-    
-    def __str__(self):
-        return self.entity_name
-
-    entitygroup: Mapped['Entitygroup'] = relationship(
-        back_populates='entities',
-        lazy='selectin',
-        info={'select_order': (Entitygroup.entitygroup_name,)},
-    )
-
-    key_info = {
-        'data': [
-            'entity_id',
-            'entity_name',
-            'entity_fullname',
-            'entitygroup_id',
-            'entitygroup',
-            'entity_address'
-        ],
-        'hidden': { 'entity_id', 'entitygroup_id' },
-        'readonly': { 'entity_id', 'entitygroup' },
-        'longtext': { 'entity_address', 'entity_fullname'},
-        'translate': { '_self', 'entity_name' }
-    }
-class Scope(Base):
-    __tablename__ = 'scope'
-    scope_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    scope_name: Mapped[str]
-    remarks: Mapped[str | None]
-    
-    def __str__(self):
-        return self.scope_name
-    parent_scopes: Mapped[list['Scope']] = relationship(
-        back_populates='child_scopes', 
-        secondary=lambda: ScopeMAPScope.__table__,
-        primaryjoin=lambda: Scope.scope_id == ScopeMAPScope.child_scope_id,
-        secondaryjoin=lambda: Scope.scope_id == ScopeMAPScope.parent_scope_id,
-        lazy='selectin'
-    )
-    child_scopes: Mapped[list['Scope']] = relationship(
-        back_populates='parent_scopes', 
-        secondary=lambda: ScopeMAPScope.__table__,
-        primaryjoin=lambda: Scope.scope_id == ScopeMAPScope.parent_scope_id,
-        secondaryjoin=lambda: Scope.scope_id == ScopeMAPScope.child_scope_id,
-        lazy='selectin'
-    )
-
-    key_info = {
-        'data': [ 'scope_id', 'scope_name', 'parent_scopes', 'child_scopes', 'remarks' ],
-        'hidden': { 'scope_id' },
-        'readonly': { 'scope_id', 'parent_scopes', 'child_scopes' },
-        'longtext': { 'remarks' },
-        'translate': { '_self', 'scope_name' }
-    }
-class ScopeMAPScope(Base):
-    __tablename__ = 'scope__map__scope'
-    parent_scope_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('scope.scope_id'),
-        primary_key=True
-    )
-    child_scope_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('scope.scope_id'),
-        primary_key=True
-    )
-    parent_scope: Mapped['Scope'] = relationship(
-        foreign_keys=[parent_scope_id],
-        lazy = 'selectin',
-        overlaps='parent_scopes, child_scopes'
-    )
-    child_scope: Mapped['Scope'] = relationship(
-        foreign_keys=[child_scope_id],
-        lazy = 'selectin',
-        overlaps='parent_scopes, child_scopes'
-    )
-
-    key_info = {
-        'data': [
-            'parent_scope_id',
-            'parent_scope',
-            'child_scope_id',
-            'child_scope'
-        ],
-        'hidden': { 'parent_scope_id', 'child_scope_id' },
-        'readonly': { 'parent_scope', 'child_scope' }
-    }     
-class ContractMAPContract(Base):
-    __tablename__ = 'contract__map__contract'
-    parent_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    child_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    parent_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[parent_contract_id],
-        lazy = 'selectin',
-        overlaps= 'parent_contracts, child_contracts'
-    )
-    child_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[child_contract_id],
-        lazy = 'selectin',
-        overlaps= 'parent_contracts, child_contracts'
-    )
-    def __str__(self):
-        return f'{self.child_contract} ∈ {self.parent_contract}'
-    key_info = {
-        'data': [
-            'parent_contract_id',
-            'parent_contract',
-            'child_contract_id',
-            'child_contract'
-        ],
-        'hidden': { 'parent_contract_id', 'child_contract_id' },
-        'readonly': { 'parent_contract', 'child_contract' }
-    }  
-class ContractLEGALMAPContract(Base):
-    __tablename__ = 'contract__legal_map__contract'
-    parent_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    child_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    parent_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[parent_contract_id],
-        lazy = 'selectin',
-        overlaps= 'legal_parent_contracts, legal_child_contracts'
-    )
-    child_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[child_contract_id],
-        lazy = 'selectin',
-        overlaps= 'legal_parent_contracts, legal_child_contracts'
-    )
-
-    def __str__(self):
-        return f'{self.child_contract} ∈ {self.parent_contract}'
-    key_info = {
-        'data': [
-            'parent_contract_id',
-            'parent_contract',
-            'child_contract_id',
-            'child_contract'
-        ],
-        'hidden': { 'parent_contract_id', 'child_contract_id' },
-        'readonly': { 'parent_contract', 'child_contract' }
-    }  
-class UserMAPScope(Base):
-    __tablename__ = 'user__map__scope'
-    user_id: Mapped[int] = mapped_column(ForeignKey('user.user_id'), primary_key=True)
-    scope_id: Mapped[int] = mapped_column(ForeignKey('scope.scope_id'), primary_key=True)
-    from ..user import User
-    user: Mapped['User'] = relationship(lazy='selectin')
-    scope: Mapped['Scope'] = relationship(lazy='selectin')
-    def __str__(self) -> str:
-        return f'{self.user}:{self.scope}'
-    key_info = {
-        'data': ['user_id', 'user', 'scope_id', 'scope'],
-        'hidden': {'user_id', 'scope_id'},
-        'readonly': {'user', 'scope'}
-    }
-class UserRoleMAPContract(Base):
-    __tablename__ = 'user_role__map__contract'
-    user_role_id: Mapped[int] = mapped_column(ForeignKey('user_role.user_role_id'), primary_key=True)
-    contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'), primary_key=True)

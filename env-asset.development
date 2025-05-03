@@ -1,0 +1,9 @@
+# env.development
+HOST=127.0.0.1
+DEBUG=True
+SECRET_KEY=610303_1981-Dec.5th
+DATABASE_NAMES=user,asset
+SQLALCHEMY_DATABASE_URI=sqlite:///instance\asset.sqlite
+SQLALCHEMY_TRACK_MODIFICATION=False
+LOCALES=locale
+TEST_APP=asset

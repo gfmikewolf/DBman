@@ -22,3 +22,4 @@ class Config:
         get_translation_dict(LANGSET, GDICT_LIST),
         get_translation_dict(LANGSET, SDICT_LIST)
     )
+    TEST_APP = os.getenv('TEST_APP')
