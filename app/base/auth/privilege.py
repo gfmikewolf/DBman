@@ -6,6 +6,11 @@ from flask import request, abort, session
 from sqlalchemy import select
 
 class Privilege:
+    _admin_role = '_admin'
+    
+    @classmethod
+    def is_admin(cls) -> bool:
+        return cls._admin_role in session.get('ROLE_FAMILY', set())
     
     def __init__(self, role_names: Iterable[str] | str = '_anonymous'):
         from app.extensions import db_session
@@ -16,12 +21,18 @@ class Privilege:
         with db_session() as sess:
             if isinstance(role_names, str):
                 role_names = [role_names]
+            if self._admin_role in role_names:
+                self.role_family = {self._admin_role}
+                return
             user_roles = sess.scalars(
                 select(UserRole)
                 .where(UserRole.user_role_name.in_(role_names))
             ).all()
             for user_role in user_roles:
                 dq = deque([user_role])
+                if user_role.user_role_name == self._admin_role:
+                    self.role_family = {self._admin_role}
+                    return
                 self.role_family.add(user_role.user_role_name)
                 self.role_ids.add(user_role.user_role_id)
                 for k, v in user_role.table_privilege.items():
@@ -35,10 +46,14 @@ class Privilege:
                     role = dq.popleft()
                     for parent in getattr(role, 'parents', []):
                         name = getattr(parent, 'user_role_name', None)
+                        if name == self._admin_role:
+                            self.role_family = {self._admin_role}
+                            return
                         if name and name not in self.role_family:
                             self.role_family.add(name)
                             self.role_ids.add(parent.user_role_id)
                             dq.append(parent)
+
     @classmethod
     def session_match(cls, role_names: str | Iterable[str]) -> bool:
         role_family: set[str] = set(session.get('ROLE_FAMILY', set()))
@@ -49,7 +64,7 @@ class Privilege:
             
     @staticmethod
     def match(role_family: set[str], role_names: str | Iterable[str]) -> bool:
-        if not role_names:
+        if not role_names or Privilege._admin_role in role_names:
             return True
         elif not role_family:
             return False

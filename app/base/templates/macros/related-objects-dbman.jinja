@@ -7,7 +7,7 @@
   {%- set tablename, url, name = tablename_url_name %}
   <div class="list-group-item list-group-item-action">
     <span>{{- rel_key -}}:</span>
-    <a href="{{ url }}" class="dbman-link"{{ ' target="'+target+'"' if target else '' }}>
+    <a href="{{ url }}" class="dbman-link"{% if target %} target="{{ target }}"{% endif %}>
       {{- name -}}
     </a>
   </div>
@@ -18,15 +18,17 @@
 <div class="list-group list-group-flush">
   {%- for list_name, list_data in related_objects['multiple'].items() -%}
   <div class="d-flex justify-content-between">
-    <a class="list-group-item list-group-item-action"
+    <a class="list-group-item list-group-item-action fw-bold collapse-toggle collapsed"
       href="#collapse-{{- list_name -}}"
       data-bs-toggle="collapse">
+      <span class="icon-plus"><i class="fa-solid fa-chevron-right"></i></span>
+      <span class="icon-minus"><i class="fa-solid fa-chevron-down"></i></span>
       {{- list_name -}}
     </a>
     {%- set polyid_ids_map, tablename_url_names, url_add = list_data %}
     {%- if url_add and modifiable %}
     <a href="{{ url_add }}"
-      class="btn btn-outline-dark"{{ ' target="'+target+'"' if target else '' }}>
+      class="btn btn-outline-dark" {% if target %} target="{{ target }}" {% endif %}>
       <i class="fa-solid fa-plus" 
         data-bs-toggle="tooltip" 
         data-bs-title="{{ _('Add Record') }}">
@@ -37,11 +39,13 @@
   <div class="collapse" id="collapse-{{- list_name -}}">
     {%- if polyid_ids_map %}
       {%- for tablename, ids in polyid_ids_map.items() %}
-    <div class="list-group list-group-flush mt-1 w-100">
+    <div class="list-group list-group-flush mt-1 w-100 ps-2">
         {%- if polyid_ids_map|length > 1 %}
-      <a class="list-group-item list-group-item-action"
+      <a class="list-group-item list-group-item-action collapse-toggle collapsed"
         href="#collapse-poly-{{ tablename }}"
         data-bs-toggle="collapse">
+        <span class="icon-plus"><i class="fa-solid fa-chevron-right"></i></span>
+        <span class="icon-minus"><i class="fa-solid fa-chevron-down"></i></span>
         {{- _(tablename, True) -}}
       </a>
       <div class="collapse" id="collapse-poly-{{ tablename }}">

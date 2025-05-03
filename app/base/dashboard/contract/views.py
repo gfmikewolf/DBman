@@ -37,7 +37,14 @@ def view_list(instances: Iterable[Any], cls_name:str='', mode:str='compact') -> 
     if mode == 'collapse':
         if isinstance(sample, Base):
             tn = sample.__class__.__tablename__
-        vl += f'<a href="#collapse-view-{_uid}" data-bs-toggle="collapse" class="dbman-link fw-bold collapse-toggle collapsed" aria-expanded="false"><span class="icon-plus"><i class="fa-solid fa-chevron-right"></i></span><span class="icon-minus"><i class="fa-solid fa-chevron-down"></i></span>{_(tn or cls_name, True)}</a>'
+        vl += (
+            f'<a href="#collapse-view-{_uid}" data-bs-toggle="collapse"'
+            f' class="dbman-link fw-bold collapse-toggle collapsed"'
+            f' aria-expanded="false">'
+            f'<span class="icon-plus"><i class="fa-solid fa-chevron-right"></i></span>'
+            f'<span class="icon-minus"><i class="fa-solid fa-chevron-down"></i></span>'
+            f'{_(tn or cls_name, True)}</a>'
+        )
         vl += f'<div class="collapse" id="collapse-view-{_uid}">'
         _uid += 1
     vl += connector.join([get_viewable_instance(inst, _default_viewer, _right_frame) if isinstance(inst, Base) else inst for inst in instances])
@@ -49,13 +56,16 @@ def view_list(instances: Iterable[Any], cls_name:str='', mode:str='compact') -> 
 @require_privilege('viewer')
 def view_contracts(contract_id: int | None = None) -> str | Response:
     with db_session() as sess:
-        role_ids = Privilege.get_session_role_ids()
-        contracts = sess.scalars(
-            select(Contract)
-            .join(UserRoleMAPContract)
-            .where(UserRoleMAPContract.user_role_id.in_(role_ids))
-            .distinct()
-        ).all()
+        stmt = select(Contract)
+        if not Privilege.is_admin():
+            role_ids = Privilege.get_session_role_ids()
+            stmt = (
+                stmt
+                .join(UserRoleMAPContract)
+                .where(UserRoleMAPContract.user_role_id.in_(role_ids))
+                .distinct()
+            )
+        contracts = sess.scalars(stmt).all()
         if not contracts:
             return redirect(url_for('base.index'))
         data = dict()
