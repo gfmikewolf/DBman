@@ -2,19 +2,31 @@
 {%- macro DatadictDBMan(
       name='main',
       id='dbman-datadict-' + name,
+      copylink_keys={},
       data={}
     )
 %}
   <div class="dbman-datadict" id="{{- id -}}">
   {%- for header, value in data.items() %}
+    {%- if value %}
     <div class="dbman-datadict-row">
       <div class="dbman-datadict-key">
-        <strong>{{- header -}}</strong>:
+        <strong>{{- _(header, True) -}}</strong>:
+        {%- if header in copylink_keys %}
+        <button type="button" class="btn btn-sm" 
+          data-dbman-toggle="copy" 
+          data-dbman-target="dbman-value-{{ header }}" 
+          data-dbman-msg="{{ _("copied") }}"
+        >
+          <i class="fa-solid fa-copy"></i>
+        </button>
+        {%- endif %}
       </div>
-      <div class="dbman-datadict-value">
+      <div class="dbman-datadict-value" id="dbman-value-{{ header }}">
         {{- value|replace('\n', '<br>')|safe -}}
       </div>
     </div>
-    {%- endfor %}
+    {%- endif %}
+  {%- endfor %}
   </div>
 {%- endmacro -%}
