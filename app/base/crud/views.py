@@ -116,6 +116,7 @@ def view_record(table_name: str, pks: str) -> str:
     with db_session() as db_sess:
         model = fetch_instance(table_name, pks, db_sess)
         basic_info = fetch_model_viewer(model, db_sess)
+        copylink_keys = model.key_info.get('copylink', set())
         related_objects = fetch_related_objects(model, db_sess)
         related_funcs = fetch_related_funcs(table_name, db_sess, 'instance')
     return render_template(
@@ -123,6 +124,7 @@ def view_record(table_name: str, pks: str) -> str:
         table_name=table_name,
         pks=pks,
         basic_info=basic_info,
+        copylink_keys=copylink_keys,
         related_objects=related_objects,
         related_funcs=related_funcs,
         navigation=navigation.get_nav({
