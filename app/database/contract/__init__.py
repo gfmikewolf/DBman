@@ -13,6 +13,7 @@ __all__ = [
         'ClauseExpiry',
         'ClauseTermination',
         'ClauseWarrantyPeriod',
+        'ClausePaymentTerm',
     'ClauseAction',
     'ClausePos',
     'ClauseType',
@@ -33,7 +34,10 @@ from .dbmodels import (
     ClauseExpiry,
     ClauseTermination,
     ClauseWarrantyPeriod,
-    ClauseCommercialIncentive
+    ClauseCommercialIncentive,
+    ClausePaymentTerm,
+    ClauseSuspension,
+    ClauseSLA
 )
 
 # type
@@ -52,13 +56,16 @@ model_map = {
         'scope__map__scope': ScopeMAPScope,
     
     'clause': Clause,
-    'clause_expiry': ClauseExpiry,
-    'clause_entity': ClauseEntity,
-    'clause_customer_list': ClauseCustomerList,
-    'clause_scope': ClauseScope,
-    'clause_termination': ClauseTermination,
-    'clause_warranty_period': ClauseWarrantyPeriod,
-    'clause_commercial_incentive': ClauseCommercialIncentive
+        'clause_expiry': ClauseExpiry,
+        'clause_entity': ClauseEntity,
+        'clause_customer_list': ClauseCustomerList,
+        'clause_scope': ClauseScope,
+        'clause_termination': ClauseTermination,
+        'clause_warranty_period': ClauseWarrantyPeriod,
+        'clause_commercial_incentive': ClauseCommercialIncentive,
+        'clause_payment_term': ClausePaymentTerm,
+        'clause_suspension': ClauseSuspension,
+        'clause_sla': ClauseSLA
 }
 
 func_map = {}
@@ -90,6 +97,13 @@ table_map = {
         'clause_warranty_period'
     ],
     'commercial': [
-        'clause_commercial_incentive'
+        'clause_commercial_incentive',
+        'clause_payment_term'
+    ],
+    'termination and suspension': [
+        'clause_suspension'
+    ],
+    'other terms': [
+        'clause_sla'
     ] 
 }
