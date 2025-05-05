@@ -18,7 +18,7 @@
   </div>
   <div class="lh-lg mb-2">
   {%- for k, v in entries.items() %}
-    <strong>{{ k }}</strong>: {{ v|replace('\n', '<br>')|safe }} <br>
+    <strong>{{ _(k, True) }}</strong>: {{ v|replace('\n', '<br>')|safe }} <br>
   {%- endfor %}
   </div>
   {{ RelatedObjects(related_objects, modifiable=False) }}
