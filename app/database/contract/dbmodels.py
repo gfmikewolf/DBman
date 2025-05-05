@@ -1,17 +1,11 @@
 # app/database/contract/dbmodels.py
-from bdb import effective
 import logging
 
 logger = logging.getLogger(__name__)
 from datetime import date
-from sqlalchemy import (
-    ForeignKey, 
-    Date, Integer, String, Enum as SqlEnum,
-    func, 
-    select,
-    case,
-    literal_column
-)
+from sqlalchemy import ForeignKey
+from sqlalchemy import Date, Integer, String, Enum as SqlEnum
+from sqlalchemy import select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
@@ -188,18 +182,18 @@ class Contract(Base):
                     logger.error(f'Clause id {clause.clause_id} wrong expiry_type {clause.expiry_type}')
                     return None
 
+    data_list = [
+        'contract_name',
+        'contract_fullname',
+        'contract_effectivedate',
+        'contract_expirydate',
+        'contract_signdate',
+        'contract_remarks',
+        'contract_number_huawei',
+        'entities',
+        'scopes'
+    ]
     key_info = {
-        'data': [
-            'contract_name',
-            'contract_fullname',
-            'contract_effectivedate',
-            'contract_expirydate',
-            'contract_signdate',
-            'contract_remarks',
-            'contract_number_huawei',
-            'entities',
-            'scopes'
-        ],
         'readonly': {
             'contract_effectivedate',
             'contract_expirydate',
@@ -221,6 +215,73 @@ class Contract(Base):
         },
         'longtext': { 'contract_fullname', 'contract_remarks' }
     }
+class ContractMAPContract(Base):
+    __tablename__ = 'contract__map__contract'
+    parent_contract_id: Mapped[int] = mapped_column(
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    child_contract_id: Mapped[int] = mapped_column(
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    parent_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[parent_contract_id],
+        lazy = 'selectin',
+        overlaps= 'parent_contracts, child_contracts'
+    )
+    child_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[child_contract_id],
+        lazy = 'selectin',
+        overlaps= 'parent_contracts, child_contracts'
+    )
+    def __str__(self):
+        return f'{self.child_contract} ∈ {self.parent_contract}'
+    data_list = [
+        'parent_contract_id',
+        'parent_contract',
+        'child_contract_id',
+        'child_contract'
+    ]
+    key_info = {
+        'hidden': { 'parent_contract_id', 'child_contract_id' },
+        'readonly': { 'parent_contract', 'child_contract' }
+    }  
+class ContractLEGALMAPContract(Base):
+    __tablename__ = 'contract__legal_map__contract'
+    parent_contract_id: Mapped[int] = mapped_column(
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    child_contract_id: Mapped[int] = mapped_column(
+        ForeignKey('contract.contract_id'),
+        primary_key=True
+    )
+    parent_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[parent_contract_id],
+        lazy = 'selectin',
+        overlaps= 'legal_parent_contracts, legal_child_contracts',
+        info={'order_by': (Contract.contract_name,)}
+    )
+    child_contract: Mapped['Contract'] = relationship(
+        foreign_keys=[child_contract_id],
+        lazy = 'selectin',
+        overlaps= 'legal_parent_contracts, legal_child_contracts',
+        info={'order_by': (Contract.contract_name,)}
+    )
+
+    def __str__(self):
+        return f'{self.child_contract} ∈ {self.parent_contract}'
+    data_list = [
+        'parent_contract_id',
+        'parent_contract',
+        'child_contract_id',
+        'child_contract'
+    ]
+    key_info = {
+        'hidden': { 'parent_contract_id', 'child_contract_id' },
+        'readonly': { 'parent_contract', 'child_contract' }
+    }  
 
 class Amendment(Base):
     __tablename__ = 'amendment'
@@ -249,17 +310,17 @@ class Amendment(Base):
     def __str__(self) -> str:
         return f'{self.amendment_name} @ {self.amendment_effectivedate}'
 
+    data_list = [
+        'amendment_name',
+        'contract_id',
+        'contract',
+        'amendment_fullname',
+        'amendment_signdate',
+        'amendment_effectivedate',
+        'amendment_remarks',
+        'amendment_number_huawei'
+    ]
     key_info = {
-        'data': [
-            'amendment_name',
-            'contract_id',
-            'contract',
-            'amendment_fullname',
-            'amendment_signdate',
-            'amendment_effectivedate',
-            'amendment_remarks',
-            'amendment_number_huawei'
-        ],
         'hidden': {'contract_id'},
         'readonly': {'contract'},
         'viewable_list': {'clauses'},
@@ -278,11 +339,9 @@ class Entitygroup(Base):
 
     def __str__(self):
         return self.entitygroup_name
-    
+    data_list = ['entitygroup_name']
     key_info = {
-        'data': [
-            'entitygroup_name'
-        ],
+        'viewable_list': {'entities'},
         'translate': { '_self', 'entitygroup_name' }
     }
 
@@ -303,14 +362,15 @@ class Entity(Base):
     def __str__(self):
         return self.entity_name
     
+    data_list = [
+        'entity_name',
+        'entity_fullname',
+        'entity_address',
+        'remarks',
+        'entitygroup_id',
+        'entitygroup'
+    ]
     key_info = {
-        'data': [
-            'entity_name',
-            'entity_fullname',
-            'entitygroup_id',
-            'entitygroup',
-            'entity_address'
-        ],
         'hidden': {'entitygroup_id'},
         'readonly': {'entitygroup'},
         'longtext': {'entity_address', 'entity_fullname'},
@@ -340,127 +400,50 @@ class Scope(Base):
     
     def __str__(self):
         return self.scope_name
-    
+    data_list = ['scope_name', 'parent_scopes', 'child_scopes', 'remarks']
     key_info = {
-        'data': ['scope_name', 'parent_scopes', 'child_scopes', 'remarks'],
         'readonly': {'parent_scopes', 'child_scopes'},
         'longtext': {'remarks'},
         'translate': {'_self', 'scope_name'}
     }
-
 class ScopeMAPScope(Base):
     __tablename__ = 'scope__map__scope'
-    parent_scope_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('scope.scope_id'),
-        primary_key=True
-    )
-    child_scope_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('scope.scope_id'),
-        primary_key=True
-    )
+    parent_scope_id: Mapped[int] = mapped_column(ForeignKey('scope.scope_id'), primary_key=True)
+    child_scope_id: Mapped[int] = mapped_column(ForeignKey('scope.scope_id'), primary_key=True)
     parent_scope: Mapped['Scope'] = relationship(
         foreign_keys=[parent_scope_id],
         lazy = 'selectin',
-        overlaps='parent_scopes, child_scopes'
+        overlaps='parent_scopes, child_scopes',
+        info={'order_by': (Scope.scope_name,)}
     )
     child_scope: Mapped['Scope'] = relationship(
         foreign_keys=[child_scope_id],
         lazy = 'selectin',
-        overlaps='parent_scopes, child_scopes'
+        overlaps='parent_scopes, child_scopes',
+        info={'order_by': (Scope.scope_name,)}
     )
-
+    data_list = [
+        'parent_scope_id',
+        'parent_scope',
+        'child_scope_id',
+        'child_scope'
+    ]
     key_info = {
-        'data': [
-            'parent_scope_id',
-            'parent_scope',
-            'child_scope_id',
-            'child_scope'
-        ],
         'hidden': { 'parent_scope_id', 'child_scope_id' },
         'readonly': { 'parent_scope', 'child_scope' }
     }     
-class ContractMAPContract(Base):
-    __tablename__ = 'contract__map__contract'
-    parent_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    child_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    parent_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[parent_contract_id],
-        lazy = 'selectin',
-        overlaps= 'parent_contracts, child_contracts'
-    )
-    child_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[child_contract_id],
-        lazy = 'selectin',
-        overlaps= 'parent_contracts, child_contracts'
-    )
-    def __str__(self):
-        return f'{self.child_contract} ∈ {self.parent_contract}'
-    key_info = {
-        'data': [
-            'parent_contract_id',
-            'parent_contract',
-            'child_contract_id',
-            'child_contract'
-        ],
-        'hidden': { 'parent_contract_id', 'child_contract_id' },
-        'readonly': { 'parent_contract', 'child_contract' }
-    }  
-class ContractLEGALMAPContract(Base):
-    __tablename__ = 'contract__legal_map__contract'
-    parent_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    child_contract_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey('contract.contract_id'),
-        primary_key=True
-    )
-    parent_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[parent_contract_id],
-        lazy = 'selectin',
-        overlaps= 'legal_parent_contracts, legal_child_contracts'
-    )
-    child_contract: Mapped['Contract'] = relationship(
-        foreign_keys=[child_contract_id],
-        lazy = 'selectin',
-        overlaps= 'legal_parent_contracts, legal_child_contracts'
-    )
 
-    def __str__(self):
-        return f'{self.child_contract} ∈ {self.parent_contract}'
-    key_info = {
-        'data': [
-            'parent_contract_id',
-            'parent_contract',
-            'child_contract_id',
-            'child_contract'
-        ],
-        'hidden': { 'parent_contract_id', 'child_contract_id' },
-        'readonly': { 'parent_contract', 'child_contract' }
-    }  
 class UserMAPScope(Base):
     __tablename__ = 'user__map__scope'
     user_id: Mapped[int] = mapped_column(ForeignKey('user.user_id'), primary_key=True)
     scope_id: Mapped[int] = mapped_column(ForeignKey('scope.scope_id'), primary_key=True)
     from ..user import User
-    user: Mapped['User'] = relationship(lazy='selectin')
-    scope: Mapped['Scope'] = relationship(lazy='selectin')
+    user: Mapped['User'] = relationship(lazy='selectin', info={'order_by': lambda: User.user_name})
+    scope: Mapped['Scope'] = relationship(lazy='selectin', info={'order_by': lambda: Scope.scope_name})
     def __str__(self) -> str:
         return f'{self.user}:{self.scope}'
+    data_list = ['user_id', 'user', 'scope_id', 'scope']
     key_info = {
-        'data': ['user_id', 'user', 'scope_id', 'scope'],
         'hidden': {'user_id', 'scope_id'},
         'readonly': {'user', 'scope'}
     }
@@ -468,6 +451,15 @@ class UserRoleMAPContract(Base):
     __tablename__ = 'user_role__map__contract'
     user_role_id: Mapped[int] = mapped_column(ForeignKey('user_role.user_role_id'), primary_key=True)
     contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'), primary_key=True)
+    user_role: Mapped['UserRole'] = relationship(lazy='selectin', info={'order_by': lambda: UserRole.user_role_name})
+    contract: Mapped['Contract'] = relationship(lazy='selectin', info={'order_by': lambda: Contract.contract_name})
+    def __str__(self) -> str:
+        return f'{self.user_role}:{self.contract}'
+    data_list = ['user_role_id', 'user_role', 'contract_id', 'contract']
+    key_info = {
+        'hidden': {'user_role_id', 'contract_id'},
+        'readonly': {'user_role', 'contract'}
+    }
 
 class Clause(Base):
     __tablename__ = 'clause'
@@ -483,19 +475,14 @@ class Clause(Base):
     expirydate: Mapped[date|None] = mapped_column(Date)
     applied_to_scope_id: Mapped[int|None] = mapped_column(ForeignKey('scope.scope_id'))
     
-    @property
-    def clause_effective_date(self) -> date:
-        return self.effectivedate or self.amendment.amendment_effectivedate
-    
-    @property
-    def clause_expiry_date(self) -> date|None:
-        return self.expirydate or self.amendment.contract.contract_expirydate
-    
     applied_to_scope: Mapped['Scope'] = relationship(
         foreign_keys=[applied_to_scope_id],
         lazy='selectin',
         info={
-            'order_by': lambda: Scope.scope_name
+            'order_by': lambda: Scope.scope_name,
+            'where': lambda instance: Scope.scope_id.in_(
+                [scope.scope_id for scope in instance.amendment.contract.scopes]
+            ) 
         }
     )
 
@@ -514,33 +501,38 @@ class Clause(Base):
         viewonly=True,
         lazy='selectin'
     )
+    
+    @property
+    def clause_effective_date(self) -> date:
+        return self.effectivedate or self.amendment.amendment_effectivedate
+    
+    @property
+    def clause_expiry_date(self) -> date|None:
+        return self.expirydate or self.amendment.contract.contract_expirydate
+    
     def __str__(self) -> str:
         return f'{self.clause_type.value}'
 
+    data_list = [
+        'contract',
+        'amendment',
+        'amendment_id',
+        'clause_type',
+        'clause_pos',
+        'clause_ref',
+        'clause_text',
+        'clause_reviewcomments',
+        'clause_remarks',
+        'effectivedate',
+        'expirydate',
+        'applied_to_scope_id',
+        'applied_to_scope'
+    ]
     key_info = {
-        'data': [
-            'contract',
-            'amendment',
-            'amendment_id',
-            'clause_type',
-            'clause_pos',
-            'clause_ref',
-            'clause_text',
-            'clause_reviewcomments',
-            'clause_remarks',
-            'effectivedate',
-            'expirydate',
-            'applied_to_scope_id',
-            'applied_to_scope'  
-        ],
-        'hidden': { 'amendment_id', 'applied_to_scope_id' },
-        'readonly': { 'amendment', 'contract', 'applied_to_scope' },
-        'longtext': { 
-            'clause_text', 
-            'clause_reviewcomments', 
-            'clause_remarks' 
-        },
-        'translate': { '_self' }
+        'hidden': {'amendment_id', 'applied_to_scope_id'},
+        'readonly': {'amendment', 'contract', 'applied_to_scope'},
+        'longtext': {'clause_text', 'clause_reviewcomments', 'clause_remarks'},
+        'translate': {'_self'}
     }
 
     __mapper_args__ = {
@@ -549,15 +541,24 @@ class Clause(Base):
     }
 class ClauseTermination(Clause):
     __tablename__ = 'clause_termination'
-    clause_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey('clause.clause_id'),
-        primary_key=True
-    )
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
     contract_id: Mapped[int | None] = mapped_column(ForeignKey('contract.contract_id'))
     termination_date: Mapped[date] = mapped_column(Date)
 
-    contract: Mapped[Contract] = relationship(lazy='selectin')
+    contract: Mapped[Contract] = relationship(
+        lazy='selectin',
+        info={
+            'order_by': lambda: Contract.contract_name,
+            'join': lambda: (
+                (Amendment, Contract.contract_id == Amendment.contract_id),
+                (ClauseEntity, Amendment.amendment_id == ClauseEntity.amendment_id)
+            ),
+            'where': lambda instance: ClauseEntity.new_entity_id.in_(
+                [e.entity_id for e in instance.amendment.contract.entities]
+            ),
+            'distinct': True
+        }
+    )
 
     def __str__(self) -> str:
         return f'{self.clause_type.name}: Contract [{self.contract}] @ {self.termination_date}'
@@ -567,9 +568,11 @@ class ClauseTermination(Clause):
     }
 
     key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + ['contract_id', 'contract', 'termination_date'] # type: ignore
-    key_info['hidden'] = key_info['hidden'] | {'contract_id'} # type: ignore
-    key_info['readonly'] = key_info['readonly'] | {'contract'} # type: ignore
+    data_list = [k for k in Clause.data_list if k not in {'expirydate'}] + [
+        'contract_id', 'contract', 'termination_date'
+    ]
+    key_info['hidden'] = key_info['hidden'] | {'contract_id'}
+    key_info['readonly'] = key_info['readonly'] | {'contract'}
 class ClauseScope(Clause):
     __tablename__ = 'clause_scope'
     clause_id: Mapped[int] = mapped_column(
@@ -614,11 +617,13 @@ class ClauseScope(Clause):
             return 'Wrong clause action type'
 
     key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + [
+    data_list = [k for k in Clause.data_list if k not in {
+        'applied_to_scope', 'applied_to_scope_id'
+    }] + [
         'clause_action', 'new_scope_id', 'new_scope', 'old_scope_id', 'old_scope'
-    ] # type: ignore
-    key_info['hidden'] = key_info['hidden'] | {'new_scope_id', 'old_scope_id'} # type: ignore
-    key_info['readonly'] = key_info['readonly'] | {'new_scope', 'old_scope'} # type: ignore
+    ]
+    key_info['hidden'] = key_info['hidden'] | {'new_scope_id', 'old_scope_id'}
+    key_info['readonly'] = key_info['readonly'] | {'new_scope', 'old_scope'}
 class ClauseEntity(Clause):
     __tablename__ = 'clause_entity'
     clause_id: Mapped[int] = mapped_column(
@@ -658,11 +663,13 @@ class ClauseEntity(Clause):
         'polymorphic_identity': ClauseType.CLAUSE_ENTITY
     }
     key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + [
+    data_list = data_list = [k for k in Clause.data_list if k not in {
+        'applied_to_scope', 'applied_to_scope_id'
+    }] + [
         'clause_action', 'new_entity_id', 'new_entity', 'old_entity_id', 'old_entity'
-    ] # type: ignore
-    key_info['hidden'] = key_info['hidden'] | {'new_entity_id', 'old_entity_id'} # type: ignore
-    key_info['readonly'] = key_info['readonly'] | {'new_entity', 'old_entity'} # type: ignore
+    ]
+    key_info['hidden'] = key_info['hidden'] | {'new_entity_id', 'old_entity_id'}
+    key_info['readonly'] = key_info['readonly'] | {'new_entity', 'old_entity'}
 class ClauseExpiry(Clause):
     __tablename__ = 'clause_expiry'
     clause_id: Mapped[int] = mapped_column(
@@ -691,11 +698,11 @@ class ClauseExpiry(Clause):
             return nm + f'⇄{self.linked_to_contract}'
 
     key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + [
+    data_list = Clause.data_list + [
         'expiry_type', 'expiry_date', 'linked_to_contract_id', 'linked_to_contract'
-    ] # type: ignore
-    key_info['hidden'] = key_info['hidden'] | {'linked_to_contract_id'} # type: ignore
-    key_info['readonly'] = key_info['readonly'] | {'linked_to_contract'} # type: ignore
+    ]
+    key_info['hidden'] = key_info['hidden'] | {'linked_to_contract_id'}
+    key_info['readonly'] = key_info['readonly'] | {'linked_to_contract'}
 class ClauseCustomerList(Clause):
     __tablename__ = 'clause_customer_list'
     clause_action: Mapped[ClauseAction] = mapped_column(
@@ -736,57 +743,24 @@ class ClauseCustomerList(Clause):
         'polymorphic_identity': ClauseType.CLAUSE_CUSTOMER_LIST
     }  
     key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + [
+    data_list = Clause.data_list + [
         'clause_action', 'effective_date', 'new_customer_id', 'new_customer', 'old_customer_id', 'old_customer'
-    ] # type: ignore
-    key_info['hidden'] = key_info['hidden'] | {'new_customer_id', 'old_customer_id'} # type: ignore
-    key_info['readonly'] = key_info['readonly'] | {'new_customer', 'old_customer'} # type: ignore
-class ClauseDelete(Clause):
-    __tablename__ = 'clause_delete'
-    clause_id: Mapped[int] = mapped_column(
-        Integer,          
-        ForeignKey('clause.clause_id'),
-        primary_key=True)
-    clause_to_delete_id: Mapped[int] = mapped_column(
-        Integer,          
-        ForeignKey('clause.clause_id')
-    )
-    clause_to_delete: Mapped['Clause'] = relationship(
-        foreign_keys=[clause_to_delete_id],
-        lazy='selectin'
-    )
-    
-    def __str__(self) -> str:
-        return f'{self.clause_type.name} {self.clause_to_delete}'
-    __mapper_args__ = {
-        'polymorphic_identity': ClauseType.CLAUSE_DELETE,
-        'inherit_condition': clause_id == Clause.clause_id
-    }  
-    key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + [
-        'clause_to_delete_id', 'clause_to_delete'
-    ] # type: ignore
-    key_info['hidden'] = key_info['hidden'] | {'clause_to_delete_id'} # type: ignore
-    key_info['readonly'] = key_info['readonly'] | {'clause_to_delete' } # type: ignore
+    ] 
+    key_info['hidden'] = key_info['hidden'] | {'new_customer_id', 'old_customer_id'}
+    key_info['readonly'] = key_info['readonly'] | {'new_customer', 'old_customer'}
 class ClauseWarrantyPeriod(Clause):
     __tablename__ = 'clause_warranty_period'
     clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
-    applied_to_scope_id: Mapped[int|None] = mapped_column(ForeignKey('scope.scope_id'))
-    applied_to_scope: Mapped['Scope'] = relationship(lazy='selectin')
     start_from: Mapped[Milestone] = mapped_column(SqlEnum(Milestone))
     warranty_period_month: Mapped[int]
     def __str__(self) -> str:
         return f'{self.start_from.value} {self.warranty_period_month} months' + (' applied to {self.applied_to_scope}' if self.applied_to_scope else '')
     __mapper_args__ = { 'polymorphic_identity': ClauseType.CLAUSE_WARRANTY_PERIOD }
     key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + [
-        'applied_to_scope_id', 
-        'applied_to_scope',
+    data_list = Clause.data_list + [
         'start_from',
         'warranty_period_month'
-    ] # type: ignore
-    key_info['hidden'] = key_info['hidden'] | {'applied_to_scope_id'} # type: ignore
-    key_info['readonly'] = key_info['readonly'] | {'applied_to_scope'} # type: ignore
+    ]
 class ClauseCommercialIncentive(Clause):
     __tablename__ = 'clause_commercial_incentive'
     clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
@@ -796,9 +770,7 @@ class ClauseCommercialIncentive(Clause):
         return f'{self.clause_type.value}' + (f' applied to {self.applied_to_scope}' if self.applied_to_scope else '')
     __mapper_args__ = { 'polymorphic_identity': ClauseType.CLAUSE_COMMERCIAL_INCENTIVE }
     key_info = Clause.key_info.copy()
-    key_info['data'] = key_info['data'] + [
-        'applied_to_scope_id', 
-        'applied_to_scope',
+    data_list = Clause.data_list + [
         'precondition',
         'offer'
-    ] # type: ignore
+    ]

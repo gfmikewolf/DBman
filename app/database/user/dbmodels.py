@@ -18,7 +18,7 @@ class User(Base):
     user_roles: Mapped[list['UserRole']] = relationship(
         back_populates='users',
         secondary=lambda: UserMAPUserRole.__table__,
-        lazy='select'
+        lazy='selectin'
     )
     
     def __str__(self) -> str:
@@ -35,18 +35,15 @@ class User(Base):
     def check_password(self, raw_password: str) -> bool:
         return bcrypt.checkpw(raw_password.encode(), self.user_password_hash.encode())
 
+    data_list = [
+        'user_name',
+        'user_password',
+        'user_roles'
+    ]
     key_info = {
-        'data': [
-            'user_name',
-            'user_password',
-            'user_roles'
-        ],
-        'hidden': {
-            'user_password'
-        },
-        'readonly': {
-            'user_roles'
-        },
+        'hidden': {'user_password'},
+        'readonly': {'user_roles'},
+        'viewable_list': {'user_roles'},
         'password': { 'user_password' }
     }
 class UserRole(Base):
@@ -60,23 +57,24 @@ class UserRole(Base):
         secondary=lambda: UserMAPUserRole.__table__,
         lazy='select'
     )
-
     parents: Mapped[list['UserRole']] = relationship(
         back_populates='children',
         secondary=lambda: UserRoleMAPUserRole.__table__,
         primaryjoin=lambda: UserRole.user_role_id == UserRoleMAPUserRole.child_id,
         secondaryjoin=lambda: UserRole.user_role_id == UserRoleMAPUserRole.parent_id,
-        lazy='select'
+        lazy='selectin'
     )
     children: Mapped[list['UserRole']] = relationship(
         back_populates='parents',
         secondary=lambda: UserRoleMAPUserRole.__table__,
         primaryjoin=lambda: UserRole.user_role_id == UserRoleMAPUserRole.parent_id,
         secondaryjoin=lambda: UserRole.user_role_id == UserRoleMAPUserRole.child_id,
-        lazy='select'
+        lazy='selectin'
     )
+
     def __str__(self) -> str:
         return self.user_role_name
+    
     def __add__(self, other: 'UserRole') -> 'UserRole':
         if not isinstance(other, UserRole):
             return NotImplemented
@@ -90,15 +88,15 @@ class UserRole(Base):
         merged.table_privilege = merged_priv
         return merged
     
+    data_list = [
+        'user_role_name',
+        'table_privilege',
+        'parents',
+        'children'
+    ]
     key_info = {
-        'data': [
-            'user_role_name',
-            'table_privilege',
-            'users'
-        ],
-        'readonly': {
-            'users'
-        }
+        'viewable_list': {'users', 'parents', 'children'},
+        'readonly': {'users', 'parents', 'children'}
     }
 class UserMAPUserRole(Base):
     """
@@ -114,23 +112,19 @@ class UserMAPUserRole(Base):
     user_role_id: Mapped[int] = mapped_column(Integer, ForeignKey('user_role.user_role_id'), primary_key=True)
     user: Mapped['User'] = relationship(lazy='selectin', overlaps='users, user_roles')
     user_role: Mapped['UserRole'] = relationship(lazy='selectin', overlaps='users, user_roles')
+    
     def __str__(self) -> str:
         return f'{self.user} ∈ {self.user_role}'
+    
+    data_list = [
+        'user_id',
+        'user_role_id',
+        'user',
+        'user_role'
+    ]
     key_info = {
-        'data': [
-            'user_id',
-            'user_role_id',
-            'user',
-            'user_role'
-        ],
-        'hidden': {
-            'user_id',
-            'user_role_id'
-        },
-        'readonly': {
-            'user',
-            'user_role'
-        }
+        'hidden': {'user_id', 'user_role_id'},
+        'readonly': {'user', 'user_role'}
     }
 class UserRoleMAPUserRole(Base):
     __tablename__ = 'user_role__map__user_role'
@@ -146,22 +140,17 @@ class UserRoleMAPUserRole(Base):
         lazy='selectin', 
         overlaps='children, parents'
     )
+    
     def __str__(self) -> str:
         return f'{self.child} ∈ {self.parent}'
-
+    
+    data_list = [
+        'child_id',
+        'parent_id',
+        'child',
+        'parent'
+    ]
     key_info = {
-        'data': [
-            'child_id',
-            'parent_id',
-            'child',
-            'parent'
-        ],
-        'hidden': {
-            'child_id',
-            'parent_id'
-        },
-        'readonly': {
-            'child',
-            'parent'
-        }
+        'hidden': {'child_id', 'parent_id'},
+        'readonly': {'child', 'parent'}
     }

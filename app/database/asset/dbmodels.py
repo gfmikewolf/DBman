@@ -25,23 +25,31 @@ __all__ = [
 ]
 
 from abc import abstractmethod
+from cProfile import label
+from calendar import c
 import csv
 import itertools
+from locale import currency
 import logging
-from unittest import result
+import re
+
+from numpy import isin, record
+from regex import P
+
+from app.database import asset
 logger = logging.getLogger(__name__)
 from sqlite3 import DatabaseError
-from typing import Any
+from typing import Any, Iterable
 from datetime import date, datetime, timedelta
 from werkzeug.datastructures import FileStorage
 
-from sqlalchemy import Integer, String, Enum as SqlEnum, Date
-from sqlalchemy import and_, case, or_, tuple_
+from sqlalchemy import DateTime, Integer, String, Enum as SqlEnum, Date, Transaction, literal, literal_column
+from sqlalchemy import and_, case, or_, tuple_, cast
 from sqlalchemy import ForeignKey
 from sqlalchemy import event
 from sqlalchemy import func
 from sqlalchemy import insert, text, delete, select, update, union_all
-from sqlalchemy.orm import reconstructor, mapped_column, relationship
+from sqlalchemy.orm import reconstructor, mapped_column, relationship, aliased, object_session
 from sqlalchemy.orm import Mapped, Session
 
 from app.utils import xirr, get_stock_price
@@ -62,6 +70,10 @@ class Asset(Base):
     currency: Mapped['Currency'] = relationship(lazy='selectin')
     remarks: Mapped[str | None]
     brokerage_account_id: Mapped[int | None] = mapped_column(ForeignKey('brokerage_account.id'))
+    
+    _xirr: dict[int, tuple[date, float]] = {}
+    _cur_market_value: dict[int, tuple[date, float]] = {}
+    
     brokerage_account: Mapped['BrokerageAccount'] = relationship(
         lazy='selectin',
         back_populates='assets'
@@ -84,7 +96,18 @@ class Asset(Base):
     )
     @property
     def market_value(self) -> float:
-        return self.get_market_value()
+        dv = Asset._cur_market_value.get(self.id, None)
+        today = date.today()
+        if (
+            not dv
+            or (
+                isinstance(self, (PublicStock, PublicFund))
+                and dv[0] != today
+            )
+        ):
+            v = self.get_market_value()
+            Asset._cur_market_value[self.id] = (today, v)
+        return Asset._cur_market_value[self.id][1]
 
     @abstractmethod
     def get_market_value(self, dt: date = date.today()) -> float:
@@ -100,7 +123,7 @@ class Asset(Base):
     
     @property
     def original_market_value(self) -> float:
-        return self.market_value
+        return self.latest_accu_transaction.market_value
     
     @property
     def total_profit(self) -> float:
@@ -110,13 +133,37 @@ class Asset(Base):
     def total_profit_rate(self) -> str:
         return f'{(self.total_profit/self.total_investment) * 100.0:.2f}%'
     
-    _xirr: dict[int, float] = {}
-
     @property
     def extended_internal_rate_of_return(self) -> str:
-        value =self._xirr.get(self.id, None) or self.latest_accu_transaction.xirr
-        return f'{value * 100.0:.2f}%'
+        dx = Asset._xirr.get(self.id, None)
+        today = date.today()
+        if (
+            not dx
+            or (
+                isinstance(self, (PublicStock, PublicFund))
+                and dx[0] != today
+            )
+        ):
+            cur_xirr = self.get_xirr()
+            Asset._xirr[self.id] = (today, cur_xirr)
+        return f'{Asset._xirr[self.id][1] * 100:,.2f}%'
     
+    def get_xirr(self, dt: date = date.today()) -> float:
+        flows = [
+            (t.transaction_date, t.amount_change) 
+            for t in self.asset_transactions 
+            if t.transaction_date < dt
+        ]
+        if not flows:
+            return 0.0
+        flows.append((dt, self.market_value))
+        try:
+            cur_xirr = xirr(flows)
+        except Exception as e:
+            logger.error(f'Error calculating XIRR for asset {self.id}: {e}')
+            cur_xirr = 0.0
+        return cur_xirr            
+
     @property
     def total_quantity(self) -> float:
         return self.latest_accu_transaction.quantity
@@ -129,47 +176,7 @@ class Asset(Base):
         else:
             value = cost / self.total_quantity
         return f'{value:,.2f}'
-        
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-    
-    @reconstructor
-    def init_on_load(self) -> None:
-        self.init_props()
 
-    def init_props(self) -> None:
-        xirr_today = self._xirr.get(self.id, None)
-        if xirr_today and self.latest_accu_transaction:
-            return
-        sess = Session.object_session(self)
-        if sess is None:
-            raise RuntimeError('Session is required to load Asset instance')
-        if self.latest_accu_transaction is None:
-            HistoryAccuAssetTransaction.update_cache(sess, self.id)
-            sess.commit()
-            if self.latest_accu_transaction is None:
-                Asset._xirr[self.id] = 0.0
-                return
-            sess.expire(self, ['latest_accu_transaction', 'accu_transactions'])
-        if xirr_today is None:
-            today = date.today()
-            if not isinstance(self, (PublicStock, PublicFund)) or self.latest_accu_transaction.record_date == today:
-                Asset._xirr[self.id] = self.latest_accu_transaction.xirr
-                return
-            flows = [
-                (t.transaction_date, t.amount_change) 
-                for t in self.asset_transactions if t.transaction_date < today
-            ]
-            if not flows:
-                Asset._xirr[self.id] = 0.0
-                return
-            flows.append((today, self.market_value))
-            try:
-                Asset._xirr[self.id] = xirr(flows)
-            except Exception as e:
-                logger.error(f'Error calculating XIRR for asset {self.id}: {e}')
-                Asset._xirr[self.id] = 0.0
-        
     def __str__(self) -> str:
         return f'{self.name} {self.currency_code} ∈ {self.owner.name}'
     
@@ -177,8 +184,7 @@ class Asset(Base):
         'polymorphic_on': asset_type,
         'polymorphic_identity': AssetType.ASSET
     }
-    key_info = {
-        'data': [
+    data_list = [
             'name',
             'asset_type',
             'owner_id',
@@ -196,7 +202,8 @@ class Asset(Base):
             'total_redemption',
             'total_quantity',
             'unit_cost' 
-        ],
+        ]
+    key_info = {
         'hidden': { 
             'owner_id',
             'brokerage_account_id' 
@@ -216,6 +223,45 @@ class Asset(Base):
         },
         'longtext': { 'remarks' }
     }
+
+    @classmethod
+    def update_cache(cls, db_session: Session) -> dict[str, Any]:
+        if db_session is None:
+            raise RuntimeError('Session is required to load Asset instance')
+        cls._xirr.clear()
+        cls._cur_market_value.clear()
+        assets = db_session.scalars(select(cls)).all()
+        if not assets:
+            return {'success': True, 'data': 'No assets to update'}
+        ids = [asset.id for asset in assets]
+        HistoryAccuAssetTransaction.update_cache(db_session, ids)
+        db_session.commit()
+        today = date.today()
+        for id, asset in zip(ids, assets):
+            cls._cur_market_value[id] = (today, asset.market_value)
+            if asset.latest_accu_transaction is None:
+                Asset._xirr[asset.id] = (today, 0.0)
+                continue
+            db_session.expire(asset, ['latest_accu_transaction', 'accu_transactions'])
+            today = date.today()
+            if not isinstance(asset, (PublicStock, PublicFund)) or asset.latest_accu_transaction.record_date == today:
+                Asset._xirr[asset.id] = (today, asset.latest_accu_transaction.xirr)
+                continue
+            flows = [
+                (t.transaction_date, t.amount_change) 
+                for t in asset.asset_transactions if t.transaction_date < today
+            ]
+            if not flows:
+                Asset._xirr[asset.id] = (today, 0.0)
+                continue
+            flows.append((today, cls._cur_market_value[id][1]))
+            try:
+                Asset._xirr[asset.id] = (today, xirr(flows))
+                continue
+            except Exception as e:
+                logger.error(f'Error calculating XIRR for asset {asset.id}: {e}')
+                Asset._xirr[asset.id] = (today, 0.0)
+        return {'success': True, 'message': f'{len(assets)} assets updated'}
 class Building(Asset):
     __tablename__ = 'building'
 
@@ -229,10 +275,11 @@ class Building(Asset):
     def get_market_value(self, dt: date = date.today()) -> float:
         return self.price
     
+    data_list = Asset.data_list + ['area_sqm', 'address', 'area_code', 'location', 'price']
     key_info = Asset.key_info.copy()
-    key_info['data'] = Asset.key_info['data'] + ['area_sqm', 'address', 'area_code', 'location', 'price'] # type: ignore
-    key_info['hidden'] = Asset.key_info.get('hidden', set()) | {'area_code'} # type: ignore
-    key_info['readonly'] = Asset.key_info.get('readonly', set()) | {'location'} # type: ignore
+    key_info['hidden'] = Asset.key_info.get('hidden', set()) | {'area_code'}
+    key_info['readonly'] = Asset.key_info.get('readonly', set()) | {'location'}
+    
     __mapper_args__ = {
         'polymorphic_identity': AssetType.BUILDING,
     }
@@ -248,9 +295,9 @@ class Vehicle(Asset):
     def get_market_value(self, dt: date = date.today()) -> float:
         return self.price
     
+    data_list = Asset.data_list + ['brand', 'model', 'year', 'mileage', 'price']
     key_info = Asset.key_info.copy()
-    key_info['data'] = Asset.key_info['data'] + ['brand', 'model', 'year', 'mileage', 'price'] # type: ignore
-
+    
     __mapper_args__ = {
         'polymorphic_identity': AssetType.VEHICLE,
     }
@@ -264,7 +311,7 @@ class Crypto(Asset):
         return self.amount
     
     key_info = Asset.key_info.copy()
-    key_info['data'] = Asset.key_info['data'] + ['amount'] # type: ignore
+    data_list = Asset.data_list + ['amount']
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.CRYPTO,
@@ -307,8 +354,8 @@ class TimeDeposit(Asset):
         )
 
     key_info = Asset.key_info.copy()
-    key_info['data'] = Asset.key_info['data'] + ['amount', 'maturity_date'] # type: ignore
-    key_info['hidden'] = Asset.key_info.get('hidden', set()) | {'amount'} # type: ignore
+    data_list = Asset.data_list + ['amount', 'maturity_date']
+    key_info['hidden'] = Asset.key_info.get('hidden', set()) | {'amount'}
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.TIME_DEPOSIT,
@@ -324,8 +371,8 @@ class AccountReceivable(Asset):
         return self.amount
 
     key_info = Asset.key_info.copy()
-    key_info['data'] = key_info['data'] + ['amount', 'due_date'] # type: ignore
-    key_info['hidden'] = Asset.key_info.get('hidden', set()) | {'amount'} # type: ignore
+    data_list = Asset.data_list + ['amount', 'due_date']
+    key_info['hidden'] = Asset.key_info.get('hidden', set()) | {'amount'}
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.ACCOUNT_RECEIVABLE,
@@ -342,7 +389,7 @@ class CashEquivalent(Asset):
         return self.amount_or_quantity
     
     key_info = Asset.key_info.copy()
-    key_info['data'] = Asset.key_info['data'] + ['amount_or_quantity', 'cash_account_id', 'cash_account'] # type: ignore
+    data_list = Asset.data_list + ['amount_or_quantity', 'cash_account_id', 'cash_account'] # type: ignore
     key_info['hidden'] = Asset.key_info.get('hidden', set()) | {'cash_account_id', 'amount_or_quantity'} # type: ignore
     key_info['readonly'] = Asset.key_info.get('readonly', set()) | {'cash_account'} # type: ignore
 
@@ -360,16 +407,10 @@ class Security(Asset):
         raise NotImplementedError('market_value must be implemented in subclass of Security')
     
     key_info = Asset.key_info.copy()
-    key_info['data'] = key_info['data'] + [
-        'issuer_id', 'issuer'
-    ] # type: ignore
-    key_info['hidden'] = key_info.get('hidden', set()) | {
-        'issuer_id', 'brokerage_account_id'
-    } # type: ignore
-    key_info['readonly'] = key_info.get('readonly', set()) | {
-        'issuer'
-    } # type: ignore
-    key_info['translate'] = key_info.get('translate', set()) | {'issuer'} # type: ignore
+    data_list = Asset.data_list + ['issuer_id', 'issuer']
+    key_info['hidden'] = key_info.get('hidden', set()) | {'issuer_id', 'brokerage_account_id'}
+    key_info['readonly'] = key_info.get('readonly', set()) | {'issuer'}
+    key_info['translate'] = key_info.get('translate', set()) | {'issuer'}
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.SECURITY,
@@ -385,40 +426,44 @@ class Stock(Security):
     
     @property
     def latest_unit_price(self) -> float:
-        return getattr(self, 'web_price', None) or self.unit_price
+        web_price_func = getattr(self, 'web_price', None) 
+        if web_price_func:
+            return web_price_func()
+        else:
+            return self.unit_price
 
     def get_market_value(self, dt: date = date.today()) -> float:
         return self.latest_unit_price * self.shares
     
     key_info = Security.key_info.copy()
-    key_info['data'] = key_info['data'] + [
+    data_list = Security.data_list + [
         'unit_price', 
         'shares', 
         'company_id', 
         'company',
         'latest_unit_price'
-    ] # type: ignore
+    ]
     key_info['hidden'] = key_info.get('hidden', set()) | {
         'company_id',
         'unit_price'
-    } # type: ignore
+    }
     key_info['readonly'] = key_info.get('readonly', set()) | {
         'company',
         'latest_unit_price'
-    } # type: ignore
-    key_info['translate'] = key_info.get('translate', set()) | {'company'} # type: ignore
-
+    }
+    key_info['translate'] = key_info.get('translate', set()) | {'company'}
+    
     __mapper_args__ = {
         'polymorphic_identity': AssetType.STOCK
     }
 class PrivateStock(Stock):
     __tablename__ = 'private_stock'
 
-    id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
+    id: Mapped[int] = mapped_column(ForeignKey('stock.id'), primary_key=True)
     days_to_liquidity: Mapped[int | None] = mapped_column(default=0)
 
     key_info = Stock.key_info.copy()
-    key_info['data'] = Stock.key_info['data'] + ['days_to_liquidity'] # type: ignore
+    data_list = Stock.data_list + ['days_to_liquidity']
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.PRIVATE_STOCK
@@ -429,14 +474,13 @@ class PublicStock(Stock):
     id: Mapped[int] = mapped_column(Integer, ForeignKey('stock.id'), primary_key=True)
     code: Mapped[str | None]
     
-    @property
-    def web_price(self) -> float | None:
+    def web_price(self, dt: date | None = None) -> float | None:
         if not self.code:
             return None
-        return get_stock_price(self.code)
-        
+        return get_stock_price(self.code, dt) if dt else get_stock_price(self.code)
+
     key_info = Stock.key_info.copy()
-    key_info['data'] = Stock.key_info['data'] + ['code'] # type: ignore
+    data_list = Stock.data_list + ['code']
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.PUBLIC_STOCK
@@ -450,7 +494,8 @@ class Fund(Security):
         raise NotImplementedError('market_value must be implemented in subclass of Fund')
     
     key_info = Security.key_info.copy()
-
+    data_list = Security.data_list.copy()
+    
     __mapper_args__ = {
         'polymorphic_identity': AssetType.FUND
     }
@@ -463,8 +508,9 @@ class PrivateFund(Fund):
 
     def get_market_value(self, dt: date = date.today()) -> float:
         return self.cur_value
+    
     key_info = Fund.key_info.copy()
-    key_info['data'] = Fund.key_info['data'] + ['cur_value', 'days_to_liquidity'] # type: ignore
+    data_list = Fund.data_list + ['cur_value', 'days_to_liquidity']
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.PRIVATE_FUND
@@ -479,8 +525,9 @@ class PublicFund(Fund):
 
     def get_market_value(self, dt: date = date.today()) -> float:
         return self.unit_price * self.units
+    
     key_info = Fund.key_info.copy()
-    key_info['data']     = Fund.key_info['data'] + ['code', 'unit_price', 'units'] # type: ignore
+    data_list = Fund.data_list + ['code', 'unit_price', 'units']
 
     __mapper_args__ = {
         'polymorphic_identity': AssetType.PUBLIC_FUND
@@ -496,6 +543,7 @@ class AccountTransaction(Base):
     account: Mapped['Account'] = relationship(lazy='selectin')
     amount_change: Mapped[float] = mapped_column(default=0.0)
     remarks: Mapped[str | None]
+    created_at: Mapped[datetime] = mapped_column(DateTime)
     expense_types: Mapped[list['ExpenseType']] = relationship(
         back_populates='expenses',
         secondary='expense__map__expense_type',
@@ -518,27 +566,23 @@ class AccountTransaction(Base):
     def __str__(self):
         return f'{self.category}:{self.amount}@{self.transaction_date} {self.transaction_type.name}'
 
-   
-    poly_map = {
-        'account_transaction': {'account_transfer', 'asset_transaction'}
-    }
     __mapper_args__ = {
         'polymorphic_on': transaction_type,
         'polymorphic_identity': AccountTransactionType.ACCOUNT_TRANSACTION
     }
 
+    data_list = [
+        'id',
+        'transaction_date',
+        'category',
+        'amount',
+        'amount_change',
+        'remarks',
+        'transaction_type',
+        'account_id',
+        'account'
+    ]
     key_info = {
-        'data': [
-            'id',
-            'transaction_date',
-            'category',
-            'amount',
-            'amount_change',
-            'remarks',
-            'transaction_type',
-            'account_id',
-            'account'
-        ],
         'hidden': {'id', 'account_id', 'amount_change'},
         'readonly': {'id', 'account', 'category', 'amount'},
         'longtext': {'remarks'},
@@ -655,23 +699,6 @@ class AccountTransaction(Base):
         except Exception as e:
             db_session.rollback()
             return {'success': False, 'error': str(e)}
-class AccountTransfer(AccountTransaction):
-    __tablename__ = 'account_transfer'
-
-    id: Mapped[int] = mapped_column(Integer, ForeignKey('account_transaction.id'), primary_key=True)
-    to_account_id: Mapped[int] = mapped_column(ForeignKey('account.id'))
-    amount_to: Mapped[float] = mapped_column(default=0.0)
-    to_account: Mapped['Account'] = relationship(lazy='selectin', foreign_keys=[to_account_id])
-
-    key_info = AccountTransaction.key_info.copy()
-    key_info['data'] = AccountTransaction.key_info['data'] + [
-        'to_account_id', 'to_account', 'amount_to'] # type: ignore
-    key_info['hidden'] = AccountTransaction.key_info.get('hidden', set()) | {'to_account_id'} # type: ignore
-    key_info['readonly'] = AccountTransaction.key_info.get('readonly', set()) | {'to_account'} # type: ignore
-
-    __mapper_args__ = {
-        'polymorphic_identity': AccountTransactionType.ACCOUNT_TRANSFER
-    }
 class AssetTransaction(AccountTransaction):
     __tablename__ = 'asset_transaction'
     id: Mapped[int] = mapped_column(Integer, ForeignKey('account_transaction.id'), primary_key=True)
@@ -720,10 +747,11 @@ class AssetTransaction(AccountTransaction):
     }
 
     key_info = AccountTransaction.key_info.copy()
-    key_info['data'] = AccountTransaction.key_info['data'] + [
-        'asset_id', 'asset', 'market_value_change', 'quantity_change'] # type: ignore
-    key_info['hidden'] = AccountTransaction.key_info.get('hidden', set()) | {'asset_id'} # type: ignore
-    key_info['readonly'] = AccountTransaction.key_info.get('readonly', set()) | {'asset'} # type: ignore
+    data_list = AccountTransaction.data_list + [
+        'asset_id', 'asset', 'market_value_change', 'quantity_change'
+    ]
+    key_info['hidden'] = AccountTransaction.key_info.get('hidden', set()) | {'asset_id'}
+    key_info['readonly'] = AccountTransaction.key_info.get('readonly', set()) | {'asset'}
     
 class Person(Base):
     __tablename__ = 'person'
@@ -771,24 +799,23 @@ class Person(Base):
     def __str__(self) -> str:
         return self.name
 
+    data_list = [
+        'name',
+        'nationality_code',
+        'nationality',
+        'gender',
+        'address',
+        'email',
+        'phone_number',
+        'remarks',
+        'currency_code',
+        'total_balance',
+        'market_value',
+        'total_value'
+    ]
     key_info = {
-        'data': [
-            'id',
-            'name',
-            'nationality_code',
-            'nationality',
-            'gender',
-            'address',
-            'email',
-            'phone_number',
-            'remarks',
-            'currency_code',
-            'total_balance',
-            'market_value',
-            'total_value'
-        ],
-        'hidden': {'id', 'nationality_code', 'currency_code'},
-        'readonly': {'id', 'nationality', 'total_balance', 'market_value', 'total_value'},
+        'hidden': {'nationality_code', 'currency_code'},
+        'readonly': {'nationality', 'total_balance', 'market_value', 'total_value'},
         'longtext': {'remarks', 'address'}
     }
 
@@ -813,16 +840,16 @@ class Area(Base):
     def __str__(self):
         return self.name
     
+    data_list = [
+        'code',
+        'name',
+        'parent_code',
+        'parent_area'
+    ]
     key_info = {
-        'data': [
-            'code',
-            'name',
-            'parent_code',
-            'parent_area',
-            'child_areas'
-        ],
-        'hidden': {'id', 'parent_code'},
-        'readonly': {'id', 'parent_area', 'child_areas'},
+        'hidden': {'code', 'parent_code'},
+        'readonly': {'parent_area'},
+        'viewable_list': {'child_areas'},
         'translate': { '_self', 'name' }
     }
 
@@ -841,14 +868,13 @@ class Currency(Base):
 
     def __str__(self) -> str:
         return self.code
-
+    data_list = [
+        'code',
+        'name',
+        'symbol',
+        'ex_rate'
+    ]
     key_info = {
-        'data': [
-            'code',
-            'name',
-            'symbol',
-            'ex_rate'
-        ],
         'translate': {'name'}
     }
 
@@ -890,33 +916,16 @@ class Organization(Base):
     def __str__(self) -> str:
         return self.nickname
 
+    data_list = [
+        'nickname',
+        'fullname',
+        'area_code',
+        'area'
+    ]
     key_info = {
-        'data': [
-            'id',
-            'nickname',
-            'fullname',
-            'area_code',
-            'area'
-        ],
-        'hidden': {'id', 'area_code'},
-        'readonly': {'id', 'area'}
+        'hidden': {'area_code'},
+        'readonly': {'area'}
     }
-
-class AccountMAPTransaction(Base):
-    __tablename__ = 'account__map__transaction'
-    
-    transaction_id: Mapped[int] = mapped_column(ForeignKey('account_transaction.id'), primary_key=True)
-    account_id: Mapped[int] = mapped_column(ForeignKey('account.id'), primary_key=True)
-class BrokerageAccountExternalTransaction(Base):
-    __tablename__ = 'brokerage_account_external_transaction'
-
-    id: Mapped[int] = mapped_column(ForeignKey('account_transaction.id'), primary_key=True)
-    transaction_date: Mapped[date]
-    amount_change: Mapped[float]
-    currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'))
-    currency: Mapped['Currency'] = relationship(lazy='selectin')
-    brokerage_account_id: Mapped[int] = mapped_column(ForeignKey('brokerage_account.id'), primary_key=True)
-    brokerage_account: Mapped['BrokerageAccount'] = relationship(lazy='selectin')
 
 class Account(Base):
     __tablename__ = 'account'
@@ -948,12 +957,9 @@ class Account(Base):
     )
     currency: Mapped['Currency'] = relationship(lazy='selectin')
     transactions: Mapped[list['AccountTransaction']] = relationship(
-        secondary=lambda: AccountMAPTransaction.__table__,
-        primaryjoin=lambda: Account.id == AccountMAPTransaction.account_id,
-        secondaryjoin=lambda: AccountTransaction.id == AccountMAPTransaction.transaction_id,
-        lazy='selectin',
-        order_by=lambda: AccountTransaction.transaction_date,
-        viewonly=True
+        back_populates='account',
+        lazy='select',
+        order_by=lambda: AccountTransaction.transaction_date
     )
 
     @property
@@ -969,21 +975,21 @@ class Account(Base):
     def __str__(self) -> str:
         return f'{self.nickname} ∈ {self.owner}'
     
+    data_list = [
+        'nickname',
+        'account_type',
+        'owner_id',
+        'owner',
+        'currency_code',
+        'balance',
+        'normalized_balance',
+        'total_balance',
+        'parent_id',
+        'parent_account',
+        'child_accounts',
+        'remarks'
+    ]
     key_info = {
-        'data': [
-            'nickname',
-            'account_type',
-            'owner_id',
-            'owner',
-            'currency_code',
-            'balance',
-            'normalized_balance',
-            'total_balance',
-            'parent_id',
-            'parent_account',
-            'child_accounts',
-            'remarks'
-        ],
         'hidden': {
             'owner_id', 
             'parent_id', 
@@ -998,10 +1004,6 @@ class Account(Base):
             'normalized_balance',
         },
         'longtext': {'remarks'}
-    }
-
-    poly_map = {
-        'account': {'bank_account', 'debit_card', 'credit_card', 'brokerage_account', 'crypto_account', 'cash_account', 'loan_account'}  
     }
 
     __mapper_args__ = {
@@ -1036,13 +1038,13 @@ class BankAccount(Account):
     organization: Mapped['Organization'] = relationship(lazy='selectin')
 
     key_info = Account.key_info.copy()
-    key_info['data'] = Account.key_info['data'] + [
+    data_list = Account.data_list + [
         'organization_id', 'organization', 
         'account_name', 'account_branch',  
         'account_number', 
-        'IBAN'] # type: ignore
-    key_info['hidden'] = Account.key_info.get('hidden', set()) | {'organization_id'} # type: ignore
-    key_info['readonly'] = Account.key_info.get('readonly', set()) | {'organization'} # type: ignore
+        'IBAN']
+    key_info['hidden'] = Account.key_info.get('hidden', set()) | {'organization_id'}
+    key_info['readonly'] = Account.key_info.get('readonly', set()) | {'organization'}
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.BANK_ACCOUNT,
@@ -1055,9 +1057,14 @@ class DebitCard(Account):
     card_name: Mapped[str]
     expiry_date: Mapped[date | None] = mapped_column(Date)
     account_branch: Mapped[str | None]
+    
     key_info = Account.key_info.copy()
-    key_info['data'] = Account.key_info['data'] + [
-        'card_name', 'card_number', 'expiry_date', 'account_branch'] # type: ignore
+    data_list = Account.data_list + [
+        'card_name', 
+        'card_number', 
+        'expiry_date', 
+        'account_branch'
+    ]
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.DEBIT_CARD,
@@ -1072,7 +1079,7 @@ class CreditCard(Account):
     credit_limit: Mapped[float | None] = mapped_column(default=0.0)
 
     key_info = Account.key_info.copy()
-    key_info['data'] = Account.key_info['data'] + ['card_name', 'card_number', 'expiry_date', 'credit_limit'] # type: ignore
+    data_list = Account.data_list + ['card_name', 'card_number', 'expiry_date', 'credit_limit']
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.CREDIT_CARD,
@@ -1100,9 +1107,9 @@ class CashAccount(Account):
         return total
 
     key_info = Account.key_info.copy()
-    key_info['data'] = Account.key_info['data'] + ['area_code', 'location'] # type: ignore
-    key_info['hidden'] = Account.key_info.get('hidden', set()) | {'area_code'} # type: ignore
-    key_info['readonly'] = Account.key_info.get('readonly', set()) | {'location'} # type: ignore
+    data_list = Account.data_list + ['area_code', 'location']
+    key_info['hidden'] = Account.key_info.get('hidden', set()) | {'area_code'}
+    key_info['readonly'] = Account.key_info.get('readonly', set()) | {'location'}
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.CASH_ACCOUNT,
@@ -1117,11 +1124,11 @@ class BrokerageAccount(Account):
     organization: Mapped['Organization'] = relationship(lazy='selectin')
     assets: Mapped[list['Asset']] = relationship(
         back_populates='brokerage_account',
-        lazy='selectin'
+        lazy='select'
     )
     external_transactions: Mapped[list['BrokerageAccountExternalTransaction']] = relationship(
         back_populates='brokerage_account',
-        lazy='selectin'
+        lazy='select'
     )
     
     @property
@@ -1146,42 +1153,12 @@ class BrokerageAccount(Account):
     
     @property
     def extended_internal_rate_of_return(self) -> str:
-        return f'{self._xirr:.2f}%'
+        return f'{self._xirr:,.2f}%'
     
-    @reconstructor
-    def init_on_load(self) -> None:
-        self._total_investment = 0.0
-        self._total_redemption = 0.0
-        self._total_profit = 0.0
-        self._total_profit_rate = 0.0
-        self._xirr = 0.0
-        market_amounts = Amounts.ZERO()
-        for asset in self.assets:
-            market_amounts += Amounts(asset.market_value, asset.currency)
-        self._market_value = market_amounts.convert(self.currency) if self.currency else 0.0
-        t_num = len(self.external_transactions)
-        if t_num == 0:
-            return
-        flows = []
-        for t in self.external_transactions:
-            if t.transaction_date > date.today():
-                continue
-            amount_change = t.amount_change
-            if t.currency_code != self.currency_code:
-                amount_change = Amounts(t.amount_change, t.currency, t.transaction_date).convert(self.currency)
-            if t.amount_change < 0:
-                self._total_investment -= amount_change
-            elif t.amount_change > 0:
-                self._total_redemption += amount_change
-            if t.transaction_date and t.amount_change:
-                flows.append((t.transaction_date, amount_change))
-        self._total_profit = self._total_redemption - self._total_investment
-        
-        flows.append((date.today(), self._market_value))
-        self._xirr = xirr(flows)
+    
 
     key_info = Account.key_info.copy()
-    key_info['data'] = Account.key_info['data'] + [
+    data_list = Account.data_list + [
         'organization_id', 
         'organization', 
         'account_number',
@@ -1189,27 +1166,66 @@ class BrokerageAccount(Account):
         'extended_internal_rate_of_return',
         'total_investment',
         'total_profit',
-        'total_redemption', 
-        'assets',
+        'total_redemption'
         'market_value'
-    ] # type: ignore
+    ]
     key_info['hidden'] = Account.key_info.get('hidden', set()) | {
         'organization_id'
-    } # type: ignore
+    }
     key_info['readonly'] = Account.key_info.get('readonly', set()) | {
         'organization',
         'total_profit',
         'total_investment',
         'total_redemption',
         'total_profit_rate',
-        'extended_internal_rate_of_return', 
-        'assets', 
+        'extended_internal_rate_of_return'
         'market_value'
-    } # type: ignore
+    }
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.BROKERAGE_ACCOUNT,
     }
+
+    # cache for related accounts and assets
+    _related_accounts: list['Account'] = []
+    _related_assets: list['Asset'] = []
+
+    @property
+    def related_accounts(self) -> list['Account']:
+        if not self._related_accounts:
+            self._related_accounts = self.get_related_accounts()
+        return self._related_accounts
+
+    def get_related_accounts(self) -> list['Account']:
+        acct_cte = select(BrokerageAccount.id).where(BrokerageAccount.id == self.id).cte(recursive=True)
+        child = aliased(BrokerageAccount)
+        acct_cte = acct_cte.union_all(
+            select(child.id).where(child.parent_id == acct_cte.c.id)
+        )
+        stmt = select(Account).where(Account.id.in_(select(acct_cte.c.id)))
+        sess = object_session(self)
+        if sess is None:
+            raise ValueError('Session is not available')
+        return list(sess.scalars(stmt).all())
+
+    @property
+    def related_assets(self) -> list['Asset']:
+        if not self._related_assets:
+            self._related_assets = self.get_related_assets()
+        return self._related_assets
+
+    def get_related_assets(self) -> list['Asset']:
+        acct_cte = select(BrokerageAccount.id).where(BrokerageAccount.id == self.id).cte(recursive=True)
+        child = aliased(BrokerageAccount)
+        acct_cte = acct_cte.union_all(
+            select(child.id).where(child.parent_id == acct_cte.c.id)
+        )
+        stmt = select(Asset).where(Asset.brokerage_account_id.in_(select(acct_cte.c.id)))
+        sess = object_session(self)
+        if sess is None:
+            raise ValueError('Session is not available')
+        return list(sess.scalars(stmt).all())
+    
 class CryptoAccount(Account):
     __tablename__ = 'crypto_account'
 
@@ -1217,7 +1233,7 @@ class CryptoAccount(Account):
     account_number: Mapped[str | None]
 
     key_info = Account.key_info.copy()
-    key_info['data'] = Account.key_info['data'] + ['account_number'] # type: ignore
+    data_list = Account.data_list + ['account_number']
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.CRYPTO_ACCOUNT,
@@ -1232,8 +1248,8 @@ class LoanAccount(Account):
     organization: Mapped['Organization'] = relationship(lazy='selectin')
 
     key_info = Account.key_info.copy()
-    key_info['data'] = Account.key_info['data'] + ['organization_id', 'organization', 'account_number'] # type: ignore
-    key_info['hidden'] = Account.key_info.get('hidden', set()) | {'organization_id'} # type: ignore
+    data_list = Account.data_list + ['organization_id', 'organization', 'account_number']
+    key_info['hidden'] = Account.key_info.get('hidden', set()) | {'organization_id'}
 
     __mapper_args__ = {
         'polymorphic_identity': AccountType.LOAN_ACCOUNT,
@@ -1249,13 +1265,13 @@ class BudgetMAPExpense(Base):
     def __str__(self) -> str:
         return f'{self.budget.name} {self.expense}'
 
+    data_list = [
+        'budget_id',
+        'budget',
+        'expense_id',
+        'expense'
+    ]
     key_info = {
-        'data': [
-            'budget_id',
-            'budget',
-            'expense_id',
-            'expense',
-        ],
         'hidden': {'budget_id', 'expense_id'},
         'translate': {'_self'}
     }
@@ -1299,15 +1315,14 @@ class ExpenseType(Base):
 
     def __str__(self) -> str:
         return self.name
-    
+    data_list = [
+        'name',
+        'keywords',
+        'remarks',
+        'parent_expense_types',
+        'child_expense_types',
+    ]
     key_info = {
-        'data': [
-            'name',
-            'keywords',
-            'remarks',
-            'parent_expense_types',
-            'child_expense_types',
-        ],
         'readonly': {'parent_expense_types', 'child_expense_types'},
         'longtext': {'remarks', 'keywords'},
         'translate': {'name', '_self'}
@@ -1403,13 +1418,14 @@ class ExpenseTypeMAPExpenseType(Base):
     )
     def __str__(self) -> str:
         return f'{self.child.name} ∈ {self.parent.name}'
+    
+    data_list = [
+        'parent_id',
+        'parent',
+        'child_id',
+        'child'
+    ]
     key_info = {
-        'data': [
-            'parent_id',
-            'parent',
-            'child_id',
-            'child'
-        ],
         'hidden': {'parent_id', 'child_id'},
         'readonly': {'parent', 'child'},
         'translate': {'_self'}
@@ -1425,13 +1441,13 @@ class ExpenseMAPExpenseType(Base):
     def __str__(self) -> str:
         return f'{self.expense} {self.expense_type}'
     
+    data_list = [
+        'expense_id',
+        'expense',
+        'expense_type_id',
+        'expense_type'
+    ]
     key_info = {
-        'data': [
-            'expense_id',
-            'expense',
-            'expense_type_id',
-            'expense_type'
-        ],
         'hidden': {'expense_id', 'expense_type_id'},
         'translate': {'_self'}
     }
@@ -1513,16 +1529,16 @@ class Budget(Base):
     def __str__(self) -> str:
         return f'{self.name}'
     
+    data_list = [
+        'name',
+        'budget_total',
+        'expenses_total',
+        'completion_pct',
+        'currency_code',
+        'start_date',
+        'end_date'
+    ]
     key_info = {
-        'data': [
-            'name',
-            'budget_total',
-            'expenses_total',
-            'completion_pct',
-            'currency_code',
-            'start_date',
-            'end_date'
-        ],
         'hidden': {'currency_code' },
         'readonly': {'expenses_total', 'completion_pct'},
         'translate': { '_self', 'name'}
@@ -1538,170 +1554,197 @@ class BudgetMAPExpenseType(Base):
     def __str__(self) -> str:
         return f'{self.expense_type.name} ∈ {self.budget.name}'
     
+    data_list = [
+        'budget_id',
+        'budget',
+        'expense_type_id',
+        'expense_type'
+    ]
     key_info = {
-        'data': [
-            'budget_id',
-            'budget',
-            'expense_type_id',
-            'expense_type'
-        ],
         'hidden': {'budget_id', 'expense_type_id'},
         'readonly': {'budget', 'expense_type'},
         'translate': {'_self'}
     }
 
 # Caches to accelerate the performance of the application
-class HistoryExRate(Base, Cache):
-    __tablename__ = 'history_ex_rate'
-    ex_date: Mapped[date] = mapped_column(Date, primary_key=True)
-    currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'), primary_key=True)
-    ex_rate: Mapped[float] = mapped_column(default=1.0)
-    currency: Mapped['Currency'] = relationship(lazy='selectin')
-    @classmethod
-    def init_cache(cls, db_session: Session) -> None:
-        pass
-    @classmethod
-    def update_cache(cls, db_session: Session) -> bool:
-        """
-        Update the cache for historical exchange rates.
-        """
-        # Fetch all (currency_code, transaction_date) pairs from the asset transactions
-        stmt = (
-            select(
-                AssetTransaction.transaction_date, 
-                Account.currency_code.label('act_code'),
-                Asset.currency_code.label('ast_code'),
-                BrokerageAccount.currency_code.label('ba_code')
-            )
-            .select_from(AssetTransaction)
-            .join(Account)
-            .join(Asset)
-            .join(BrokerageAccount)
-        )
-        try:
-            result = db_session.execute(stmt).all()
-            # Collect all unique (currency_code, transaction_date) pairs
-            code_dates: set[tuple[str, date]] = set()
-            for transaction_date, act_code, ast_code, ba_code in result:
-                for code in (act_code, ast_code, ba_code):
-                    if code:
-                        code_dates.add((code, transaction_date))
-            # Check if the exchange rates already exist in the database
-            # and filter out the existing ones
-            stmt = (
-                select(HistoryExRate.currency_code, HistoryExRate.ex_date)
-                .filter(
-                    tuple_(HistoryExRate.currency_code, HistoryExRate.ex_date).in_(code_dates)
-                )
-            )
-            existing_rows = db_session.execute(stmt).all()
-            existing_code_dates = {(er_code, er_date) for er_code, er_date in existing_rows}
-            code_dates = code_dates - existing_code_dates
-            values = []
-            for c, dt in code_dates:
-                r = get_stock_price(f'{c}USD=X', dt)
-                if r:
-                    values.append({
-                        'currency_code': c,
-                        'ex_date': dt,
-                        'ex_rate': r
-                    })
-            # Insert the new exchange rates into the history exchange rate table
-            if values:
-                db_session.execute(
-                    insert(HistoryExRate)
-                        .prefix_with("OR IGNORE")
-                        .values(values)
-                )
-            db_session.commit()
-            return True
-        except Exception as e:
-            db_session.rollback()
-            logger.error(f"Error updating cache: {e}")
-            return False
-   
-class HistoryAccuAssetTransaction(Base, Cache):
-    __tablename__ = 'history_accu_asset_transaction'
+class CacheTimestamp(Base):
+    __tablename__ = 'cache_timestamp'
 
-    asset_id: Mapped[int] = mapped_column(ForeignKey('asset.id'), primary_key=True)
-    record_date: Mapped[date] = mapped_column(Date, primary_key=True)
-    investment: Mapped[float] = mapped_column(default=0.0)
-    redemption: Mapped[float] = mapped_column(default=0.0)
-    market_value: Mapped[float] = mapped_column(default=0.0)
-    quantity: Mapped[float] = mapped_column(default=0.0)
-    unit_price: Mapped[float] = mapped_column(default=0.0)
-    @property
-    def profit(self) -> float:
-        return self.market_value + self.redemption - self.investment
-    @property
-    def profit_rate(self) -> float:
-        if self.investment == 0:
-            return 0.0
-        return self.profit / self.investment
-    xirr: Mapped[float] = mapped_column(default=0.0)
-    asset: Mapped['Asset'] = relationship(
-        back_populates='accu_transactions', 
-        lazy='selectin'
-    )
-
-    key_info = {
-        'data': [
-            'asset_id',
-            'asset',
-            'record_date',
-            'investment',
-            'redemption',
-            'market_value',
-            'unit_price',
-            'quantity',
-            'profit',
-            'profit_rate',
-            'xirr'
-        ],
-        'hidden': {'id', 'asset_id'},
-        'readonly': {'asset', 'profit', 'profit_rate', 'xirr'}
-    }
+    table_name: Mapped[str] = mapped_column(primary_key=True)
+    last_updated: Mapped[datetime] = mapped_column(DateTime)
 
     def __str__(self) -> str:
-        return f'{self.asset} @ {self.record_date} = {self.market_value} {self.asset.currency_code}'
+        return f'{self.table_name} - {self.last_updated}'
     
-    def update_self_cache(self) -> bool:
-        """
-        Update the cache for historical asset prices.
-        """
-        db_session = Session.object_session(self)
-        if not db_session:
-            raise ValueError("No active session found for CacheMixin.update_cache")
-        return HistoryAccuAssetTransaction.update_cache(db_session, self.asset_id, self.record_date)
+class BrokerageAccountExternalTransaction(Base, Cache):
+    __tablename__ = 'brokerage_account_external_transaction'
+
+    account_id: Mapped[int] = mapped_column(ForeignKey('brokerage_account.id'), primary_key=True)
+    record_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    market_value: Mapped[float] = mapped_column(default=0.0)
+    investment: Mapped[float] = mapped_column(default=0.0)
+    redemption: Mapped[float] = mapped_column(default=0.0)
+    xirr: Mapped[float] = mapped_column(default=0.0)
+    @property
+    def profit(self) -> float:
+        return self.redemption + self.market_value - self.investment
+    def profit_rate(self) -> float:
+        if self.investment == 0.0:
+            return 0.0
+        return self.profit / self.investment
+
+    account: Mapped['BrokerageAccount'] = relationship(lazy='selectin')
     @classmethod
     def init_cache(cls, db_session: Session) -> None:
         """
-        Initialize the cache for historical asset prices.
+        Initialize the cache for external brokerage account transactions.
         """
-        sub_q = (
-            select(cls.asset_id, func.max(cls.record_date).label('max_date'))
-            .group_by(cls.asset_id)
-            .subquery()
-        )
-        stmt = (
-            select(AssetTransaction.asset_id, func.min(AssetTransaction.transaction_date))
-            .join(sub_q, AssetTransaction.asset_id == sub_q.c.asset_id, isouter=True)
-            .where(or_(
-                AssetTransaction.transaction_date > sub_q.c.max_date,
-                sub_q.c.max_date == None
-            ))
-            .group_by(AssetTransaction.asset_id)
-        )
-        result = db_session.execute(stmt).all()
-        for asset_id, record_date in result:
-            if not cls.update_cache(db_session, asset_id, record_date):
-                raise DatabaseError(f"Failed to update cache for asset {asset_id} on {record_date}")
+        max_date = db_session.scalar(select(func.max(cls.record_date)))
+        models = db_session.scalars(select(BrokerageAccount)).all()
+        for model in models:
+            related_account_ids = [a.id for a in model.related_accounts]
+            related_asset_ids = [a.id for a in model.related_assets]
+            account_ex = aliased(HistoryExRate, name='account_ex')
+            asset_ex = aliased(HistoryExRate, name='asset_ex')
+            broker_acct_ex = aliased(HistoryExRate, name='broker_acct_ex')
+            stmt = (
+                select(
+                    AccountTransaction.transaction_date.label('record_date'),
+                    func.sum(
+                        case(
+                            (
+                                and_(
+                                    broker_acct_ex.currency_code != None,
+                                    account_ex.currency_code != None,
+                                    broker_acct_ex.ex_rate != None,
+                                    account_ex.ex_rate != None,
+                                    broker_acct_ex.currency_code != account_ex.currency_code,
+                                    broker_acct_ex.ex_rate != 0.0
+                                ),
+                                AccountTransaction.amount_change * account_ex.ex_rate / broker_acct_ex.ex_rate
+                            ), else_ = AccountTransaction.amount_change
+                        )
+                    ).label('cashflow'),
+                    func.sum(
+                        case(
+                            (
+                                and_(
+                                    broker_acct_ex.currency_code != None,
+                                    asset_ex.currency_code != None,
+                                    broker_acct_ex.ex_rate != None,
+                                    asset_ex.ex_rate != None,
+                                    broker_acct_ex.currency_code != asset_ex.currency_code,
+                                    broker_acct_ex.ex_rate != 0.0
+                                ),
+                                HistoryAccuAssetTransaction.market_value * asset_ex.ex_rate / broker_acct_ex.ex_rate
+                            ), else_ = HistoryAccuAssetTransaction.market_value
+                        )
+                    ).label('market_value_change')
+                )
+                .join(Account, AccountTransaction.account_id == Account.id)
+                .join(AssetTransaction, AccountTransaction.id == AssetTransaction.id, isouter=True)
+                .join(Asset, AssetTransaction.asset_id == Asset.id, isouter=True)
+                .join(
+                    HistoryAccuAssetTransaction, 
+                    and_(
+                        AssetTransaction.asset_id == HistoryAccuAssetTransaction.asset_id,
+                        AccountTransaction.transaction_date == HistoryAccuAssetTransaction.record_date
+                    ), isouter=True
+                )
+                .join(
+                    account_ex, 
+                    and_(
+                        AccountTransaction.transaction_date == account_ex.ex_date,
+                        Account.currency_code == account_ex.currency_code
+                    ), isouter=True
+                )
+                .join(asset_ex,
+                    and_(
+                        AssetTransaction.transaction_date == asset_ex.ex_date,
+                        Asset.currency_code == asset_ex.currency_code
+                    ), isouter=True
+                )
+                .join(broker_acct_ex,
+                    and_(
+                        AccountTransaction.transaction_date == broker_acct_ex.ex_date,
+                        broker_acct_ex.currency_code == model.currency_code
+                    ), isouter=True
+                )
+                .where(
+                    or_(
+                        and_(
+                            AccountTransaction.account_id.in_(related_account_ids),
+                            AccountTransaction.transaction_type != AccountTransactionType.ASSET_TRANSACTION
+                        ),
+                        and_(
+                            AssetTransaction.asset_id.in_(related_asset_ids),
+                            AccountTransaction.transaction_type == AccountTransactionType.ASSET_TRANSACTION,
+                            ~AccountTransaction.account_id.in_(related_account_ids)
+                        )
+                    ),
+                    AccountTransaction.transaction_date > max_date,
+                )
+                .group_by(
+                    AccountTransaction.transaction_date
+                )
+                .order_by(
+                    AccountTransaction.transaction_date
+                )
+            )
+            ext_trans = db_session.execute(stmt).all()
+            stmt = (
+                select(
+                    cls.record_date,
+                    cls.investment,
+                    cls.redemption,
+                    cls.market_value
+                )
+                .where(
+                    cls.account_id == model.id
+                )
+            )
+            last_existing_trans = db_session.execute(stmt.order_by(cls.record_date.desc())).first()
+            flows: list[tuple[date, float]] = []
+            mv = 0.0
+            investment = 0.0
+            redemption = 0.0
+            if last_existing_trans:
+                rd, investment, redemption, market_value = last_existing_trans
+                mv = market_value
+                investment = investment
+                redemption = redemption
+            for rd, cf, mvc in existing_trans:
+                if cf < 0.0:
+                    investment += cf
+                else:
+                    redemption += cf
+                mv += mvc
+                flows.append((rd, cf + mvc))
+            for account_id, rd, cf, mvc in ext_trans:
+                mv += mvc
+                flows.append((rd, cf + mv))
+                cur_xirr = xirr(flows)
+                db_session.execute(
+                    update(cls)
+                    .where(
+                        and_(
+                            cls.account_id == account_id,
+                            cls.record_date == rd
+                        )
+                    )
+                    .values(
+                        investment=investment,
+                        redemption=redemption,
+                        xirr=cur_xirr
+                    )
+                )
+            db_session.flush()
         db_session.commit()
         
     @classmethod
     def update_cache(cls, 
                      db_session: Session, 
-                     asset_id: int | None = None,
+                     account_ids: Iterable[int] | None = None,
                      record_date: date | None = None
     ) -> bool:
         """
@@ -1709,14 +1752,14 @@ class HistoryAccuAssetTransaction(Base, Cache):
         """
         sub_q = (
             select(
-                AssetTransaction.asset_id.label('asset_id'),
+                AssetTransaction.account_id.label('acct_id'),
                 AssetTransaction.transaction_date.label('record_date')
             )
         )
         if record_date:
             sub_q = sub_q.where(AssetTransaction.transaction_date >= record_date)
-        if asset_id is not None:
-            sub_q = sub_q.where(AssetTransaction.asset_id == asset_id)
+        if account_ids:
+            sub_q = sub_q.where(AssetTransaction.asset_id.in_(account_ids))
         sub_q = sub_q.distinct().subquery()
         agg_q = (
             select(
@@ -1765,7 +1808,12 @@ class HistoryAccuAssetTransaction(Base, Cache):
         )
         instances = db_session.scalars(stmt).all()
         for instance in instances:
-            if instance.quantity:
+            if isinstance(instance.asset, PublicStock) and instance.asset.code:
+                stock_price = get_stock_price(instance.asset.code, instance.record_date)
+                if stock_price:
+                    instance.unit_price = stock_price
+                    instance.market_value = stock_price * instance.quantity
+            elif instance.quantity:
                 instance.unit_price = instance.market_value / instance.quantity
             flows_stmt = (
                 select(AssetTransaction.transaction_date, AssetTransaction.amount_change)
@@ -1779,6 +1827,254 @@ class HistoryAccuAssetTransaction(Base, Cache):
             flows.append((instance.record_date, instance.market_value))
             instance.xirr = xirr(flows)
         try:
+            db_session.flush()
+            return True
+        except Exception as e:
+            db_session.rollback()
+            logger.error(f"Error updating cache of HistoryAccuAssetTransaction: {e}")
+            return False   
+  
+
+class HistoryExRate(Base, Cache):
+    __tablename__ = 'history_ex_rate'
+    ex_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    currency_code: Mapped[str] = mapped_column(ForeignKey('currency.code'), primary_key=True)
+    ex_rate: Mapped[float] = mapped_column(default=1.0)
+    currency: Mapped['Currency'] = relationship(lazy='selectin')
+    @classmethod
+    def init_cache(cls, db_session: Session) -> None:
+        """
+        Initialize the cache for historical exchange rates.
+        """
+        # Get the maximum date from the existing records
+        last_udpated = db_session.scalar(
+            select(CacheTimestamp.last_updated)
+            .where(CacheTimestamp.table_name == cls.__tablename__)
+        )
+        stmt = select(AccountTransaction)
+        if last_udpated:
+            stmt = stmt.where(AccountTransaction.created_at > last_udpated)
+
+        new_transactions = db_session.scalars(stmt).all()
+        if not cls.update_cache(db_session, new_transactions):
+            raise DatabaseError("Failed to update cache for HistoryExRate")
+
+    @classmethod
+    def update_cache(cls, db_session: Session, transactions: Iterable[AccountTransaction]) -> bool:
+        code_dates: set[tuple[str, date]] = set()
+        for t in transactions:
+            dt = t.transaction_date
+            if isinstance(t, AssetTransaction):
+                code_dates.add((t.asset.currency_code, dt))
+                if t.account_id != t.asset.brokerage_account_id:
+                    if t.account.currency_code:
+                        code_dates.add((t.account.currency_code, dt))
+                    if t.asset.brokerage_account.currency_code:
+                        code_dates.add((t.asset.brokerage_account.currency_code, dt))
+            elif isinstance(t, AccountTransaction):
+                acc = t.account
+                while(acc.parent_account):
+                    acc = acc.parent_account
+                    if isinstance(acc, BrokerageAccount) and acc.currency_code:
+                        code_dates.add((acc.currency_code, dt))
+            stmt = (
+                select(HistoryExRate.currency_code, HistoryExRate.ex_date)
+                .where(
+                    tuple_(HistoryExRate.currency_code, HistoryExRate.ex_date).in_(code_dates)
+                )
+            )
+            existing_rows = db_session.execute(stmt).all()
+            existing_code_dates = {(er_code, er_date) for er_code, er_date in existing_rows}
+            code_dates = code_dates - existing_code_dates
+            values = []
+            try:
+                for c, dt in code_dates:
+                    if c == 'USD':
+                        continue
+                    r = get_stock_price(f'{c}USD=X', dt)
+                    if r:
+                        values.append({
+                            'currency_code': c,
+                            'ex_date': dt,
+                            'ex_rate': r
+                        })
+                # Insert the new exchange rates into the history exchange rate table
+                if values:
+                    db_session.execute(
+                        insert(HistoryExRate)
+                            .prefix_with("OR REPLACE")
+                            .values(values)
+                    )
+                db_session.flush()
+                return True
+            except Exception as e:
+                db_session.rollback()
+                logger.error(f"Error updating cache of HistoryExRate: {e}")
+                return False
+   
+class HistoryAccuAssetTransaction(Base, Cache):
+    __tablename__ = 'history_accu_asset_transaction'
+
+    asset_id: Mapped[int] = mapped_column(ForeignKey('asset.id'), primary_key=True)
+    record_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    investment: Mapped[float] = mapped_column(default=0.0)
+    redemption: Mapped[float] = mapped_column(default=0.0)
+    market_value: Mapped[float] = mapped_column(default=0.0)
+    quantity: Mapped[float] = mapped_column(default=0.0)
+    unit_price: Mapped[float] = mapped_column(default=0.0)
+    @property
+    def profit(self) -> float:
+        return self.market_value + self.redemption - self.investment
+    @property
+    def profit_rate(self) -> float:
+        if self.investment == 0:
+            return 0.0
+        return self.profit / self.investment
+    xirr: Mapped[float] = mapped_column(default=0.0)
+    asset: Mapped['Asset'] = relationship(
+        back_populates='accu_transactions', 
+        lazy='selectin'
+    )
+
+    data_list = [
+        'asset_id',
+        'asset',
+        'record_date',
+        'investment',
+        'redemption',
+        'market_value',
+        'unit_price',
+        'quantity',
+        'profit',
+        'profit_rate',
+        'xirr'
+    ]
+    key_info = {
+        'hidden': {'asset_id'},
+        'readonly': {'asset', 'profit', 'profit_rate', 'xirr'}
+    }
+
+    def __str__(self) -> str:
+        return f'{self.asset} @ {self.record_date} = {self.market_value} {self.asset.currency_code}'
+    
+    def update_self_cache(self) -> bool:
+        """
+        Update the cache for historical asset prices.
+        """
+        db_session = Session.object_session(self)
+        if not db_session:
+            raise ValueError("No active session found for CacheMixin.update_cache")
+        return HistoryAccuAssetTransaction.update_cache(db_session, [self.asset_id], self.record_date)
+    @classmethod
+    def init_cache(cls, db_session: Session) -> None:
+        """
+        Initialize the cache for historical asset prices.
+        """
+        sub_q = (
+            select(cls.asset_id, func.max(cls.record_date).label('max_date'))
+            .group_by(cls.asset_id)
+            .subquery()
+        )
+        stmt = (
+            select(AssetTransaction.asset_id, func.min(AssetTransaction.transaction_date))
+            .join(sub_q, AssetTransaction.asset_id == sub_q.c.asset_id, isouter=True)
+            .where(or_(
+                AssetTransaction.transaction_date > sub_q.c.max_date,
+                sub_q.c.max_date == None
+            ))
+            .group_by(AssetTransaction.asset_id)
+        )
+        result = db_session.execute(stmt).all()
+        for asset_id, record_date in result:
+            if not cls.update_cache(db_session, [asset_id], record_date):
+                logger.error(f"Failed to initialize cache for asset {asset_id} on {record_date}")
+        
+    @classmethod
+    def update_cache(cls, 
+                     db_session: Session, 
+                     asset_ids: Iterable[int] | None = None,
+                     record_date: date | None = None
+    ) -> bool:
+        """
+        Update the cache for historical asset prices.
+        """
+        sub_q = (
+            select(
+                AssetTransaction.asset_id.label('asset_id'),
+                AssetTransaction.transaction_date.label('record_date')
+            )
+        )
+        if record_date:
+            sub_q = sub_q.where(AssetTransaction.transaction_date >= record_date)
+        if asset_ids:
+            sub_q = sub_q.where(AssetTransaction.asset_id.in_(asset_ids))
+        sub_q = sub_q.distinct().subquery()
+        agg_q = (
+            select(
+                sub_q.c.asset_id,
+                sub_q.c.record_date,
+                func.sum(
+                    case(
+                        (AssetTransaction.amount_change < 0.0, -AssetTransaction.amount_change), 
+                        else_ = 0.0
+                    )
+                ).label('investment'),
+                func.sum(
+                    case(
+                        (AssetTransaction.amount_change > 0.0, AssetTransaction.amount_change),
+                        else_ = 0.0
+                    )
+                ).label('redemption'),
+                func.sum(AssetTransaction.market_value_change).label('market_value'),
+                func.sum(AssetTransaction.quantity_change).label('quantity')
+            )
+            .select_from(sub_q)
+            .join(AssetTransaction, and_(
+                sub_q.c.asset_id == AssetTransaction.asset_id,
+                AssetTransaction.transaction_date <= sub_q.c.record_date
+                )
+            )
+            .group_by(sub_q.c.asset_id, sub_q.c.record_date)
+        )
+        stmt = (
+            insert(HistoryAccuAssetTransaction)
+            .prefix_with("OR REPLACE")
+            .from_select(
+                [
+                    HistoryAccuAssetTransaction.asset_id,
+                    HistoryAccuAssetTransaction.record_date,
+                    HistoryAccuAssetTransaction.investment,
+                    HistoryAccuAssetTransaction.redemption,
+                    HistoryAccuAssetTransaction.market_value,
+                    HistoryAccuAssetTransaction.quantity
+                ],
+                agg_q
+            )
+            .returning(
+                HistoryAccuAssetTransaction
+            )
+        )
+        instances = db_session.scalars(stmt).all()
+        try:
+            for instance in instances:
+                if isinstance(instance.asset, PublicStock) and instance.asset.code:
+                    stock_price = get_stock_price(instance.asset.code, instance.record_date)
+                    if stock_price:
+                        instance.unit_price = stock_price
+                        instance.market_value = stock_price * instance.quantity
+                elif instance.quantity:
+                    instance.unit_price = instance.market_value / instance.quantity
+                flows_stmt = (
+                    select(AssetTransaction.transaction_date, AssetTransaction.amount_change)
+                    .where(
+                        AssetTransaction.asset_id == instance.asset_id,
+                        AssetTransaction.transaction_date <= instance.record_date
+                    )
+                    .order_by(AssetTransaction.transaction_date)
+                )
+                flows = [(r.transaction_date, r.amount_change) for r in db_session.execute(flows_stmt)]
+                flows.append((instance.record_date, instance.market_value))
+                instance.xirr = xirr(flows)
             db_session.flush()
             return True
         except Exception as e:

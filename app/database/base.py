@@ -70,6 +70,8 @@ class Cache:
             if issubclass(model, Cache) and hasattr(model, 'init_cache'):
                 if model.init_cache(db_session):
                     logger.info(f"Cache initialized for {model.__name__}")
+                else:
+                    logger.error(f"Failed to initialize cache for {model.__name__}")
         Cache.active = True
 class Base(DeclarativeBase):
     """
@@ -91,8 +93,12 @@ class Base(DeclarativeBase):
 
     .. attention:: must be defined in the subclass before using its properties or methods.
     """
-
-    key_info: dict[str, set[str] | list[str]] = NotImplemented
+    data_list: list[str] = NotImplemented
+    """
+    A list of data keys in the model to be shown in the table.
+    .. attention:: must be defined in the subclass before using its properties or methods.
+    """
+    key_info: dict[str, set[str]] = NotImplemented
     """
     Information about the columns in the database table.
 
@@ -243,7 +249,7 @@ class Base(DeclarativeBase):
         cache = cls.key_info.get('headers', list())
         if not cache:
             cache = cls.key_info['headers'] = [ # type: ignore
-                key for key in cls.key_info['data'] 
+                key for key in cls.data_list 
                 if key not in cls.get_keys('hidden')
             ] 
         return cache # type: ignore
@@ -309,16 +315,16 @@ class Base(DeclarativeBase):
         """
         keys = set()
         for info in args:
-            if info in cls.key_info:
+            if info == 'data':
+                keys.update(cls.data_list)
+            elif info in cls.key_info:
                 info_keys = cls.key_info.get(info, set())
-                if info == 'data':
-                    info_keys = set(info_keys)
                 keys.update(info_keys)
             elif info == 'polybase_data':
                 info_keys = set()
                 p_base = cls.get_polymorphic_base()
                 if p_base:
-                    info_keys = p_base.get_keys('data')
+                    info_keys.update(p_base.data_list)
                     keys.update(info_keys)
                     cls.key_info[info] = info_keys
             elif info == 'pk':
@@ -336,16 +342,16 @@ class Base(DeclarativeBase):
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
             elif info == 'modifiable':
-                info_keys = cls.get_keys('data') - cls.get_keys('readonly')
+                info_keys = set(cls.data_list) - cls.get_keys('readonly')
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
             elif info == 'visible':
-                info_keys = cls.get_keys('data') - cls.get_keys('hidden')
+                info_keys = set(cls.data_list) - cls.get_keys('hidden')
                 cls.key_info[info] = info_keys
                 keys.update(info_keys)
             elif info in {'date', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'tuple' 'DataJson', 'Enum'}:
                 info_keys = set()
-                for key in cls.get_keys('data') - cls.get_keys('single_rel'):
+                for key in set(cls.data_list) - cls.get_keys('single_rel'):
                     attr = python_inspect.getattr_static(cls, key)
                     if isinstance(attr, eval(info)):
                         info_keys.add(key)
@@ -366,7 +372,7 @@ class Base(DeclarativeBase):
             elif info in {'single_rel', 'multi_rel'}:
                 info_keys = set()
                 for rel in cls.__mapper__.relationships:
-                    if rel.key in cls.get_keys('data'):
+                    if rel.key in cls.data_list:
                         if rel.uselist and info == 'multi_rel' :
                             info_keys.add(rel.key)
                         elif not rel.uselist and info == 'single_rel':
@@ -375,7 +381,7 @@ class Base(DeclarativeBase):
                 keys.update(info_keys)   
             else:
                 info_keys = set()
-                for key in cls.get_keys('data'):
+                for key in cls.data_list:
                     attr = getattr(cls, key)
                     if hasattr(attr, 'info'):
                         if attr.info.get(info, None) is not None:
@@ -410,7 +416,7 @@ class Base(DeclarativeBase):
         conv_data = dict()
         for key, value in data.items():
             converted_value = value
-            if key in cls.get_keys('data'):
+            if key in cls.data_list:
                 readonly_keys = cls.get_keys('readonly')
                 if key in readonly_keys:
                     raise AttributeError(f'Key {key} is readonly for {cls}')
@@ -480,7 +486,7 @@ class DataJson(ABC):
         'expiry': `ClauseExpiry`
     }
     """
-
+    data_list: list[str] = NotImplemented
     key_info: dict[str, tuple[str, ...] | set[str]] = NotImplemented
     """
     A dict of information regarding attributes of the class, including user-defined types and data types.
@@ -646,7 +652,7 @@ class DataJson(ABC):
         :param serializeable: If True, serialize the values in the dictionary.
         """
 
-        data_keys = self.get_keys('data')
+        data_keys = self.data_list
         if self.__datajson_id__ is NotImplemented:
             djid = 'data_json'
         else:
@@ -726,16 +732,16 @@ class DataJson(ABC):
             elif info == 'single_rel':
                 return set(cls.rel_info.keys())
             elif info == 'modifiable':
-                info_keys = cls.get_keys('data') - cls.get_keys('readonly')
+                info_keys = set(cls.data_list) - cls.get_keys('readonly')
                 cls.key_info[info] = info_keys  # cache the result
                 keys.update(info_keys)
             elif info == 'visible':
-                info_keys = cls.get_keys('data') - cls.get_keys('hidden')
+                info_keys = set(cls.data_list) - cls.get_keys('hidden')
                 cls.key_info[info] = info_keys  # cache the result
                 keys.update(info_keys)
             elif info in {'date', 'json', 'int', 'float', 'bool', 'set', 'list', 'dict', 'str', 'DataJson', 'Enum'}:
                 info_keys = set()
-                for data_key in cls.get_keys('data') - cls.get_keys('single_rel'):
+                for data_key in set(cls.data_list) - cls.get_keys('single_rel'):
                     attr = getattr(cls, data_key, None)  # type: ignore
                     if attr is None:
                         raise AttributeError(f'Attribute {data_key} not found in {cls}')

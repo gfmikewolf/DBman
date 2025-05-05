@@ -1,4 +1,5 @@
 # base/dashboard/contract/views.py
+from bdb import effective
 from datetime import date
 from typing import Iterable, Any
 
@@ -104,8 +105,22 @@ def view_contracts(contract_id: int | None = None) -> str | Response:
                 reverse=True
             )
             cs = scope_clauses[0]
-            scope_repr += f' {cs.clause_effective_date or ""} - {cs.clause_expiry_date or ""} '
-            scope_repr += ', '.join([get_viewable_instance(commercial, viewer=_default_viewer, target=_right_frame) for commercial in contract.commercial_incentives if commercial.applied_to_scope == scope])
+            today = date.today()
+            effectivedate = cs.clause_effective_date or cs.amendment.amendment_effectivedate
+            expirydate = cs.clause_expiry_date or cs.amendment.contract.contract_expirydate
+            duration = f' {effectivedate or ''} - {expirydate or ''} '
+            if (effectivedate and effectivedate > today) or (expirydate and expirydate < today):
+                duration = f' <span class="text-secondary">{cs.effectivedate or ''} - {cs.expirydate or ''}</span> '
+            elif expirydate and (expirydate - today).days < 30:
+                duration = f' <span class="text-danger">{effectivedate or ''} - {expirydate or ''}</span> '
+            scope_repr += duration
+            scope_repr += ', '.join(
+                [
+                    get_viewable_instance(commercial, viewer=_default_viewer, target=_right_frame) 
+                    for commercial in contract.commercial_incentives 
+                    if commercial.applied_to_scope == scope
+                ]
+            )
             scope_reprs.append(scope_repr)
         data['contract'] = {
             'name': f'{contract}',

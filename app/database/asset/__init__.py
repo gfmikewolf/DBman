@@ -94,6 +94,12 @@ func_map = {
             'func_type': 'class',
             'input_types': {}
         }
+    },
+    'asset': {
+        'update_cache': {
+            'func_type': 'class',
+            'input_types': {}
+        },
     }
 }
 

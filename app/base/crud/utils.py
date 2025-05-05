@@ -15,18 +15,44 @@ __all__ = [
     'fetch_related_funcs'
 ]
 
+from inspect import signature
+from math import e
+from operator import call
+from shlex import join
 from typing import Any, Iterable
 from enum import Enum
 from flask import abort, url_for, session as app_session
+from numpy import isin
+from requests import get
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
 from app.base.auth.privilege import Privilege
-from app.utils.common import _
+from app.utils import _
 from app.extensions import Base
 from app.database.base import DataJson
 
 _default_viewer = 'base.crud.view_record'
 _default_link_target = None
+
+def get_rel_select_tuple(func: Any, instance: Base | None = None) -> Any:
+    """
+    Call a function with the given arguments and keyword arguments.
+    If the function raises an exception, return None.
+    """
+    obj = None
+    if callable(func):
+        sig = signature(func)
+        if len(sig.parameters) == 1:
+            if instance is None:
+                raise TypeError(f"Function {func} requires an instance as an argument")
+            obj = func(instance)
+        else:
+            obj = func()
+        if not isinstance(obj, tuple):
+            obj = (obj, )
+    else:        
+        obj = func if isinstance(func, tuple) else (func, )
+    return obj
 
 def fetch_instance(table_name: str, pks: str, db_session: Session) -> Base:
     """
@@ -302,22 +328,27 @@ def fetch_related_objects(instance: Base, db_session: Session, viewer: str = _de
                     None
                 )
     return related_objects
-def fetch_select_list(Model: type[Base], db_session: Session, order_by: Any = None, join_clause: Any = None, where_clause: Any = None) -> list[tuple[str, str]]:
+def fetch_select_list(Model: type[Base], db_session: Session, instance: Base | None = None, info: dict[str, Any] = {}) -> list[tuple[str, str]]:
     """
     :return: a list of tuples containing the primary key and name of the Model.
     """
     stmt = select(Model)
+    join_clause = info.get('join', None)
+    order_by = info.get('order_by', None)
+    where_clause = info.get('where', None)
     if join_clause:
-        if not isinstance(join_clause, tuple):
-            join_clause = (join_clause, )
-        for jc in join_clause:
-            stmt = stmt.join(jc)
+        for jc in get_rel_select_tuple(join_clause, instance):
+            stmt = stmt.join(*jc)
     if order_by:
-        if not isinstance(order_by, tuple):
-            order_by = (order_by, )
-        stmt = stmt.order_by(*order_by)
+        stmt = stmt.order_by(*get_rel_select_tuple(order_by, instance))
     if where_clause:
-        stmt = stmt.where(where_clause)
+        stmt = stmt.where(*get_rel_select_tuple(where_clause, instance))
+    if info.get('distinct', False):
+        stmt = stmt.distinct()
+    if info.get('limit', False):
+        stmt = stmt.limit(info['limit'])
+    if info.get('offset', False):
+        stmt = stmt.offset(info['offset'])
     models = db_session.scalars(stmt).all()
     pks_name_list = []
     for model in models:
@@ -325,7 +356,7 @@ def fetch_select_list(Model: type[Base], db_session: Session, order_by: Any = No
         name = _(str(model), True) if '_self' in Model.get_keys('translate') else str(model)
         pks_name_list.append((pks, name))
     return pks_name_list
-def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session, polymorphic_spec_only: bool=False) -> dict[str, list[tuple[Any, str]]]:
+def fetch_select_options(Model:type[Base] | type[DataJson], db_session: Session, polymorphic_spec_only: bool = False, instance: Base | None = None) -> dict[str, list[tuple[Any, str]]]:
     """
     :return: a dict of select options for each relationship and enum type column
 
@@ -349,15 +380,11 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session, 
             local_col_key = next(iter(rel.local_columns)).key
             if local_col_key in base_data_keys:
                 continue
-            s_join = rel.info.get('join', None)
-            s_order_by = rel.info.get('order_by', None)
-            s_where = rel.info.get('where', None)
             pks_name_list = fetch_select_list(
                 ref_Model, 
-                db_session, 
-                order_by=s_order_by, 
-                join_clause=s_join, 
-                where_clause=s_where
+                db_session,
+                instance=instance,
+                info=rel.info
             ) 
             select_options[local_col_key] = pks_name_list
         
@@ -380,9 +407,7 @@ def fetch_select_options(Model:type[Base] | type[DataJson], db_session:Session, 
             pks_name_list = fetch_select_list(
                 ref_Model, # type: ignore
                 db_session,
-                join_clause=s_join, 
-                order_by=s_order_by,
-                where_clause=s_where
+                info=rel_info
             )
             select_options[local_col_key] = pks_name_list
         # Extract Enum types and get options from Enum definition
@@ -407,7 +432,7 @@ def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[
         raise AttributeError('Cannot call fetch_structure() on DataJson')
     
     struct['__datajson_id__'] = Model.__datajson_id__
-    struct['data'] = [key for key in Model.key_info['data'] if key not in Model.get_keys('single_rel')]
+    struct['data'] = [key for key in Model.data_list if key not in Model.get_keys('single_rel')]
     struct['required'] = Model.get_keys('required')
     struct['readonly'] = Model.get_keys('readonly')
     struct['date'] = Model.get_keys('date')
@@ -441,7 +466,7 @@ def fetch_modify_form_viewer(
     spec_data = dict()
     base_data_keys = instance.get_keys('polybase_data')
     col_rel_map = instance.get_col_rel_map()
-    select_options = fetch_select_options(instance.__class__, db_session)
+    select_options = fetch_select_options(instance.__class__, db_session, instance=instance)
     required_keys = instance.get_keys('required')
     enum_keys = instance.get_keys('Enum')
     date_keys = instance.get_keys('date')
@@ -450,7 +475,7 @@ def fetch_modify_form_viewer(
     password_keys = instance.get_keys('password')
     
     for key in [
-        key for key in instance.key_info['data'] 
+        key for key in instance.data_list 
         if key in instance.get_keys('modifiable')
     ]:
         if key in initial_data:

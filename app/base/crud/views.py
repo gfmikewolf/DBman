@@ -173,13 +173,15 @@ def db_func(table_name: str, func_name: str) -> Response | tuple[Response, int]:
         return jsonify(success=False, error=_('Invalid function result')), 500
     if not result['success']:
         return jsonify(success=False, error=result['error']), 500
-    data = ''
+    msg = result.get('message', '')
+    data = f'<div class="mt-2">{_(msg, True)}</div>' if msg else ''
     if 'data' in result:
         result_data = result['data']
         if isinstance(data, dict):
             result_data = {_(k, True): v for k, v in data.items()}
             template = current_app.jinja_env.get_template('macros/datadict-dbman.jinja')
-            data = template.module.DatadictDBMan(data = result_data) # type: ignore
+            template_module = getattr(template.module, 'DatadictDBMan', None)
+            data = template_module(data = result_data) if template_module else ''
         elif isinstance(data, list):
             data = ''.join([f'<li>{item}</li>' for item in result_data])
         else:

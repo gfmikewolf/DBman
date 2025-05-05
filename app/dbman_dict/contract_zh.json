@@ -31,6 +31,7 @@
     "south africa": "南非",
     "support and maintenance service": "维保服务",
     "support service": "维保服务",
+    "warranty period": "质保期",
     "add": "添加",
     "afghanistan": "阿富汗",
     "africa": "非洲",
@@ -75,6 +76,7 @@
     "clause_type": "条款类型",
     "clause_warranty_period": "质保期条款",
     "clauses": "相关条款",
+    "commercial": "商务",
     "contract": "合同",
     "contract__legal_map__contract": "合同法律关系",
     "contract__map__contract": "合同业务关系",
@@ -132,6 +134,7 @@
     "milestone": "里程碑",
     "model": "模型",
     "month": "月",
+    "months": "个月",
     "ms": "管理服务",
     "new_customer": "新客户",
     "new_entity": "新实体",
@@ -147,6 +150,7 @@
     "parent_contracts": "母合同(业务关系)",
     "parent_scope": "母交付范围",
     "parent_scopes": "母交付范围",
+    "period": "周期",
     "power": "能源",
     "precondition": "前提条件",
     "related": "相关",
@@ -181,8 +185,6 @@
     "view": "查看",
     "warranty_period": "质保期",
     "warranty_period_month": "质保期(月)",
-    "zambia": "赞比亚",
-    "commcercial": "商务",
-    "warranty period": "质保期",
-    "yemen": "也门"
+    "yemen": "也门",
+    "zambia": "赞比亚"
 }
