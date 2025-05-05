@@ -16,14 +16,9 @@ __all__ = [
 ]
 
 from inspect import signature
-from math import e
-from operator import call
-from shlex import join
 from typing import Any, Iterable
 from enum import Enum
 from flask import abort, url_for, session as app_session
-from numpy import isin
-from requests import get
 from sqlalchemy import select, inspect
 from sqlalchemy.orm import Session
 from app.base.auth.privilege import Privilege
@@ -217,10 +212,7 @@ def fetch_json_viewer(
 def fetch_model_viewer(instance: Base, db_session: Session, header_list: list[str] | None = None, viewer: str = _default_viewer, target: str | None = _default_link_target) -> dict[str,Any]:
     if header_list is None:
         header_list = instance.get_headers()
-    return {
-        _(header, True): fetch_viewable_value(instance, header, db_session, viewer, target) 
-        for header in header_list
-    }
+    return { header: fetch_viewable_value(instance, header, db_session, viewer, target) for header in header_list }
 def fetch_tablename_url_name(instance: Base, table_name: str, viewer:str = _default_viewer) -> tuple[str, str, str]:
     """
     :return: an url linking to the instance and string representation of the instance name.
