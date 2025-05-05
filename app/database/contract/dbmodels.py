@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 from datetime import date
 from sqlalchemy import ForeignKey
-from sqlalchemy import Date, Integer, String, Enum as SqlEnum
+from sqlalchemy import Date, Integer, Boolean, Enum as SqlEnum
 from sqlalchemy import select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -55,6 +55,7 @@ class Contract(Base):
     )
     clauses: Mapped[list['Clause']] = relationship(
         lazy='select',
+        overlaps='amendments',
         secondary=lambda: Amendment.__table__
     )
     user_roles: Mapped[list['UserRole']] = relationship(
@@ -213,7 +214,8 @@ class Contract(Base):
         '_rv_admin': {
             'user_roles'
         },
-        'longtext': { 'contract_fullname', 'contract_remarks' }
+        'longtext': {'contract_fullname', 'contract_remarks'},
+        'copylink': {'contract_number_huawei'}
     }
 class ContractMAPContract(Base):
     __tablename__ = 'contract__map__contract'
@@ -297,6 +299,7 @@ class Amendment(Base):
     contract: Mapped['Contract'] = relationship(
         back_populates='amendments', 
         lazy='selectin',
+        overlaps='clauses',
         info={
             'order_by': (Contract.contract_name,)
         }
@@ -304,6 +307,7 @@ class Amendment(Base):
 
     clauses: Mapped[list['Clause']] = relationship(
         back_populates='amendment',
+        overlaps='clauses',
         lazy = 'select'
     )
     
@@ -324,7 +328,8 @@ class Amendment(Base):
         'hidden': {'contract_id'},
         'readonly': {'contract'},
         'viewable_list': {'clauses'},
-        'longtext': {'amendment_remarks'}
+        'longtext': {'amendment_remarks'},
+        'copylink': {'amendment_number_huawei'}
     }
 
 class Entitygroup(Base):
@@ -352,6 +357,7 @@ class Entity(Base):
     entity_fullname: Mapped[str | None]
     entity_address: Mapped[str | None]
     remarks: Mapped[str | None]
+    hac_number_huawei: Mapped[str | None]
     entitygroup_id: Mapped[int] = mapped_column(ForeignKey('entitygroup.entitygroup_id'))
 
     entitygroup: Mapped['Entitygroup'] = relationship(
@@ -368,13 +374,15 @@ class Entity(Base):
         'entity_address',
         'remarks',
         'entitygroup_id',
-        'entitygroup'
+        'entitygroup',
+        'hac_number_huawei'
     ]
     key_info = {
         'hidden': {'entitygroup_id'},
         'readonly': {'entitygroup'},
         'longtext': {'entity_address', 'entity_fullname'},
-        'translate': {'_self', 'entity_name'}
+        'translate': {'_self', 'entity_name'},
+        'copylink': {'entity_address', 'entity_fullname', 'hac_number_huawei', 'remarks'}
     }
 
 class Scope(Base):
@@ -451,8 +459,14 @@ class UserRoleMAPContract(Base):
     __tablename__ = 'user_role__map__contract'
     user_role_id: Mapped[int] = mapped_column(ForeignKey('user_role.user_role_id'), primary_key=True)
     contract_id: Mapped[int] = mapped_column(ForeignKey('contract.contract_id'), primary_key=True)
-    user_role: Mapped['UserRole'] = relationship(lazy='selectin', info={'order_by': lambda: UserRole.user_role_name})
-    contract: Mapped['Contract'] = relationship(lazy='selectin', info={'order_by': lambda: Contract.contract_name})
+    user_role: Mapped['UserRole'] = relationship(
+        lazy='selectin', 
+        overlaps='user_roles',
+        info={'order_by': lambda: UserRole.user_role_name})
+    contract: Mapped['Contract'] = relationship(
+        lazy='selectin', 
+        overlaps='user_roles',
+        info={'order_by': lambda: Contract.contract_name})
     def __str__(self) -> str:
         return f'{self.user_role}:{self.contract}'
     data_list = ['user_role_id', 'user_role', 'contract_id', 'contract']
@@ -480,17 +494,24 @@ class Clause(Base):
         lazy='selectin',
         info={
             'order_by': lambda: Scope.scope_name,
-            'where': lambda instance: Scope.scope_id.in_(
-                [scope.scope_id for scope in instance.amendment.contract.scopes]
-            ) 
+            'where': lambda instance: (
+                Scope.scope_id.in_([
+                    scope.scope_id 
+                    for scope in instance.amendment.contract.scopes
+                ])
+            )
+            if getattr(instance, 'amendment', None)
+                and getattr(instance.amendment, 'contract', None)
+            else None 
         }
     )
 
     amendment: Mapped['Amendment'] = relationship(
         back_populates='clauses',
         lazy='selectin',
+        overlaps='clauses',
         info={
-            'order_by': Amendment.amendment_signdate
+            'order_by': (Amendment.contract_id, Amendment.amendment_signdate)
         }
     )   
     contract: Mapped['Contract'] = relationship(
@@ -520,13 +541,13 @@ class Clause(Base):
         'clause_type',
         'clause_pos',
         'clause_ref',
-        'clause_text',
         'clause_reviewcomments',
         'clause_remarks',
         'effectivedate',
         'expirydate',
         'applied_to_scope_id',
-        'applied_to_scope'
+        'applied_to_scope',
+        'clause_text'
     ]
     key_info = {
         'hidden': {'amendment_id', 'applied_to_scope_id'},
@@ -607,12 +628,15 @@ class ClauseScope(Clause):
 
     def __str__(self) -> str:
         nm = f'{self.clause_type.name}'
+        duration = ''
+        if self.effectivedate or self.expirydate:
+            duration = f' {self.effectivedate or ""} - {self.expirydate or ""}'
         if self.clause_action == ClauseAction.A:
-            return nm + f' +[{self.new_scope}]'
+            return nm + f' ➕[{self.new_scope}]{duration}' 
         elif self.clause_action == ClauseAction.R:
-            return nm + f' -[{self.old_scope}]'
+            return nm + f' ➖[{self.old_scope}]{duration}'
         elif self.clause_action == ClauseAction.U:
-            return nm + f' +[{self.new_scope}] -[{self.old_scope}]'
+            return nm + f' ➕[{self.new_scope}]{duration} ➖ [{self.old_scope}] '
         else:
             return 'Wrong clause action type'
 
@@ -652,11 +676,11 @@ class ClauseEntity(Clause):
     def __str__(self) -> str:
         nm = f'{self.clause_type.name}'
         if self.clause_action == ClauseAction.A:
-            return nm + f' +[{self.new_entity}]'
+            return nm + f' ➕[{self.new_entity}]'
         elif self.clause_action == ClauseAction.R:
-            return nm + f' -[{self.old_entity}]'
+            return nm + f' ➖[{self.old_entity}]'
         elif self.clause_action == ClauseAction.U:
-            return nm + f' +[{self.new_entity}] -[{self.old_entity}]'
+            return nm + f' ➕[{self.new_entity}] ➖[{self.old_entity}]'
         else:
             return 'Wrong clause action type'
     __mapper_args__ = {
@@ -774,3 +798,46 @@ class ClauseCommercialIncentive(Clause):
         'precondition',
         'offer'
     ]
+class ClausePaymentTerm(Clause):
+    __tablename__ = 'clause_payment_term'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    milestone: Mapped[Milestone] = mapped_column(SqlEnum(Milestone))
+    percentage: Mapped[float]
+    credit_period_days: Mapped[int]
+    is_calendar: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    def __str__(self) -> str:
+        day_type = 'calendar days' if self.is_calendar else 'work days'
+        return f'{super()} {self.milestone}: {self.percentage:,.2f}% / {self.credit_period_days} ({day_type})'
+
+    data_list = Clause.data_list + ['milestone', 'percentage', 'credit_period_days', 'is_calendar']
+    
+    key_info = Clause.key_info.copy()
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_PAYMENT_TERM
+    }
+class ClauseSuspension(Clause):
+    __tablename__ = 'clause_suspension'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    precondition: Mapped[str]
+
+    data_list = Clause.data_list + ['precondition']
+    
+    key_info = Clause.key_info.copy()
+    key_info['longtext'] = key_info['longtext'] | {'precondition'}
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_SUSPENSION
+    }
+class ClauseSLA(Clause):
+    __tablename__ = 'clause_sla'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+
+    data_list = Clause.data_list
+    
+    key_info = Clause.key_info.copy()
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_SLA
+    }
