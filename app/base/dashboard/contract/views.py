@@ -1,5 +1,4 @@
 # base/dashboard/contract/views.py
-from bdb import effective
 from datetime import date
 from typing import Iterable, Any
 
@@ -20,6 +19,7 @@ _default_viewer = 'base.dashboard.simple_viewer'
 _right_frame = 'right-frame'
 _uid = 0
 
+@require_privilege('viewer')
 def view_list(instances: Iterable[Any], cls_name:str='', mode:str='compact') -> str:
     global _uid
     if not instances:
