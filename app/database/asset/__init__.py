@@ -32,12 +32,12 @@ from .dbmodels import (
 )
 from .dbmodels import (
     AccountTransaction,
-    AccountTransfer,
     AssetTransaction
 )
 
 cache_map = [
     HistoryExRate,
+    Currency,
     HistoryAccuAssetTransaction
 ]
 
@@ -69,7 +69,6 @@ model_map = {
     'private_fund': PrivateFund,
     'public_fund': PublicFund,
     'account_transaction': AccountTransaction,
-    'account_transfer': AccountTransfer,
     'asset_transaction': AssetTransaction,
     'cash_equivalent': CashEquivalent,
     'expense_type__map__expense_type': ExpenseTypeMAPExpenseType,
@@ -132,8 +131,7 @@ table_map = {
         'vehicle'
     ],
     'Transaction Class': [
-        'account_transaction', 
-        'account_transfer',
+        'account_transaction',
         'asset_transaction'
     ],
     'Expense and Budget Class': [ 

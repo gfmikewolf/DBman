@@ -23,17 +23,15 @@ from .utils import serialize_value, convert_value_by_python_type
 
 class Cache:
     __abstract__ = True
-    active = False
     cache_map: list[type['Cache']] = []
-
+    active = False
     @classmethod
-    def update_cache(cls, db_session: Session, *args: Any, **kw: Any) -> bool:
+    def update_cache(cls, db_session: Session, *args: Any, **kw: Any) -> None:
         """
         Update the cache with the given arguments.
         :param db_session: The database session to use for the update.
         :param args: Additional arguments for the update.
         :param kw: Keyword arguments for the update.
-        :return: True if the cache was updated successfully, False otherwise.
         """
         raise NotImplementedError("Subclasses of Cache must implement update_cache.")
     @classmethod
@@ -41,26 +39,9 @@ class Cache:
         """
         Initialize the cache with the given database session.
         :param db_session: The database session to use for the initialization.
-        :return: True if the cache was initialized successfully, False otherwise.
         """
         raise NotImplementedError("Subclasses of Cache must implement init_cache.")
-    @classmethod
-    def update_all(cls, db_session: Session, *args: Any, **kw: Any) -> bool:
-        """
-        Update cache for all subclasses of Cache.
-        :param db_session: The database session to use for the update.
-        :param args: Additional arguments for the update.
-        :param kw: Keyword arguments for the update.
-        """
-        flag = True
-        for model in cls.cache_map:
-            if issubclass(model, Cache):
-                success = model.update_cache(db_session, *args, **kw)
-                if not success:
-                    logger.error(f"Failed to update cache for {model.__name__}")
-                flag = flag and success
-        return flag
-    
+
     @classmethod
     def init_caches(cls, db_session: Session) -> None:
         """
@@ -68,11 +49,9 @@ class Cache:
         """
         for model in cls.cache_map:
             if issubclass(model, Cache) and hasattr(model, 'init_cache'):
-                if model.init_cache(db_session):
-                    logger.info(f"Cache initialized for {model.__name__}")
-                else:
-                    logger.error(f"Failed to initialize cache for {model.__name__}")
-        Cache.active = True
+                model.init_cache(db_session)
+        cls.active = True
+
 class Base(DeclarativeBase):
     """
     Base class for all database models in the application.

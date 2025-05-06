@@ -35,6 +35,7 @@ import re
 
 from numpy import isin, record
 from regex import P
+from requests import get
 
 from app.database import asset
 logger = logging.getLogger(__name__)
@@ -853,7 +854,7 @@ class Area(Base):
         'translate': { '_self', 'name' }
     }
 
-class Currency(Base):
+class Currency(Base, Cache):
     __tablename__ = 'currency'
 
     code: Mapped[str] = mapped_column(String, primary_key=True)
@@ -877,31 +878,80 @@ class Currency(Base):
     key_info = {
         'translate': {'name'}
     }
+    _cache: dict[str, float] = {}
 
     def get_ex_rate(self, dt: date | None = None) -> float:
-        if date:
+        if dt and dt < date.today():
             for rate in self.history_rates:
                 if rate.ex_date == dt:
                     return rate.ex_rate
         return self.ex_rate
     
     @classmethod
-    def update_ex_rate(cls, db_session: Session) -> bool:
+    def fetch_ex_rate(cls, db_session: Session, code: str, dt: date | None = None) -> float:
+        if Session is None:
+            raise RuntimeError('Session is required to load Currency instance')
+        if dt and dt < date.today():
+            rate = db_session.scalar(
+                select(HistoryExRate.ex_rate).where(HistoryExRate.currency_code == code, HistoryExRate.ex_date == dt)
+            )
+            if rate:
+                return rate
+            else:
+                rate = get_stock_price(f'{code}USD=X', dt)
+                if rate:
+                    return rate
+                else:
+                    raise ValueError(f'Exchange rate for {code} on {dt} not found')
+        else:
+            rate = cls._cache.get(code)
+            if rate:
+                return rate
+            else:
+                raise ValueError(f'Exchange rate for {code} not found')
+    @classmethod
+    def init_cache(cls, db_session: Session) -> None:
+        """
+        Initialize the cache for exchange rates.
+        """
+        last_updated = db_session.scalar(
+            select(CacheTimestamp.last_updated)
+            .where(CacheTimestamp.table_name == cls.__tablename__)
+        )
+        if last_updated and last_updated.date() >= date.today():
+            return
+        currencies = db_session.scalars(select(cls)).all()
+        cls.update_cache(db_session, currencies)
+        for currency in currencies:
+            cls._cache[currency.code] = currency.ex_rate
+        db_session.execute(
+            insert(CacheTimestamp)
+            .prefix_with('OR REPLACE')
+            .values(
+                table_name=cls.__tablename__,
+                last_updated=date.today()
+            )
+        )
+        db_session.flush()
+
+    @classmethod
+    def update_cache(cls, db_session: Session, currencies: Iterable['Currency']) -> None:
         """
         Update the exchange rate as of today for all currencies.
         """
         try:
-            currencies = db_session.scalars(select(cls)).all()
             for currency in currencies:
+                if currency.code in {'USD', 'USDT'}:
+                    if currency.ex_rate != 1.0:
+                        currency.ex_rate = 1.0
+                    continue
                 rate = get_stock_price(f'{currency.code}USD=X')
                 if rate:
                     currency.ex_rate = rate
-            db_session.commit()
-            return True
+            db_session.flush()
         except Exception as e:
             db_session.rollback()
             logger.error(f"Error updating exchange rates: {e}")
-            return False
 
 class Organization(Base):
     __tablename__ = 'organization'
@@ -1127,7 +1177,7 @@ class BrokerageAccount(Account):
         lazy='select'
     )
     external_transactions: Mapped[list['BrokerageAccountExternalTransaction']] = relationship(
-        back_populates='brokerage_account',
+        back_populates='account',
         lazy='select'
     )
     
@@ -1166,7 +1216,7 @@ class BrokerageAccount(Account):
         'extended_internal_rate_of_return',
         'total_investment',
         'total_profit',
-        'total_redemption'
+        'total_redemption',
         'market_value'
     ]
     key_info['hidden'] = Account.key_info.get('hidden', set()) | {
@@ -1178,7 +1228,7 @@ class BrokerageAccount(Account):
         'total_investment',
         'total_redemption',
         'total_profit_rate',
-        'extended_internal_rate_of_return'
+        'extended_internal_rate_of_return',
         'market_value'
     }
 
@@ -1834,7 +1884,6 @@ class BrokerageAccountExternalTransaction(Base, Cache):
             logger.error(f"Error updating cache of HistoryAccuAssetTransaction: {e}")
             return False   
   
-
 class HistoryExRate(Base, Cache):
     __tablename__ = 'history_ex_rate'
     ex_date: Mapped[date] = mapped_column(Date, primary_key=True)
@@ -1854,14 +1903,13 @@ class HistoryExRate(Base, Cache):
         stmt = select(AccountTransaction)
         if last_udpated:
             stmt = stmt.where(AccountTransaction.created_at > last_udpated)
-
         new_transactions = db_session.scalars(stmt).all()
-        if not cls.update_cache(db_session, new_transactions):
-            raise DatabaseError("Failed to update cache for HistoryExRate")
+        cls.update_cache(db_session, new_transactions)         
 
     @classmethod
-    def update_cache(cls, db_session: Session, transactions: Iterable[AccountTransaction]) -> bool:
+    def update_cache(cls, db_session: Session, transactions: Iterable[AccountTransaction]) -> None:
         code_dates: set[tuple[str, date]] = set()
+        last_updated = sorted(transactions, key=lambda x: x.created_at, reverse=True)[0].created_at
         for t in transactions:
             dt = t.transaction_date
             if isinstance(t, AssetTransaction):
@@ -1869,7 +1917,7 @@ class HistoryExRate(Base, Cache):
                 if t.account_id != t.asset.brokerage_account_id:
                     if t.account.currency_code:
                         code_dates.add((t.account.currency_code, dt))
-                    if t.asset.brokerage_account.currency_code:
+                    if t.asset.brokerage_account and t.asset.brokerage_account.currency_code:
                         code_dates.add((t.asset.brokerage_account.currency_code, dt))
             elif isinstance(t, AccountTransaction):
                 acc = t.account
@@ -1886,31 +1934,38 @@ class HistoryExRate(Base, Cache):
             existing_rows = db_session.execute(stmt).all()
             existing_code_dates = {(er_code, er_date) for er_code, er_date in existing_rows}
             code_dates = code_dates - existing_code_dates
-            values = []
-            try:
-                for c, dt in code_dates:
-                    if c == 'USD':
-                        continue
-                    r = get_stock_price(f'{c}USD=X', dt)
-                    if r:
-                        values.append({
-                            'currency_code': c,
-                            'ex_date': dt,
-                            'ex_rate': r
+        values = []
+        try:
+            for c, dt in code_dates:
+                if c in {'USD', 'USDT'} or dt > date.today():
+                    continue
+                r = get_stock_price(f'{c}USD=X', dt)
+                if r:
+                    values.append({
+                        'currency_code': c,
+                        'ex_date': dt,
+                        'ex_rate': r
+                    })
+            # Insert the new exchange rates into the history exchange rate table
+            if values:
+                values = sorted(values, key=lambda x: (x['ex_date'], x['currency_code']))
+                db_session.execute(
+                    insert(HistoryExRate)
+                        .prefix_with("OR REPLACE")
+                        .values(values)
+                )
+                db_session.execute(
+                    insert(CacheTimestamp)
+                        .prefix_with("OR REPLACE")
+                        .values({
+                            'table_name': cls.__tablename__,
+                            'last_updated': last_updated
                         })
-                # Insert the new exchange rates into the history exchange rate table
-                if values:
-                    db_session.execute(
-                        insert(HistoryExRate)
-                            .prefix_with("OR REPLACE")
-                            .values(values)
-                    )
-                db_session.flush()
-                return True
-            except Exception as e:
-                db_session.rollback()
-                logger.error(f"Error updating cache of HistoryExRate: {e}")
-                return False
+                )
+            db_session.flush()
+        except Exception as e:
+            db_session.rollback()
+            logger.error(f"Error updating cache of HistoryExRate: {e}")
    
 class HistoryAccuAssetTransaction(Base, Cache):
     __tablename__ = 'history_accu_asset_transaction'

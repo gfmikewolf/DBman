@@ -26,6 +26,11 @@ def create_app():
         if not Cache.active:
             with db_session() as sess:
                 Cache.init_caches(sess)
+                try:
+                    db_session.commit()
+                except Exception as e:
+                    db_session.rollback()
+                    current_app.logger.error(f"Error initializing caches: {e}")
         if 'LANG' not in session:
             session['LANG'] = current_app.config['TRANSLATOR'].lang
     return app
