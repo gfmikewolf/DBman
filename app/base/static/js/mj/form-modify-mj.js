@@ -1,7 +1,6 @@
 // mj/form-modify-mj.js
 import { ContainerMJ } from './container-mj.js';
 import { ModalAlertMJ } from './modal-alert-mj.js';
-import { getElement } from './utils-mj.js';
 
 class FormModifyMJ extends ContainerMJ {
   constructor(container, modalAlert) {
@@ -21,8 +20,12 @@ class FormModifyMJ extends ContainerMJ {
 
   _initProperties(container, modalAlert) {
     super._initProperties && super._initProperties(container, modalAlert);
-    this.extendedContainerCache = {}
+    this.polybase_keys = fromTemplate['polybase_keys'];
+    this.dependency_keys = fromTemplate['dependency_keys'];
     this.polymorphic_key = fromTemplate['polymorphic_key'];
+    this.initialData = JSON.parse(fromTemplate['original_data']);
+    this.modify_url = fromTemplate['modify_url'];
+    this.pks = fromTemplate['pks'];
   }
 
   _initFunctions(container, modalAlert) {
@@ -33,31 +36,41 @@ class FormModifyMJ extends ContainerMJ {
     this.deleteButtons.forEach(btn => {
       btn.addEventListener('click', this._delete.bind(this));
     });
-    if(this.polymorphic_key) {
-      this._initPolymorphicViewer();
-    }
-    // this._initDatajson();
-    this.initialData = new FormData(this.container);
-  }
-
-  _initPolymorphicViewer() {
-    const extendedContainer = getElement('#extended-data');
-    const polyKeyEle = getElement(
-      `select[name="${this.polymorphic_key}"]`, this.container
-    );
-    let extendedViewerContent;
-    polyKeyEle.addEventListener('change', async () => {
-      const newPolyKey = polyKeyEle.value;
-      if (Object.keys(this.extendedContainerCache).includes(newPolyKey)) {
-        extendedViewerContent = this.extendedContainerCache[newPolyKey];
-      } else {
-        const response = await fetch(`/api/pages/spec_form_entries/${newPolyKey}`);
-        if (response.ok) {
-          extendedViewerContent = await response.text();
-        }
-        this.extendedContainerCache[newPolyKey] = extendedViewerContent
+    this.dependency_keys.forEach(dk => {
+      const dkEl = this.container.querySelector(`[name="${dk}"]`);
+      if (dkEl) {
+        dkEl.addEventListener('change', () => {
+          const params = new URLSearchParams();
+          const formData = new FormData(this.container);
+          for (const [key, value] of formData.entries()) {
+            // dk不是多态键的话，所有的表单键不会变化，可以传递参数
+            // polybase_keys无键时，说明不是多态类，表单键不会变化，可以传递参数
+            // key在多态基类键内，可以传递参数
+            if (dk !== this.polymorphic_key || this.polybase_keys.length === 0 || this.polybase_keys.includes(key) || this.dependency_keys.includes(key)) {
+              console.log('dependency:', dk)
+              if (
+                value !== null 
+                && value !== '' 
+                && (
+                  Object.keys(this.initialData) === 0
+                  || (
+                    key in this.initialData &&
+                    value != this.initialData[key]
+                  )
+                  || !(key in this.initialData)
+                )
+              ) {
+                params.set(key, value);
+              }
+            }
+          }
+          const table_name = formData.get(this.polymorphic_key).toLowerCase();
+          const baseUrl = `${this.modify_url}/${table_name}/${this.pks}`;
+          const queryString = params.toString();
+          const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+          window.location.href = url;
+        });
       }
-      extendedContainer.innerHTML = extendedViewerContent;
     });
   }
 
@@ -135,17 +148,17 @@ class FormModifyMJ extends ContainerMJ {
     if (!this.container.checkValidity()) {
         return;            
     }
-  
-    const dataModified = this._dataModified();
-    if (Object.keys(dataModified).length === 0) {
-      this.modalAlert.update({
-        msgKey: 'nochange',
-        buttonTypes: ['acknowledge']
-      });
-      this.modalAlert.show();
-      return;
+    if (this.pks !== '_new') {
+      const dataModified = this._dataModified();
+      if (Object.keys(dataModified).length === 0) {
+        this.modalAlert.update({
+          msgKey: 'nochange',
+          buttonTypes: ['acknowledge']
+        });
+        this.modalAlert.show();
+        return;
+      }
     }
-    
     // Use the form's action as the URL. It will send the POST to the same page.
     fetch(this.container.action, {
       method: 'POST',
@@ -183,32 +196,6 @@ class FormModifyMJ extends ContainerMJ {
       this.modalAlert.show();
     });
   }
-
-/*
-  _initDatajson() {  
-    Object.entries(this.datajsonElementIdMap).forEach(([key, value]) => {
-      let idElement = null;
-      let idValue = `${fromTemplate['table_name']}_${key}`;
-      if (value) {
-        idElement = this.getValidElement(`[name="${value}"]`);
-        idValue = idElement.value;
-      }
-      const targetElement = this.getValidElement(`#${key}`);
-      const inputElement = this.getValidElement(`#dbman-datajson-${key}`);
-      const djObj = new DatajsonMJ(
-        inputElement,
-        targetElement, 
-        idValue, 
-        targetElement.value
-      );
-      if (idElement) {
-        idElement.addEventListener('change', async () => {
-          await djObj.update(idElement.value);
-        });
-      }
-    });
-  }
-*/
 }
 
 export { FormModifyMJ };
