@@ -436,8 +436,9 @@ def fetch_datajson_structure(Model: type[DataJson], db_session:Session) -> dict[
 def fetch_modify_form_viewer(
         instance: Base, 
         db_session: Session,
-        initial_data: dict = dict()
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        initial_data: dict = dict(),
+        keys: set[str] | None = None
+    ) -> dict[str, Any]:
     """
     :return: a dict of data for the modify form.
 
@@ -455,9 +456,17 @@ def fetch_modify_form_viewer(
     ```
     """
     data = dict()
-    spec_data = dict()
-    base_data_keys = instance.get_keys('polybase_data')
     col_rel_map = instance.get_col_rel_map()
+    valid_keys = instance.get_keys('modifiable')
+    if keys:
+        valid_keys = valid_keys & keys
+    for k, v in initial_data.items():
+        if k not in valid_keys:
+            continue
+        try:
+            setattr(instance, k, instance.convert_value_by_data_type(k, v))
+        except Exception as e:
+            raise KeyError(f'Wrong keyword:{k} or value:{v} for {instance} in modify_form')
     select_options = fetch_select_options(instance.__class__, db_session, instance=instance)
     required_keys = instance.get_keys('required')
     enum_keys = instance.get_keys('Enum')
@@ -468,14 +477,11 @@ def fetch_modify_form_viewer(
     
     for key in [
         key for key in instance.data_list 
-        if key in instance.get_keys('modifiable')
+        if key in valid_keys
     ]:
-        if key in initial_data:
-            value = initial_data[key]
-        else: 
-            value = getattr(instance, key, None)
-            if value is None:
-                value = ''
+        value = getattr(instance, key, None)
+        if value is None:
+            value = ''
         is_required = key in required_keys
         if key in col_rel_map:
             name = _(col_rel_map[key], True)
@@ -487,7 +493,7 @@ def fetch_modify_form_viewer(
             if key in enum_keys:
                 tag = 'select'
                 if value:
-                    value = value.name # type: ignore
+                    value = value.name
                 options = select_options[key]
                 r = (tag, name, value, is_required, options)
             else:
@@ -508,11 +514,8 @@ def fetch_modify_form_viewer(
                 else:
                     tag = 'text'
                 r = (tag, name, value, is_required)
-        if key in base_data_keys:
-            data[key] = r
-        else:
-            spec_data[key] = r
-    return data, spec_data
+        data[key] = r
+    return data
 def fetch_related_funcs(table_name: str, db_session: Session, func_type: str = 'class') -> dict[str, Any]:
     """
     :return: a dict of related functions for the table.
