@@ -63,22 +63,28 @@ def view_table(table_name: str) -> str:
 
 @require_privilege('db_admin')
 def modify_record(table_name: str, pks: str) -> Any:
+    initial_data = request.args.to_dict()
     with db_session() as db_sess:
         instance = fetch_instance(table_name, pks, db_sess)
-        polymorphic_key = instance.get_polymorphic_key()
         if request.method == 'GET':
-            initial_data = request.args.to_dict()
+            polymorphic_key = instance.get_polymorphic_key()
+            polybase_keys = instance.get_keys('polybase_data')
+            select_options_dependencies = instance.key_info.get('select_options_dependencies', set())
             viewer_original = fetch_model_viewer(instance, db_sess) if pks != '_new' else {}
-            base_data, spec_data = fetch_modify_form_viewer(instance, db_sess, initial_data)
+            original_data = instance.get_modifiable_dict()
+            data = fetch_modify_form_viewer(instance, db_sess, initial_data)
+            
             return render_template(
                 'crud/modify_record.jinja',
                 navigation = navigation.get_nav({'Modify record': '#'}), 
                 table_name = table_name,
-                polymorphic_key = polymorphic_key,
-                data = base_data,
-                spec_data = spec_data,
+                data = data,
                 pks = pks,
+                polybase_keys = list(polybase_keys),
+                polymorphic_key = polymorphic_key,
+                dependency_keys = list(select_options_dependencies | {polymorphic_key}),
                 viewer_original = viewer_original,
+                original_data = original_data
             )
         elif request.method == 'POST':
             form_data = request.form
