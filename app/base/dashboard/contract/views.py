@@ -53,7 +53,6 @@ def view_list(instances: Iterable[Any], cls_name:str='', mode:str='compact') -> 
         vl += '</div>'
     return vl
     
-
 @require_privilege('viewer')
 def view_contracts(contract_id: int | None = None) -> str | Response:
     with db_session() as sess:
@@ -122,6 +121,7 @@ def view_contracts(contract_id: int | None = None) -> str | Response:
                 ]
             )
             scope_reprs.append(scope_repr)
+
         data['contract'] = {
             'name': f'{contract}',
             'fullname': contract.contract_fullname or '',
@@ -131,6 +131,8 @@ def view_contracts(contract_id: int | None = None) -> str | Response:
             'expirydate': contract.contract_expirydate or '',
             'scopes': view_list(scope_reprs, cls_name=_('scope', True), mode='collapse'),
             'contract_number_huawei': contract.contract_number_huawei or '',
+            'payment_terms': view_list(contract.get_lastest_clauses(contract.payment_terms)),
+            'currencies': view_list(contract.get_lastest_clauses(contract.currencies)),
             'related_objects': related_objects
         }
         return render_template(
