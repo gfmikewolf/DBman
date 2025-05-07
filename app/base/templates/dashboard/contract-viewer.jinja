@@ -1,4 +1,4 @@
-{#- app/base/templates/dashboard/view_contracts.jinja #}
+{#- app/base/templates/dashboard/contract-viewer.jinja #}
 {% from 'macros/related-objects-dbman.jinja' import RelatedObjects %}
 {%- extends 'base.jinja' -%}
 
@@ -36,6 +36,9 @@
           </button><br>
           <strong>{{ _('signed between: ', True) }}</strong>{{ contract['entities'] }} @ {{ contract['signdate'] }}<br>
           <strong>{{ _('effective duration: ', True) }}</strong>{{ contract['effectivedate'] }} - {{ contract['expirydate'] }}<br>
+          <strong>{{ _('payment terms: ', True) }}</strong>{{ contract['payment_terms'] }}<br>
+          <strong>{{ _('valid currencies: ', True) }}</strong>{{ contract['currencies'] }}<br>
+          <strong>{{ _('valid scopes: ', True) }}</strong>{{ contract['vscopes'] }}<br>
           {{ contract['scopes'] }}
           <div class="mt-3">
           {{ RelatedObjects(contract['related_objects'], modifiable=False, target='right-frame') }}
