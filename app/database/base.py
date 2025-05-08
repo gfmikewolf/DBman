@@ -23,15 +23,17 @@ from .utils import serialize_value, convert_value_by_python_type
 
 class Cache:
     __abstract__ = True
-    cache_map: list[type['Cache']] = []
     active = False
+    cache_map: list[type['Cache']] = []
+
     @classmethod
-    def update_cache(cls, db_session: Session, *args: Any, **kw: Any) -> None:
+    def update_cache(cls, db_session: Session, *args: Any, **kw: Any) -> bool:
         """
         Update the cache with the given arguments.
         :param db_session: The database session to use for the update.
         :param args: Additional arguments for the update.
         :param kw: Keyword arguments for the update.
+        :return: True if the cache was updated successfully, False otherwise.
         """
         raise NotImplementedError("Subclasses of Cache must implement update_cache.")
     @classmethod
@@ -39,9 +41,26 @@ class Cache:
         """
         Initialize the cache with the given database session.
         :param db_session: The database session to use for the initialization.
+        :return: True if the cache was initialized successfully, False otherwise.
         """
         raise NotImplementedError("Subclasses of Cache must implement init_cache.")
-
+    @classmethod
+    def update_all(cls, db_session: Session, *args: Any, **kw: Any) -> bool:
+        """
+        Update cache for all subclasses of Cache.
+        :param db_session: The database session to use for the update.
+        :param args: Additional arguments for the update.
+        :param kw: Keyword arguments for the update.
+        """
+        flag = True
+        for model in cls.cache_map:
+            if issubclass(model, Cache):
+                success = model.update_cache(db_session, *args, **kw)
+                if not success:
+                    logger.error(f"Failed to update cache for {model.__name__}")
+                flag = flag and success
+        return flag
+    
     @classmethod
     def init_caches(cls, db_session: Session) -> None:
         """
@@ -49,9 +68,11 @@ class Cache:
         """
         for model in cls.cache_map:
             if issubclass(model, Cache) and hasattr(model, 'init_cache'):
-                model.init_cache(db_session)
-        cls.active = True
-
+                if model.init_cache(db_session):
+                    logger.info(f"Cache initialized for {model.__name__}")
+                else:
+                    logger.error(f"Failed to initialize cache for {model.__name__}")
+        Cache.active = True
 class Base(DeclarativeBase):
     """
     Base class for all database models in the application.
@@ -129,6 +150,22 @@ class Base(DeclarativeBase):
             else:
                 setattr(self, key, kwargs.get(key))
 
+    def get_modifiable_dict(self) -> dict[str, Any]:
+        """
+        get a dictionary of modifiable `key:values` or `key:defaults` of the instance.
+        """
+        returnd = {}
+        for key in self.get_keys('modifiable'):
+            value = getattr(self, key)
+            if value is not None:
+                returnd[key] = serialize_value(value)
+            else:
+                prop = self.__class__.__mapper__.columns.get(key)
+                if prop is not None:
+                    default = prop.default
+                    if default and hasattr(default, 'arg'):
+                        returnd[key] = serialize_value(default.arg) # type: ignore
+        return returnd
     @classmethod
     def __init_subclass__(cls, **kwargs):
         """
@@ -249,7 +286,7 @@ class Base(DeclarativeBase):
             return base_cls
 
     @classmethod
-    def get_polymorphic_key(cls) -> str: # type: ignore
+    def get_polymorphic_key(cls) -> str:
         """
         :return: the key of the polymorphic class. Empty string if not polymorphic.
         """
