@@ -4,10 +4,9 @@ logger = logging.getLogger(__name__)
 from typing import Sequence
 from datetime import date
 from sqlalchemy import ForeignKey
-from sqlalchemy import Date, Integer, Boolean, Enum as SqlEnum
+from sqlalchemy import Date, Integer, Enum as SqlEnum
 from sqlalchemy import select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
-from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
 from .types import ClausePos, ClauseType, ClauseAction, ExpiryType, Milestone, PeriodUnit, InterestBase, LifecyclePhase
 from ..user import User, UserRole
@@ -153,7 +152,6 @@ class Contract(Base):
         lazy='select',
         order_by=lambda: Amendment.amendment_effectivedate.desc()
     )
-
 
     @classmethod
     def get_lastest_clauses(cls, clauses: Sequence['Clause'], dt: date = date.today()) -> list['Clause']:
@@ -383,7 +381,8 @@ class Entitygroup(Base):
 
     entities: Mapped[list['Entity']] = relationship(
         back_populates='entitygroup',
-        lazy='select'
+        lazy='select',
+        order_by=lambda: Entity.entity_name
     )
 
     def __str__(self):
@@ -449,12 +448,89 @@ class Scope(Base):
         secondaryjoin=lambda: Scope.scope_id == ScopeMAPScope.child_scope_id,
         lazy='select'
     )
+    @property
+    def descendents(self) -> set['Scope']:
+        return self.get_descendents()
+    @property
+    def ancestors(self) -> set['Scope']:
+        return self.get_ancestors()
     
+    def get_descendents(self) -> set['Scope']:
+        sess = Session.object_session(self)
+        if sess is None:
+            raise RuntimeError('Session must be active calling scope.descendents')
+        map_tbl   = ScopeMAPScope.__table__
+        # 初始化 CTE：先找出直接子节点
+        descendants = (
+            select(map_tbl.c.child_scope_id.label('scope_id'))
+            .where(map_tbl.c.parent_scope_id == self.scope_id)
+            .cte(name='descendants', recursive=True)
+        )
+        # 递归部分：根据上一轮结果再找下一级子节点
+        descendants = descendants.union(
+            select(map_tbl.c.child_scope_id)
+            .select_from(
+                map_tbl.join(
+                    descendants,
+                    map_tbl.c.parent_scope_id == descendants.c.scope_id
+                )
+            )
+        )
+        # 最终根据 CTE 中的 scope_id 取回 Scope 实例
+        stmt = select(Scope).join(
+            descendants,
+            Scope.scope_id == descendants.c.scope_id
+        ).distinct()
+        return set(sess.scalars(stmt).all())
+    
+    def get_ancestors(self) -> set['Scope']:
+        sess = Session.object_session(self)
+        if sess is None:
+            raise RuntimeError('Session must be active calling scope.descendents')
+        map_tbl   = ScopeMAPScope.__table__
+        # 初始化 CTE：先找出直接母节点
+        ancestors = (
+            select(map_tbl.c.parent_scope_id.label('scope_id'))
+            .where(map_tbl.c.child_scope_id == self.scope_id)
+            .cte(name='ancestors', recursive=True)
+        )
+        # 递归部分：根据上一轮结果再找下一级子节点
+        ancestors = ancestors.union(
+            select(map_tbl.c.parent_scope_id)
+            .select_from(
+                map_tbl.join(
+                    ancestors,
+                    map_tbl.c.child_scope_id == ancestors.c.scope_id
+                )
+            )
+        )
+        # 最终根据 CTE 中的 scope_id 取回 Scope 实例
+        stmt = select(Scope).join(
+            ancestors,
+            Scope.scope_id == ancestors.c.scope_id
+        ).distinct()
+        return set(sess.scalars(stmt).all())
+    
+    @property
+    def contracts(self) -> set['Contract']:
+        ids = {scope.scope_id for scope in self.descendents}
+        ids.add(self.scope_id)
+        sess = Session.object_session(self)
+        if sess is None:
+            raise RuntimeError('Session must be active calling scope.contracts')
+        ret: set['Contract'] = set()
+        for c in sess.scalars(select(Contract)).all():
+            c_s_ids = {s.scope_id for s in c.scopes}
+            if ids & c_s_ids:
+                ret.add(c) 
+        return ret  
+
     def __str__(self):
         return self.scope_name
-    data_list = ['scope_name', 'parent_scopes', 'child_scopes', 'remarks']
+    data_list = ['scope_name', 'parent_scopes', 'remarks']
     key_info = {
-        'readonly': {'parent_scopes', 'child_scopes'},
+        'readonly': {'parent_scopes'},
+        'viewable_list': {'child_scopes','ancestors', 'descendents', 'contracts'},
         'longtext': {'remarks'},
         'translate': {'_self', 'scope_name'}
     }
@@ -539,19 +615,12 @@ class Clause(Base):
         info={
             'order_by': lambda: Scope.scope_name,
             'where': lambda instance, sess: (
+                (amd := instance.amendment or sess.get(Amendment, instance.amendment_id)) and
                 Scope.scope_id.in_([
                     scope.scope_id 
-                    for scope in instance.amendment.contract.scopes
+                    for scope in amd.contract.scopes
                 ])
             )
-            if instance.amendment and getattr(instance.amendment, 'contract', None)
-            else Scope.scope_id.in_([
-                    scope.scope_id 
-                    for scope in sess.get(Amendment, instance.amendment_id).contract.scopes
-                ])
-                if sess.get(Amendment, instance.amendment_id)
-                else None
-         
         }
     )
 
@@ -611,13 +680,11 @@ class Clause(Base):
         'polymorphic_on': clause_type,
         'polymorphic_identity': ClauseType.CLAUSE
     }
-
 class ClauseTermination(Clause):
     __tablename__ = 'clause_termination'
     clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
     contract_id: Mapped[int | None] = mapped_column(ForeignKey('contract.contract_id'))
     termination_date: Mapped[date] = mapped_column(Date)
-
     contract: Mapped[Contract] = relationship(
         lazy='selectin',
         info={
@@ -626,13 +693,14 @@ class ClauseTermination(Clause):
                 (Amendment, Contract.contract_id == Amendment.contract_id),
                 (ClauseEntity, Amendment.amendment_id == ClauseEntity.amendment_id)
             ),
-            'where': lambda instance: ClauseEntity.new_entity_id.in_(
+            'where': lambda instance, sess: ClauseEntity.new_entity_id.in_(
                 [e.entity_id for e in instance.amendment.contract.entities]
+            ) if instance.amendment else ClauseEntity.new_entity_id.in_(
+                [e.entity_id for e in sess.get(Amendment, instance.amendment_id).contract.entities]
             ),
             'distinct': True
         }
     )
-
     def __str__(self) -> str:
         return f'{self.clause_type.name}: Contract [{self.contract}] @ {self.termination_date}'
 
@@ -641,7 +709,7 @@ class ClauseTermination(Clause):
     }
 
     key_info = Clause.key_info.copy()
-    data_list = [k for k in Clause.data_list if k not in {'expirydate'}] + [
+    data_list = [k for k in Clause.data_list if k not in {'expirydate','applied_to_scope_id','applied_to_scope'}] + [
         'contract_id', 'contract', 'termination_date'
     ]
     key_info['hidden'] = key_info['hidden'] | {'contract_id'}
@@ -666,12 +734,32 @@ class ClauseScope(Clause):
 
     new_scope: Mapped['Scope'] = relationship(
         foreign_keys=[new_scope_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        info = {
+            'where': lambda instance, sess: (
+                (amd := instance.amendment or sess.get(Amendment, instance.amendment_id)) and
+                ~Scope.scope_id.in_([
+                    s.scope_id for s in amd.contract.scopes 
+                    if (
+                        instance.new_scope_id 
+                        and s.scope_id != instance.new_scope_id
+                    )
+                ])
+            )
+        }
     )
 
     old_scope: Mapped['Scope'] = relationship(
         foreign_keys=[old_scope_id],
-        lazy = 'selectin'
+        lazy = 'selectin',
+        info = {
+            'where': lambda instance, sess: (
+                (amd := instance.amendment or sess.get(Amendment, instance.amendment_id)) and
+                Scope.scope_id.in_([
+                    s.scope_id for s in amd.contract.scopes
+                ])
+            )
+        }
     )
 
     __mapper_args__ = {
