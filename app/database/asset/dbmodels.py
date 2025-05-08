@@ -225,44 +225,6 @@ class Asset(Base):
         'longtext': { 'remarks' }
     }
 
-    @classmethod
-    def update_cache(cls, db_session: Session) -> dict[str, Any]:
-        if db_session is None:
-            raise RuntimeError('Session is required to load Asset instance')
-        cls._xirr.clear()
-        cls._cur_market_value.clear()
-        assets = db_session.scalars(select(cls)).all()
-        if not assets:
-            return {'success': True, 'data': 'No assets to update'}
-        ids = [asset.id for asset in assets]
-        HistoryAccuAssetTransaction.update_cache(db_session, ids)
-        db_session.commit()
-        today = date.today()
-        for id, asset in zip(ids, assets):
-            cls._cur_market_value[id] = (today, asset.market_value)
-            if asset.latest_accu_transaction is None:
-                Asset._xirr[asset.id] = (today, 0.0)
-                continue
-            db_session.expire(asset, ['latest_accu_transaction', 'accu_transactions'])
-            today = date.today()
-            if not isinstance(asset, (PublicStock, PublicFund)) or asset.latest_accu_transaction.record_date == today:
-                Asset._xirr[asset.id] = (today, asset.latest_accu_transaction.xirr)
-                continue
-            flows = [
-                (t.transaction_date, t.amount_change) 
-                for t in asset.asset_transactions if t.transaction_date < today
-            ]
-            if not flows:
-                Asset._xirr[asset.id] = (today, 0.0)
-                continue
-            flows.append((today, cls._cur_market_value[id][1]))
-            try:
-                Asset._xirr[asset.id] = (today, xirr(flows))
-                continue
-            except Exception as e:
-                logger.error(f'Error calculating XIRR for asset {asset.id}: {e}')
-                Asset._xirr[asset.id] = (today, 0.0)
-        return {'success': True, 'message': f'{len(assets)} assets updated'}
 class Building(Asset):
     __tablename__ = 'building'
 
@@ -708,20 +670,33 @@ class AssetTransaction(AccountTransaction):
         back_populates='asset_transactions',
         lazy='selectin'
     )
-    market_value_change: Mapped[float] = mapped_column(default=0.0)
+    market_value: Mapped[float] = mapped_column(default=0.0)
     quantity_change: Mapped[float] = mapped_column(default=0.0)
+    @property
+    def last_transaction(self) -> 'AssetTransaction | None':
+        sess = Session.object_session(self)
+        if sess is None:
+            raise RuntimeError('Session is required to load AssetTransaction instance')
+        stmt = (
+            select(AssetTransaction).where(
+                AssetTransaction.asset_id == self.asset_id,
+                AssetTransaction.transaction_date < self.transaction_date
+            ).order_by(AssetTransaction.transaction_date.desc())
+        )
+        return sess.execute(stmt).scalar()
 
     @property
     def category(self) -> str:
+        market_value_change = self.market_value - self.last_transaction.market_value if self.last_transaction else self.market_value
         if self.amount_change < 0:
-            if self.market_value_change > 0:
+            if market_value_change > 0:
                 return 'investment'
             else:
                 return 'loss'
         elif self.amount_change > 0:
-            if self.market_value_change < 0:
+            if market_value_change < 0:
                 return 'redemption'
-            elif self.market_value_change == 0:
+            elif market_value_change == 0:
                 return 'cash_dividend'
             else:
                 return 'asset_dividend & cash_dividend'
@@ -729,16 +704,16 @@ class AssetTransaction(AccountTransaction):
             if self.quantity_change > 0:
                 return 'asset_dividend'
             elif self.quantity_change < 0:
-                if self.market_value_change > 0:
+                if market_value_change > 0:
                     return 'asset_quantity_loss & value appreciation'
-                elif self.market_value_change < 0:
+                elif market_value_change < 0:
                     return 'asset_quantity_loss & value depreciation'
                 else:
                     return 'asset_quantity_loss'
             else:
-                if self.market_value_change < 0:
+                if market_value_change < 0:
                     return 'value depreciation'
-                elif self.market_value_change == 0:
+                elif market_value_change == 0:
                     return 'no change'
                 else:
                     return 'value appreciation'
@@ -749,7 +724,7 @@ class AssetTransaction(AccountTransaction):
 
     key_info = AccountTransaction.key_info.copy()
     data_list = AccountTransaction.data_list + [
-        'asset_id', 'asset', 'market_value_change', 'quantity_change'
+        'asset_id', 'asset', 'market_value', 'quantity_change'
     ]
     key_info['hidden'] = AccountTransaction.key_info.get('hidden', set()) | {'asset_id'}
     key_info['readonly'] = AccountTransaction.key_info.get('readonly', set()) | {'asset'}
@@ -1904,6 +1879,8 @@ class HistoryExRate(Base, Cache):
         if last_udpated:
             stmt = stmt.where(AccountTransaction.created_at > last_udpated)
         new_transactions = db_session.scalars(stmt).all()
+        if not new_transactions:
+            return
         cls.update_cache(db_session, new_transactions)         
 
     @classmethod
@@ -1912,11 +1889,18 @@ class HistoryExRate(Base, Cache):
         last_updated = sorted(transactions, key=lambda x: x.created_at, reverse=True)[0].created_at
         for t in transactions:
             dt = t.transaction_date
+            # 需要记录的历史汇率以经纪账户的币种为基准币种
+            # 资产交易时，可能会有两种场景：
+            # 1. 资产交易的账户和资产的经纪账户是同一个账户。此时，如果资产币种和经纪账户币种不同，则需要记录当时的资产币种汇率。
+            # 2. 资产交易的账户和资产的经纪账户是不同的账户。此时，需要记录当时的交易账户和经纪账户币种汇率，
+            #    以便未来计算经纪账户的总市值及XIRR。
             if isinstance(t, AssetTransaction):
                 code_dates.add((t.asset.currency_code, dt))
-                if t.account_id != t.asset.brokerage_account_id:
+                if t.account_id != t.asset.brokerage_account_id: #场景1
                     if t.account.currency_code:
                         code_dates.add((t.account.currency_code, dt))
+                        if t.asset.brokerage_account.currency_code:
+                            code_dates.add((t.asset.brokerage_account.currency_code, dt))
                     if t.asset.brokerage_account and t.asset.brokerage_account.currency_code:
                         code_dates.add((t.asset.brokerage_account.currency_code, dt))
             elif isinstance(t, AccountTransaction):
@@ -2012,14 +1996,14 @@ class HistoryAccuAssetTransaction(Base, Cache):
     def __str__(self) -> str:
         return f'{self.asset} @ {self.record_date} = {self.market_value} {self.asset.currency_code}'
     
-    def update_self_cache(self) -> bool:
+    def update_self_cache(self) -> None:
         """
         Update the cache for historical asset prices.
         """
         db_session = Session.object_session(self)
         if not db_session:
             raise ValueError("No active session found for CacheMixin.update_cache")
-        return HistoryAccuAssetTransaction.update_cache(db_session, [self.asset_id], self.record_date)
+        HistoryAccuAssetTransaction.update_cache(db_session, [self.asset_id], self.record_date)
     @classmethod
     def init_cache(cls, db_session: Session) -> None:
         """
@@ -2049,7 +2033,7 @@ class HistoryAccuAssetTransaction(Base, Cache):
                      db_session: Session, 
                      asset_ids: Iterable[int] | None = None,
                      record_date: date | None = None
-    ) -> bool:
+    ) -> None:
         """
         Update the cache for historical asset prices.
         """
@@ -2080,7 +2064,6 @@ class HistoryAccuAssetTransaction(Base, Cache):
                         else_ = 0.0
                     )
                 ).label('redemption'),
-                func.sum(AssetTransaction.market_value_change).label('market_value'),
                 func.sum(AssetTransaction.quantity_change).label('quantity')
             )
             .select_from(sub_q)
@@ -2149,5 +2132,5 @@ def _refresh_cache(session: Session, flush_context) -> None:
     if touched:
         if not HistoryAccuAssetTransaction.update_cache(session):
             logger.warning("Failed to update history asset transaction cache.")
-        if not HistoryExRate.update_cache(session):
+        if not HistoryExRate.update_cache(session, touched):
             logger.warning("Failed to update history exchange rate cache.")

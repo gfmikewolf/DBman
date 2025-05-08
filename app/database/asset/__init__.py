@@ -1,7 +1,7 @@
 # app/database/__init__.py
 
 # database models
-from .dbmodels import HistoryAccuAssetTransaction, Person
+from .dbmodels import Person
 from .dbmodels import Area
 from .dbmodels import Currency, HistoryExRate
 from .dbmodels import Organization
@@ -32,7 +32,8 @@ from .dbmodels import (
 )
 from .dbmodels import (
     AccountTransaction,
-    AssetTransaction
+    AssetTransaction,
+    HistoryAccuAssetTransaction
 )
 
 cache_map = [
@@ -75,7 +76,9 @@ model_map = {
     'building': Building,
     'vehicle': Vehicle,
     'crypto': Crypto,
-    'time_deposit': TimeDeposit
+    'time_deposit': TimeDeposit,
+    'history_accu_asset_transaction': HistoryAccuAssetTransaction,
+    'history_ex_rate': HistoryExRate
 }
 
 func_map = {
@@ -93,12 +96,6 @@ func_map = {
             'func_type': 'class',
             'input_types': {}
         }
-    },
-    'asset': {
-        'update_cache': {
-            'func_type': 'class',
-            'input_types': {}
-        },
     }
 }
 
@@ -132,7 +129,8 @@ table_map = {
     ],
     'Transaction Class': [
         'account_transaction',
-        'asset_transaction'
+        'asset_transaction',
+        'history_accu_asset_transaction'
     ],
     'Expense and Budget Class': [ 
         'budget__map__expense_type',
@@ -140,5 +138,8 @@ table_map = {
         'expense_type__map__expense_type',
         'expense__map__expense_type',
         'budget'
+    ],
+    'Financial Class': [
+        'history_ex_rate'
     ]
 }
