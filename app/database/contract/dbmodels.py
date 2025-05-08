@@ -1,7 +1,7 @@
 # app/database/contract/dbmodels.py
 import logging
-
 logger = logging.getLogger(__name__)
+from typing import Sequence
 from datetime import date
 from sqlalchemy import ForeignKey
 from sqlalchemy import Date, Integer, Boolean, Enum as SqlEnum
@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 from sqlalchemy.ext.hybrid import hybrid_property
 from ..base import Base
-from .types import ClausePos, ClauseType, ClauseAction, ExpiryType, Milestone
+from .types import ClausePos, ClauseType, ClauseAction, ExpiryType, Milestone, PeriodUnit, InterestBase, LifecyclePhase
 from ..user import User, UserRole
 
 class Contract(Base):
@@ -135,6 +135,50 @@ class Contract(Base):
         lazy='select',
         order_by=lambda: Amendment.amendment_effectivedate.desc()
     )
+
+    payment_terms: Mapped[list['ClausePaymentTerm']] = relationship(
+        secondary=lambda: Amendment.__table__,
+        primaryjoin=lambda: Contract.contract_id == Amendment.contract_id,
+        secondaryjoin=lambda: Amendment.amendment_id == ClausePaymentTerm.amendment_id,
+        viewonly=True,
+        lazy='select',
+        order_by=lambda: Amendment.amendment_effectivedate.desc()
+    )
+
+    currencies: Mapped[list['ClauseCurrency']] = relationship(
+        secondary=lambda: Amendment.__table__,
+        primaryjoin=lambda: Contract.contract_id == Amendment.contract_id,
+        secondaryjoin=lambda: Amendment.amendment_id == ClauseCurrency.amendment_id,
+        viewonly=True,
+        lazy='select',
+        order_by=lambda: Amendment.amendment_effectivedate.desc()
+    )
+
+
+    @classmethod
+    def get_lastest_clauses(cls, clauses: Sequence['Clause'], dt: date = date.today()) -> list['Clause']:
+        """
+        获取某一scope对应的最近生效的变更里的相关类型条款。
+        假设每次变更对旧的条款有改动时，会把改动后的新条款完整地加入改动对应的变更。
+        
+        不适用改动时只加入被改动条款的类型，如scopes, entities等
+        """
+        return_clauses: list['Clause'] = []
+        effective_amd_scope: dict[int, int] = {}
+        for clause in clauses:
+            amd = clause.amendment
+            if amd.amendment_effectivedate > dt or amd.amendment_signdate > dt: #未生效或未签约
+                continue
+            scope_id = clause.applied_to_scope_id
+            if scope_id is None:
+                scope_id = 0 # 假设所有自动生成的id不为0，用0代表没有指定applied_to_scope的情形
+            if scope_id in effective_amd_scope:
+                if clause.amendment_id != effective_amd_scope[scope_id]:
+                    continue
+            else:
+                effective_amd_scope[scope_id] = clause.amendment_id
+            return_clauses.append(clause)
+        return return_clauses
 
     def __str__(self) -> str:
         return self.contract_name
@@ -494,15 +538,20 @@ class Clause(Base):
         lazy='selectin',
         info={
             'order_by': lambda: Scope.scope_name,
-            'where': lambda instance: (
+            'where': lambda instance, sess: (
                 Scope.scope_id.in_([
                     scope.scope_id 
                     for scope in instance.amendment.contract.scopes
                 ])
             )
-            if getattr(instance, 'amendment', None)
-                and getattr(instance.amendment, 'contract', None)
-            else None 
+            if instance.amendment and getattr(instance.amendment, 'contract', None)
+            else Scope.scope_id.in_([
+                    scope.scope_id 
+                    for scope in sess.get(Amendment, instance.amendment_id).contract.scopes
+                ])
+                if sess.get(Amendment, instance.amendment_id)
+                else None
+         
         }
     )
 
@@ -553,13 +602,16 @@ class Clause(Base):
         'hidden': {'amendment_id', 'applied_to_scope_id'},
         'readonly': {'amendment', 'contract', 'applied_to_scope'},
         'longtext': {'clause_text', 'clause_reviewcomments', 'clause_remarks'},
-        'translate': {'_self'}
+        'translate': {'_self'},
+        'copylink': {'clause_text', 'clause_reviewcomments', 'clause_remarks'},
+        'select_options_dependencies': {'amendment_id'}
     }
 
     __mapper_args__ = {
         'polymorphic_on': clause_type,
         'polymorphic_identity': ClauseType.CLAUSE
     }
+
 class ClauseTermination(Clause):
     __tablename__ = 'clause_termination'
     clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
@@ -803,14 +855,24 @@ class ClausePaymentTerm(Clause):
     clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
     milestone: Mapped[Milestone] = mapped_column(SqlEnum(Milestone))
     percentage: Mapped[float]
-    credit_period_days: Mapped[int]
-    is_calendar: Mapped[bool] = mapped_column(Boolean, default=True)
+    credit_period: Mapped[int]
+    period_unit: Mapped[PeriodUnit] = mapped_column(SqlEnum(PeriodUnit))
+    late_payment_grace_period_days: Mapped[int] = mapped_column(default=0)
+    late_payment_interest_base: Mapped[InterestBase|None] = mapped_column(SqlEnum(InterestBase))
+    late_payment_interest_premium_pct: Mapped[float] = mapped_column(default=0.0)
 
     def __str__(self) -> str:
-        day_type = 'calendar days' if self.is_calendar else 'work days'
-        return f'{super()} {self.milestone}: {self.percentage:,.2f}% / {self.credit_period_days} ({day_type})'
+        return f'{self.clause_type.value}: {self.milestone.value}: {self.percentage:,.0f}% {self.credit_period} ({self.period_unit.value})'
 
-    data_list = Clause.data_list + ['milestone', 'percentage', 'credit_period_days', 'is_calendar']
+    data_list = Clause.data_list + [
+        'milestone', 
+        'percentage', 
+        'credit_period', 
+        'period_unit',
+        'late_payment_grace_period_days',
+        'late_payment_interest_base',
+        'late_payment_interest_premium_pct'
+    ]
     
     key_info = Clause.key_info.copy()
 
@@ -841,3 +903,66 @@ class ClauseSLA(Clause):
     __mapper_args__ = {
         'polymorphic_identity': ClauseType.CLAUSE_SLA
     }
+class ClauseCurrency(Clause):
+    __tablename__ = 'clause_currency'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    code: Mapped[str]
+    percentage: Mapped[float] = mapped_column(default=100.0)
+    fixed_rate: Mapped[float | None]
+
+    data_list = Clause.data_list + [
+        'code', 'percentage', 'fixed_rate'
+    ]
+    
+    key_info = Clause.key_info.copy()
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_CURRENCY
+    }
+
+    def __str__(self) -> str:
+        scope_repr = f'{self.clause_type.value}: {self.code}'
+        if self.applied_to_scope:
+            scope_repr += f' ({self.applied_to_scope})'
+        return scope_repr
+class ClauseProductLifecycle(Clause):
+    __tablename__ = 'clause_product_lifecycle'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    phase: Mapped[LifecyclePhase] = mapped_column(SqlEnum(LifecyclePhase))
+    milestone: Mapped[Milestone] = mapped_column(SqlEnum(Milestone))
+    period: Mapped[int] = mapped_column(default=1)
+    period_unit: Mapped[PeriodUnit] = mapped_column(SqlEnum(PeriodUnit))
+    data_list = Clause.data_list + [
+        'phase', 'milestone', 'period', 'period_unit'
+    ]
+    
+    key_info = Clause.key_info.copy()
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_PRODUCT_LIFECYCLE
+    }
+
+    def __str__(self) -> str:
+        return f'{self.clause_type.value}: {self.milestone.value} {self.period} ({self.period_unit.value}) {self.phase.value}'
+class ClauseNotice(Clause):
+    __tablename__ = 'clause_notice'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    party_id: Mapped[int] = mapped_column(ForeignKey('entity.entity_id'))
+    notice_for: Mapped[Milestone] = mapped_column(SqlEnum(Milestone))
+    notice_period: Mapped[int]
+    period_unit: Mapped[PeriodUnit] = mapped_column(SqlEnum(PeriodUnit))
+    
+    party: Mapped['Entity'] = relationship()
+    
+    data_list = Clause.data_list + [
+        'party_id', 'notice_for', 'notice_period', 'period_unit'
+    ]
+    
+    key_info = Clause.key_info.copy()
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_NOTICE
+    }
+
+    def __str__(self) -> str:
+        return f'{self.notice_for.value}: {self.notice_period} {self.period_unit.value}'
