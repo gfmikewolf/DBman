@@ -46,8 +46,7 @@ class FormModifyMJ extends ContainerMJ {
             // dk不是多态键的话，所有的表单键不会变化，可以传递参数
             // polybase_keys无键时，说明不是多态类，表单键不会变化，可以传递参数
             // key在多态基类键内，可以传递参数
-            if (dk !== this.polymorphic_key || this.polybase_keys.length === 0 || this.polybase_keys.includes(key) || this.dependency_keys.includes(key)) {
-              console.log('dependency:', dk)
+            if (dk !== this.polymorphic_key && (this.polybase_keys.length === 0 || this.polybase_keys.includes(key) || this.dependency_keys.includes(key))) {
               if (
                 value !== null 
                 && value !== '' 
@@ -80,7 +79,7 @@ class FormModifyMJ extends ContainerMJ {
     }
     const dataModified = {}
     for (let [key, value] of currentData.entries()) {
-      const originalValue = this.initialData.get(key)
+      const originalValue = this.initialData[key];
       if ( (value || originalValue) && value !== originalValue) {
         dataModified[key] = value
       }
