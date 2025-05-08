@@ -20,12 +20,24 @@ class FormModifyMJ extends ContainerMJ {
 
   _initProperties(container, modalAlert) {
     super._initProperties && super._initProperties(container, modalAlert);
-    this.polybase_keys = fromTemplate['polybase_keys'];
-    this.dependency_keys = fromTemplate['dependency_keys'];
-    this.polymorphic_key = fromTemplate['polymorphic_key'];
-    this.initialData = JSON.parse(fromTemplate['original_data']);
-    this.modify_url = fromTemplate['modify_url'];
-    this.pks = fromTemplate['pks'];
+    this.polybase_keys     = fromTemplate['polybase_keys'];
+    this.dependency_keys   = fromTemplate['dependency_keys'];
+    this.polymorphic_key   = fromTemplate['polymorphic_key'];
+    // sanitize control chars (CR, LF 等) 再解析
+    const rawJson = fromTemplate['original_data'];
+    const sanitized = rawJson
+      // 把真实的回车换行替换成合法的"\n"
+      .replace(/\r\n/g, '\\n')
+      // 把其余 0x00–0x1F 的控制字符转成 \uXXXX
+      .replace(/[\u0000-\u001F]+/g, seq =>
+        [...seq].map(ch => {
+          const code = ch.charCodeAt(0).toString(16).padStart(4, '0');
+          return '\\u' + code;
+        }).join('')
+      );
+    this.initialData = JSON.parse(sanitized);
+    this.modify_url       = fromTemplate['modify_url'];
+    this.pks              = fromTemplate['pks'];
   }
 
   _initFunctions(container, modalAlert) {
@@ -46,12 +58,12 @@ class FormModifyMJ extends ContainerMJ {
             // dk不是多态键的话，所有的表单键不会变化，可以传递参数
             // polybase_keys无键时，说明不是多态类，表单键不会变化，可以传递参数
             // key在多态基类键内，可以传递参数
-            if (dk !== this.polymorphic_key && (this.polybase_keys.length === 0 || this.polybase_keys.includes(key) || this.dependency_keys.includes(key))) {
+            if (key !== this.polymorphic_key && (this.polybase_keys.length === 0 || this.polybase_keys.includes(key) || this.dependency_keys.includes(key))) {
               if (
-                value !== null 
-                && value !== '' 
-                && (
-                  Object.keys(this.initialData) === 0
+                value !== null &&
+                value !== '' &&
+                (
+                  Object.keys(this.initialData).length === 0
                   || (
                     key in this.initialData &&
                     value != this.initialData[key]
