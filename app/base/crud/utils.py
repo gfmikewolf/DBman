@@ -29,7 +29,7 @@ from app.database.base import DataJson
 _default_viewer = 'base.crud.view_record'
 _default_link_target = None
 
-def get_rel_select_tuple(func: Any, instance: Base | None = None) -> Any:
+def get_rel_select_tuple(func: Any, instance: Base | None = None, sess: Session | None = None) -> Any:
     """
     Call a function with the given arguments and keyword arguments.
     If the function raises an exception, return None.
@@ -41,6 +41,10 @@ def get_rel_select_tuple(func: Any, instance: Base | None = None) -> Any:
             if instance is None:
                 raise TypeError(f"Function {func} requires an instance as an argument")
             obj = func(instance)
+        elif len(sig.parameters) == 2:
+            if instance is None or sess is None:
+                raise TypeError(f"Function {func} requires an instance and a session as arguments")
+            obj = func(instance, sess)
         else:
             obj = func()
         if not isinstance(obj, tuple):
@@ -329,12 +333,12 @@ def fetch_select_list(Model: type[Base], db_session: Session, instance: Base | N
     order_by = info.get('order_by', None)
     where_clause = info.get('where', None)
     if join_clause:
-        for jc in get_rel_select_tuple(join_clause, instance):
+        for jc in get_rel_select_tuple(join_clause, instance, db_session):
             stmt = stmt.join(*jc)
     if order_by:
-        stmt = stmt.order_by(*get_rel_select_tuple(order_by, instance))
+        stmt = stmt.order_by(*get_rel_select_tuple(order_by, instance, db_session))
     if where_clause:
-        stmt = stmt.where(*get_rel_select_tuple(where_clause, instance))
+        stmt = stmt.where(*get_rel_select_tuple(where_clause, instance, db_session))
     if info.get('distinct', False):
         stmt = stmt.distinct()
     if info.get('limit', False):
