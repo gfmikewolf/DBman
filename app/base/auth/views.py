@@ -1,7 +1,7 @@
 # app/base/auth/views.py
 from flask import redirect, render_template, request, session, url_for
+from sqlalchemy import select
 from app.extensions import db_session
-from app.base.auth.privilege import Privilege
 
 def app_login():
     if request.method == 'GET':
@@ -18,13 +18,11 @@ def app_login():
     
     with db_session() as sess:
         from app.database.user import User
-        db_user = sess.query(User).filter_by(user_name=user_name).first()
-        if db_user and db_user.check_password(user_pw): # type: ignore
-            priv = Privilege({ur.user_role_name for ur in db_user.user_roles})
-            session['ROLE_IDS'] = list(priv.role_ids)
-            session['ROLE_FAMILY'] = list(priv.role_family)
-            session['USER_NAME'] = db_user.user_name
-            return redirect(url_for('base.index'))
+        user = sess.scalar(select(User).where(User.user_name==user_name))
+        if user and user.check_password(user_pw):
+            session['ROLE_FAMILY'] = [ur.user_role_name for ur in user.role_family]
+            session['USER_NAME'] = user.user_name
+            return redirect(request.referrer)
         else:
-            return render_template('login.jinja', failed=True)    
+            return render_template('login.jinja', failed=True)
     
