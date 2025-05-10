@@ -1,5 +1,6 @@
 import bcrypt
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, select
+from sqlalchemy.orm import Session
 from sqlalchemy.types import (
     Integer, JSON
 )
@@ -20,7 +21,41 @@ class User(Base):
         secondary=lambda: UserMAPUserRole.__table__,
         lazy='selectin'
     )
-    
+
+    @property
+    def role_family(self) -> set['UserRole']:
+        sess = Session.object_session(self)
+        if sess is None:
+            raise Exception("DB Session is required for User instantiation")
+        stmt = (
+            select(UserRole)
+            .join(UserMAPUserRole)
+            .where(UserMAPUserRole.user_id == self.user_id)
+        )
+        direct_roles = set(sess.scalars(stmt))
+        initial_role_ids = {ur.user_role_id for ur in direct_roles}
+        direct_role_parents = (
+            select(UserRoleMAPUserRole.parent_id)
+            .where(UserRoleMAPUserRole.child_id.in_(initial_role_ids))
+            .cte(recursive=True)
+        )
+        ancestors = direct_role_parents.union(
+            select(UserRoleMAPUserRole.parent_id)
+            .join(
+                direct_role_parents,
+                UserRoleMAPUserRole.child_id == direct_role_parents.c.parent_id
+            )
+        )
+
+        stmt = (
+            select(UserRole)
+            .join(
+                ancestors,
+                UserRole.user_role_id == ancestors.c.parent_id
+            )
+        )
+        return set(sess.scalars(stmt)) | direct_roles
+
     def __str__(self) -> str:
         return self.user_name
     
@@ -71,7 +106,24 @@ class UserRole(Base):
         secondaryjoin=lambda: UserRole.user_role_id == UserRoleMAPUserRole.child_id,
         lazy='selectin'
     )
+    @property
+    def role_family(self) -> set['UserRole']:
+        direct_parents_cte = (
+            select(UserRoleMAPUserRole.parent_id.label('id'))
+            .where(UserRoleMAPUserRole.child_id == self.user_role_id)
+            .cte(recursive=True)
+        )
 
+        family_ids = direct_parents_cte.union(
+            select(UserRoleMAPUserRole.parent_id)
+            .join(direct_parents_cte, UserRoleMAPUserRole.child_id == direct_parents_cte.c.id)
+        )
+
+        sess = Session.object_session(self)
+        if sess is None:
+            raise Exception("DB Session is required for User instantiation")
+        stmt = select(UserRole).join(family_ids, UserRole.user_role_id == family_ids.c.id)
+        return set(sess.scalars(stmt)) | {self}
     def __str__(self) -> str:
         return self.user_role_name
     
