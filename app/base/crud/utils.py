@@ -256,7 +256,7 @@ def fetch_related_objects(instance: Base, db_session: Session, viewer: str = _de
     related_objects['single'] = rs = dict()
     related_objects['multiple'] = rm = dict()
 
-    roles = {k.split('_')[-1] for k in instance.key_info if k.startswith('_rv_')}
+    roles = {k.split('|')[-1] for k in instance.key_info if k.startswith('_rv')}
     role_keys = set()
     for role in roles:
         if Privilege.session_match(role):
