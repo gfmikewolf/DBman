@@ -1,9 +1,7 @@
 import bcrypt
 from sqlalchemy import ForeignKey, select
 from sqlalchemy.orm import Session
-from sqlalchemy.types import (
-    Integer, JSON
-)
+from sqlalchemy.types import Integer
 from sqlalchemy.orm import (
     Mapped,
     mapped_column, relationship
@@ -85,7 +83,6 @@ class UserRole(Base):
     __tablename__ = 'user_role'
     user_role_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_role_name: Mapped[str]
-    table_privilege: Mapped[dict] = mapped_column(JSON)
     
     users: Mapped[list['User']] = relationship(
         back_populates='user_roles',
@@ -127,19 +124,6 @@ class UserRole(Base):
     def __str__(self) -> str:
         return self.user_role_name
     
-    def __add__(self, other: 'UserRole') -> 'UserRole':
-        if not isinstance(other, UserRole):
-            return NotImplemented
-        merged_priv = self.table_privilege or {}
-        for k, v in (other.table_privilege or {}).items():
-            if k in merged_priv:
-                merged_priv[k] = ''.join(sorted(set(merged_priv[k]) | set(v)))
-            else:
-                merged_priv[k] = v
-        merged = UserRole(user_role_name=f'{self.user_role_name}+{other.user_role_name}')
-        merged.table_privilege = merged_priv
-        return merged
-    
     data_list = [
         'user_role_name',
         'table_privilege',
@@ -151,14 +135,6 @@ class UserRole(Base):
         'readonly': {'users', 'parents', 'children'}
     }
 class UserMAPUserRole(Base):
-    """
-    .. example::
-    ```python
-    table_privilege = {'contract': 'ramd', ...}
-    # r: read
-    # w: write
-    ```
-    """
     __tablename__ = 'user__map__user_role'
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.user_id'), primary_key=True)
     user_role_id: Mapped[int] = mapped_column(Integer, ForeignKey('user_role.user_role_id'), primary_key=True)
