@@ -6,10 +6,34 @@ from datetime import date
 from sqlalchemy import ForeignKey
 from sqlalchemy import Date, Integer, Enum as SqlEnum
 from sqlalchemy import select
-from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Session
 from ..base import Base
-from .types import ClausePos, ClauseType, ClauseAction, ExpiryType, Milestone, PeriodUnit, InterestBase, LifecyclePhase
-from ..user import User, UserRole
+from .types import ClausePos
+from .types import ClauseType
+from .types import ClauseAction
+from .types import ExpiryType
+from .types import Milestone
+from .types import PeriodUnit
+from .types import InterestBase
+from .types import LifecyclePhase
+from .types import TPMType
+from ..user import User, UserRole, UserMAPUserRole, UserRoleMAPUserRole
+
+class ApplicableLaw(Base):
+    __tablename__ = 'applicable_law'
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str]
+    recourse_period: Mapped[int] = mapped_column(default=0)
+    period_unit: Mapped[PeriodUnit] = mapped_column(SqlEnum(PeriodUnit))
+
+    def __str__(self) -> str:
+        return self.name
+    
+    data_list = ['name', 'recourse_period', 'period_unit']
+    key_info = {'translate': {'_self', 'name'}}
 
 class Contract(Base):
     __tablename__ = 'contract'
@@ -249,11 +273,11 @@ class Contract(Base):
             'clauses',
             'amendments',
             'parent_contracts',
-            'child_contracts',
             'legal_parent_contracts',
+            'child_contracts',
             'legal_child_contracts'
         },
-        '_rv_admin': {
+        '_rv|app_admin': {
             'user_roles'
         },
         'longtext': {'contract_fullname', 'contract_remarks'},
@@ -459,21 +483,17 @@ class Scope(Base):
         sess = Session.object_session(self)
         if sess is None:
             raise RuntimeError('Session must be active calling scope.descendents')
-        map_tbl   = ScopeMAPScope.__table__
         # 初始化 CTE：先找出直接子节点
         descendants = (
-            select(map_tbl.c.child_scope_id.label('scope_id'))
-            .where(map_tbl.c.parent_scope_id == self.scope_id)
+            select(ScopeMAPScope.child_scope_id.label('scope_id'))
+            .where(ScopeMAPScope.parent_scope_id == self.scope_id)
             .cte(name='descendants', recursive=True)
         )
         # 递归部分：根据上一轮结果再找下一级子节点
         descendants = descendants.union(
-            select(map_tbl.c.child_scope_id)
-            .select_from(
-                map_tbl.join(
-                    descendants,
-                    map_tbl.c.parent_scope_id == descendants.c.scope_id
-                )
+            select(ScopeMAPScope.child_scope_id)
+            .join(descendants,
+                ScopeMAPScope.parent_scope_id == descendants.c.scope_id
             )
         )
         # 最终根据 CTE 中的 scope_id 取回 Scope 实例
@@ -481,7 +501,7 @@ class Scope(Base):
             descendants,
             Scope.scope_id == descendants.c.scope_id
         ).distinct()
-        return set(sess.scalars(stmt).all())
+        return set(sess.scalars(stmt))
     
     def get_ancestors(self) -> set['Scope']:
         sess = Session.object_session(self)
@@ -712,8 +732,8 @@ class ClauseTermination(Clause):
     data_list = [k for k in Clause.data_list if k not in {'expirydate','applied_to_scope_id','applied_to_scope'}] + [
         'contract_id', 'contract', 'termination_date'
     ]
-    key_info['hidden'] = key_info['hidden'] | {'contract_id'}
-    key_info['readonly'] = key_info['readonly'] | {'contract'}
+    key_info['hidden'] |= {'contract_id'}
+    key_info['readonly'] |= {'contract'}
 class ClauseScope(Clause):
     __tablename__ = 'clause_scope'
     clause_id: Mapped[int] = mapped_column(
@@ -786,8 +806,8 @@ class ClauseScope(Clause):
     }] + [
         'clause_action', 'new_scope_id', 'new_scope', 'old_scope_id', 'old_scope'
     ]
-    key_info['hidden'] = key_info['hidden'] | {'new_scope_id', 'old_scope_id'}
-    key_info['readonly'] = key_info['readonly'] | {'new_scope', 'old_scope'}
+    key_info['hidden'] |= {'new_scope_id', 'old_scope_id'}
+    key_info['readonly'] |= {'new_scope', 'old_scope'}
 class ClauseEntity(Clause):
     __tablename__ = 'clause_entity'
     clause_id: Mapped[int] = mapped_column(
@@ -832,8 +852,8 @@ class ClauseEntity(Clause):
     }] + [
         'clause_action', 'new_entity_id', 'new_entity', 'old_entity_id', 'old_entity'
     ]
-    key_info['hidden'] = key_info['hidden'] | {'new_entity_id', 'old_entity_id'}
-    key_info['readonly'] = key_info['readonly'] | {'new_entity', 'old_entity'}
+    key_info['hidden'] |= {'new_entity_id', 'old_entity_id'}
+    key_info['readonly'] |= {'new_entity', 'old_entity'}
 class ClauseExpiry(Clause):
     __tablename__ = 'clause_expiry'
     clause_id: Mapped[int] = mapped_column(
@@ -865,8 +885,8 @@ class ClauseExpiry(Clause):
     data_list = Clause.data_list + [
         'expiry_type', 'expiry_date', 'linked_to_contract_id', 'linked_to_contract'
     ]
-    key_info['hidden'] = key_info['hidden'] | {'linked_to_contract_id'}
-    key_info['readonly'] = key_info['readonly'] | {'linked_to_contract'}
+    key_info['hidden'] |= {'linked_to_contract_id'}
+    key_info['readonly'] |= {'linked_to_contract'}
 class ClauseCustomerList(Clause):
     __tablename__ = 'clause_customer_list'
     clause_action: Mapped[ClauseAction] = mapped_column(
@@ -910,8 +930,8 @@ class ClauseCustomerList(Clause):
     data_list = Clause.data_list + [
         'clause_action', 'effective_date', 'new_customer_id', 'new_customer', 'old_customer_id', 'old_customer'
     ] 
-    key_info['hidden'] = key_info['hidden'] | {'new_customer_id', 'old_customer_id'}
-    key_info['readonly'] = key_info['readonly'] | {'new_customer', 'old_customer'}
+    key_info['hidden'] |= {'new_customer_id', 'old_customer_id'}
+    key_info['readonly'] |= {'new_customer', 'old_customer'}
 class ClauseWarrantyPeriod(Clause):
     __tablename__ = 'clause_warranty_period'
     clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
@@ -975,7 +995,7 @@ class ClauseSuspension(Clause):
     data_list = Clause.data_list + ['precondition']
     
     key_info = Clause.key_info.copy()
-    key_info['longtext'] = key_info['longtext'] | {'precondition'}
+    key_info['longtext'] |= {'precondition'}
 
     __mapper_args__ = {
         'polymorphic_identity': ClauseType.CLAUSE_SUSPENSION
@@ -1031,7 +1051,7 @@ class ClauseProductLifecycle(Clause):
     }
 
     def __str__(self) -> str:
-        return f'{self.clause_type.value}: {self.milestone.value} {self.period} ({self.period_unit.value}) {self.phase.value}'
+        return f'{self.clause_type.value}: {self.applied_to_scope or ''} {self.milestone.value} {self.period} ({self.period_unit.value}) {self.phase.value}'
 class ClauseNotice(Clause):
     __tablename__ = 'clause_notice'
     clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
@@ -1040,7 +1060,18 @@ class ClauseNotice(Clause):
     notice_period: Mapped[int]
     period_unit: Mapped[PeriodUnit] = mapped_column(SqlEnum(PeriodUnit))
     
-    party: Mapped['Entity'] = relationship()
+    party: Mapped['Entity'] = relationship(
+        lazy='selectin',
+        info={
+            'where': lambda instance, sess: (
+                (amd := instance.amendment or sess.get(Amendment, instance.amendment_id)) and
+                amd and Entity.entity_id.in_({
+                    e.entity_id
+                    for e in amd.contract.entities
+                })
+            )
+        }
+    )
     
     data_list = Clause.data_list + [
         'party_id', 'notice_for', 'notice_period', 'period_unit'
@@ -1054,3 +1085,66 @@ class ClauseNotice(Clause):
 
     def __str__(self) -> str:
         return f'{self.notice_for.value}: {self.notice_period} {self.period_unit.value}'
+class ClauseThirdPartyManagement(Clause):
+    __tablename__ = 'clause_tpm'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    warranty_period: Mapped[TPMType] = mapped_column(SqlEnum(TPMType))
+    full_support_period: Mapped[TPMType] = mapped_column(SqlEnum(TPMType))
+    product_lifecycle_notice: Mapped[TPMType] = mapped_column(SqlEnum(TPMType))
+    vulnerability_management: Mapped[TPMType] = mapped_column(SqlEnum(TPMType))
+    
+    data_list = Clause.data_list + [
+        'warranty_period', 'full_support_period', 'product_lifecycle_notice', 'vulnerability_management'
+    ]
+    
+    key_info = Clause.key_info.copy()
+
+    __mapper_args__ = {
+        'polymorphic_identity': ClauseType.CLAUSE_TPM
+    }
+
+    def __str__(self) -> str:
+        return (
+            f'warranty_period: {self.warranty_period.value}, '
+            f'full_support_period: {self.full_support_period.value}, '
+            f'product_lifecycle_notice: {self.product_lifecycle_notice.value}, '
+            f'vulnerability_management: {self.vulnerability_management.value}'
+        )
+class ClauseCompliance(Clause):
+    __tablename__ = 'clause_compliance'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    party_id: Mapped[int] = mapped_column(ForeignKey('entity.entity_id'))
+    party: Mapped['Entity'] = relationship(
+        lazy='selectin',
+        info={
+            'where': lambda instance, sess: (
+                (amd := instance.amendment or sess.get(Amendment, instance.amendment_id)) and
+                amd and Entity.entity_id.in_({
+                    e.entity_id
+                    for e in amd.contract.entities
+                })
+            )
+        }
+    )
+    data_list = Clause.data_list + [
+        'party_id', 'party'
+    ]
+    key_info = Clause.key_info.copy()
+    key_info['readonly'] |= {'party'}
+    key_info['hidden'] |= {'party_id'}
+    __mapper_args__ = { 'polymorphic_identity': ClauseType.CLAUSE_COMPLIANCE}
+class ClauseApplicableLaw(Clause):
+    __tablename__ = 'clause_applicable_law'
+    clause_id: Mapped[int] = mapped_column(ForeignKey('clause.clause_id'), primary_key=True)
+    applicable_law_id: Mapped[int] = mapped_column(ForeignKey('applicable_law.id'))
+    applicable_law: Mapped['ApplicableLaw'] = relationship(
+        lazy = 'selectin'
+    )
+    data_list = Clause.data_list + ['applicable_law_id', 'applicable_law']
+    key_info = Clause.key_info.copy()
+    key_info['hidden'] |= {'applicable_law_id'}
+    key_info['readonly'] |= {'applicable_law'}
+    __mapper_args__ = { 'polymorphic_identity': ClauseType.CLAUSE_APPLICABLE_LAW}
+
+        
+
