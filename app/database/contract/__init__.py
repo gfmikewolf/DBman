@@ -1,6 +1,7 @@
 # app/database/contract/__init__.py
 
 __all__ = [
+    'ApplicableLaw',
     'Contract', 'ContractMAPContract', 'ContractLEGALMAPContract',
     'Amendment',
     'Scope', 'ScopeMAPScope',
@@ -14,31 +15,44 @@ __all__ = [
         'ClauseTermination',
         'ClauseWarrantyPeriod',
         'ClausePaymentTerm',
+        'ClauseCommercialIncentive',
+        'ClauseSuspension',
+        'ClauseCurrency',
+        'ClauseProductLifecycle',
+        'ClauseSLA',
+        'ClauseNotice',
+        'ClauseThirdPartyManagement',
+        'ClauseCompliance',
+        'ClauseApplicableLaw',
     'ClauseAction',
     'ClausePos',
-    'ClauseType',
-    'ClauseCommercialIncentive'
+    'ClauseType'
 ]
 
 # database models
+from .dbmodels import ApplicableLaw
 from .dbmodels import Contract, ContractMAPContract, ContractLEGALMAPContract
 from .dbmodels import Amendment
 from .dbmodels import Scope, ScopeMAPScope
 from .dbmodels import Entity
 from .dbmodels import Entitygroup
-from .dbmodels import (
-    Clause,
-    ClauseCustomerList,
-    ClauseScope,
-    ClauseEntity,
-    ClauseExpiry,
-    ClauseTermination,
-    ClauseWarrantyPeriod,
-    ClauseCommercialIncentive,
-    ClausePaymentTerm,
-    ClauseSuspension,
-    ClauseSLA
-)
+from .dbmodels import Clause
+from .dbmodels import ClauseCustomerList
+from .dbmodels import ClauseScope
+from .dbmodels import ClauseEntity
+from .dbmodels import ClauseExpiry
+from .dbmodels import ClauseTermination
+from .dbmodels import ClauseWarrantyPeriod
+from .dbmodels import ClauseCommercialIncentive
+from .dbmodels import ClausePaymentTerm
+from .dbmodels import ClauseSuspension
+from .dbmodels import ClauseSLA
+from .dbmodels import ClauseCurrency
+from .dbmodels import ClauseProductLifecycle
+from .dbmodels import ClauseNotice
+from .dbmodels import ClauseThirdPartyManagement
+from .dbmodels import ClauseApplicableLaw
+from .dbmodels import ClauseCompliance
 
 # type
 from .types import ClauseAction, ClausePos, ClauseType
@@ -46,6 +60,7 @@ from .types import ClauseAction, ClausePos, ClauseType
 cache_map = {}
 
 model_map = {
+    'applicable_law': ApplicableLaw,
     'contract': Contract,
         'contract__map__contract': ContractMAPContract,
         'contract__legal_map__contract': ContractLEGALMAPContract,
@@ -54,7 +69,6 @@ model_map = {
     'entitygroup': Entitygroup,
     'scope': Scope,
         'scope__map__scope': ScopeMAPScope,
-    
     'clause': Clause,
         'clause_expiry': ClauseExpiry,
         'clause_entity': ClauseEntity,
@@ -65,13 +79,20 @@ model_map = {
         'clause_commercial_incentive': ClauseCommercialIncentive,
         'clause_payment_term': ClausePaymentTerm,
         'clause_suspension': ClauseSuspension,
-        'clause_sla': ClauseSLA
+        'clause_sla': ClauseSLA,
+        'clause_currency': ClauseCurrency,
+        'clause_product_lifecycle': ClauseProductLifecycle,
+        'clause_notice': ClauseNotice,
+        'clause_tpm': ClauseThirdPartyManagement,
+        'clause_compliance':ClauseCompliance,
+        'clause_applicable_law': ClauseApplicableLaw
 }
 
 func_map = {}
 
 table_map = {
     'basic': [
+        'applicable_law',
         'contract',
         'amendment',
         'entity',
@@ -93,17 +114,25 @@ table_map = {
         'clause_expiry',
         'clause_termination'
     ],
-    'service period clauses': [
-        'clause_warranty_period'
-    ],
     'commercial': [
         'clause_commercial_incentive',
         'clause_payment_term'
     ],
-    'termination and suspension': [
-        'clause_suspension'
+    'product': [
+        'clause_product_lifecycle',
+        'clause_tpm'
     ],
-    'other terms': [
-        'clause_sla'
-    ] 
+    'service clauses': [
+        'clause_warranty_period',
+        'clause_sla',
+        'clause_suspension',
+    ],
+    'finance': [
+        'clause_currency'
+    ],
+    'legal': [
+        'clause_notice',
+        'clause_compliance',
+        'clause_applicable_law'
+    ]
 }
