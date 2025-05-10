@@ -29,6 +29,9 @@ class ClauseType(Enum):
     CLAUSE_PRODUCT_LIFECYCLE = 'product lifecycle'
     CLAUSE_CURRENCY = 'currency'
     CLAUSE_NOTICE = 'notice'
+    CLAUSE_TPM = 'third party management'
+    CLAUSE_COMPLIANCE = 'compliance'
+    CLAUSE_APPLICABLE_LAW = 'applicable law'
 
 class Milestone(Enum):
     POD = 'Proof Of Delivery'
@@ -66,3 +69,6 @@ class LifecyclePhase(Enum):
     MARKET = '➔EOM'
     SUPPORT = '➔EOS'
     END_OF_LIFE = '➔EOL'
+
+class TPMType(Enum):
+    CBC = 'case by case'
