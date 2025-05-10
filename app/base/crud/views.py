@@ -4,7 +4,7 @@
 from typing import Any
 # flask
 from flask import (
-    Response, current_app, render_template, request, jsonify, abort, url_for
+    Response, current_app, render_template, request, jsonify, abort, session, url_for
 )
 # sqlalchemy
 # app
@@ -37,10 +37,12 @@ def index() -> str:
         navigation=navigation.index
     )
 
-@require_privilege('viewer')
+@require_privilege('db_admin')
 def view_table(table_name: str) -> str:
     if table_name not in Base.model_map:
         abort(404)
+    if table_name in table_map['user'] and 'app_admin' not in session['ROLE_FAMILY']:
+        abort(403)
     Model = Base.model_map[table_name]
     with db_session() as db_sess:
         tabledata = fetch_tabledata(Model, db_sess)
@@ -117,7 +119,7 @@ def delete_record(table_name: str, pks: str) -> Response | tuple[Response, int]:
             sess.rollback()
             return jsonify(success=False, error=str(e)), 500
 
-@require_privilege('_anonymous')        
+@require_privilege('db_admin')        
 def view_record(table_name: str, pks: str) -> str:
     with db_session() as db_sess:
         model = fetch_instance(table_name, pks, db_sess)
